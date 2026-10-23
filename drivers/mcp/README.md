@@ -90,6 +90,9 @@ curl -s -X POST http://127.0.0.1:8123/api/estop \
 
 真实任务记录见 `docs/CBAP-真实MCP-LLM任务.md`。
 
+外部 LLM 自主性验证见 `docs/CBAP-外部LLM自主性验证.md`：
+`tools/llm_autonomy.py` 用本地 Qwen3-4B 独立规划，经 CBAP 执行。
+
 ## 驱动接口
 
 ```python

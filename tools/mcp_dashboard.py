@@ -33,6 +33,7 @@ DASH: dict = {
     "state": None,
     "cbap": [],
     "tool_history": [],
+    "planner": [],
     "stats": {},
 }
 
@@ -128,6 +129,7 @@ HTML = r"""<!doctype html>
   .metrics{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin-top:15px}
   .metric{border:1px solid #173139;background:#091216;border-radius:7px;padding:10px}
   .metric .n{font-size:20px;color:var(--green)} .metric .l{font-size:9px;color:var(--dim);margin-top:4px;letter-spacing:.08em}
+  .panel.wide{grid-column:1/-1}
   .log{height:300px;overflow:auto;font-size:11px;line-height:1.55}
   .row{display:grid;grid-template-columns:66px 1fr 44px;gap:9px;padding:7px 0;border-bottom:1px solid #11252a}
   .row:last-child{border-bottom:0}.t{color:#4e7777}.ok{color:var(--green)}.bad{color:var(--red)}
@@ -184,6 +186,9 @@ HTML = r"""<!doctype html>
         <span class="node" id="last-write">last CBAP write · —</span>
         <span class="node" id="last-tool">last MCP tool · —</span>
       </div>
+      <div class="flow" style="margin-top:10px">
+        <span class="node" id="planner-line">external planner · waiting</span>
+      </div>
     </section>
 
     <section class="panel">
@@ -218,6 +223,18 @@ HTML = r"""<!doctype html>
       </div>
       <div class="footer"><span>CBAP / v1 draft</span><span id="clock">—</span></div>
     </section>
+
+    <section class="panel wide">
+      <h2>05 · External LLM Planner</h2>
+      <div class="flow">
+        <span class="node">model · Qwen3-4B-Instruct</span>
+        <span class="node">planner · independent process</span>
+        <span class="node">executor · CBAP dashboard</span>
+      </div>
+      <div class="log" id="planner-log" style="margin-top:10px;height:150px">
+        <div class="empty">waiting for external planner…</div>
+      </div>
+    </section>
   </div>
 </div>
 <script>
@@ -249,6 +266,19 @@ async function tick(){
     const items=st.items||{};
     const inv=Object.entries(items).map(([k,v])=>`${k} × ${v}`).join('  ·  ');
     document.getElementById('inventory').textContent = `inventory · ${inv || 'empty'}`;
+    const pl=s.planner||[];
+    if(pl.length){
+      const p=pl[pl.length-1];
+      document.getElementById('planner-line').textContent=
+        `external planner · ${p.model||'LLM'} · step ${p.step ?? '—'} · ${p.action||'—'}`;
+    }
+    document.getElementById('planner-log').innerHTML = pl.length?pl.slice().reverse().map(p=>
+      `<div class="row"><span class="t">${new Date(p.t).toLocaleTimeString()}</span>
+       <span><span class="muted">step ${p.step ?? '—'}</span> · <b>${p.action||'—'}</b>
+       ${p.reason?`<span class="muted"> — ${String(p.reason).slice(0,120)}</span>`:''}
+       ${p.result?`<span class="muted"> · ${String(p.result).slice(0,100)}</span>`:''}</span>
+       <span class="${p.ok?'ok':'bad'}">${p.ok?'ok':'—'}</span></div>`
+    ).join(''):'<div class="empty">waiting for external planner…</div>';
     const blocks=st.blocks||[];
     document.getElementById('blocks').innerHTML = blocks.slice(0,6).map(b=>{
       const p=b.position||{}; return `<span class="block">${b.name} · ${p.x},${p.y},${p.z}</span>`;
@@ -317,6 +347,15 @@ class Handler(BaseHTTPRequestHandler):
             return
         try:
             with RUNTIME["lock"]:
+                if self.path.startswith("/api/planner"):
+                    rec = {"t": now_ms()}
+                    for k in ("step", "model", "action", "reason", "ok",
+                              "result", "thought"):
+                        if k in body:
+                            rec[k] = body.get(k)
+                    DASH["planner"] = (DASH["planner"] + [rec])[-24:]
+                    self._json({"ok": True})
+                    return
                 if self.path.startswith("/api/act"):
                     lease = c.lease(fd, ttl_ms=120000)
                     if not lease.get("ok"):

@@ -28,7 +28,8 @@
 - 本 Agent 直接当 LLM 的真实任务：`docs/CBAP-真实MCP-LLM任务.md`，截图 `docs/screenshots/cbap-mcp-llm-task.png`（采集 3 个 spruce_log）；
 - 完整木镐链路：`docs/CBAP-真实MCP-木镐任务.md`，截图 `docs/screenshots/cbap-mcp-pickaxe.png`（原木 → 木板 → 工作台 → 木棍 → 木镐 → 装备）；
 - 石镐/熔炉链路：`docs/CBAP-真实MCP-石镐熔炉任务.md`，截图 `docs/screenshots/cbap-mcp-stone-pickaxe.png`（木镐挖石 → 石镐 → 熔炉）；
-- MCP place 修复：`docs/CBAP-MCP-place修复.md`，截图 `docs/screenshots/cbap-mcp-place-fixed.png`；补丁 `drivers/mcp/patches/mineflayer-mcp-place.patch`（只修外部 server 的方块选择/hotbar/确认，不动 bridge/node）。
+- MCP place 修复：`docs/CBAP-MCP-place修复.md`，截图 `docs/screenshots/cbap-mcp-place-fixed.png`；补丁 `drivers/mcp/patches/mineflayer-mcp-place.patch`（只修外部 server 的方块选择/hotbar/确认，不动 bridge/node）；
+- 外部 LLM 自主性：`docs/CBAP-外部LLM自主性验证.md`，截图 `docs/screenshots/cbap-mcp-autonomy.png`；Qwen3-4B 独立规划，13 步真实采集 6 个 oak_log，已加入 goal gate。
 
 ## 还没做
 
