@@ -493,6 +493,22 @@ main, .site-footer {
 .arch-link strong { color: var(--accent); font-family: var(--mono); font-size: .63rem; font-weight: 400; }
 .arch-link small { color: var(--dim); font-family: var(--mono); font-size: .56rem; }
 .arch-hand { align-self: stretch; justify-content: center; }
+.arch-image {
+  display: block;
+  width: 100%;
+  height: auto;
+  border: 1px solid var(--line-strong);
+  background: #070a0f;
+  box-shadow: 0 24px 70px rgba(0, 0, 0, .32);
+}
+.arch-image-note {
+  margin: 1rem 0 0;
+  color: var(--dim);
+  font-family: var(--mono);
+  font-size: .66rem;
+  line-height: 1.8;
+}
+
 .arch-note {
   margin-top: .8rem;
   padding: 1rem;

@@ -3,11 +3,11 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Cyberdyne Bridge · 赛博戴恩之桥</title>
-  <meta name="description" content="一份 Agent ↔ 物理世界通用协议的参考实现。0ms 反射弧、分层大脑、可热插拔车厢；Minecraft 只是低成本物理沙盒。">
+  <title>Cyberdyne Bridge · CBAP 协议桥</title>
+  <meta name="description" content="CBAP v1：Agent ↔ 物理世界的参考协议桥。主仓只放协议、Kernel、租约、安全和审计；四个 Agent 子仓各自接入。Minecraft 只是低成本物理沙盒。">
   <meta name="theme-color" content="#070a0f">
-  <meta property="og:title" content="Cyberdyne Bridge · 赛博戴恩之桥">
-  <meta property="og:description" content="一份 Agent ↔ 物理世界通用协议的参考实现。">
+  <meta property="og:title" content="Cyberdyne Bridge · CBAP 协议桥">
+  <meta property="og:description" content="Agent ↔ 物理世界协议：服务端事实校验、每设备租约、fail-closed、可替换 Agent 子仓。">
   <meta property="og:type" content="website">
   <meta property="og:url" content="https://www.cyberdyne-bridge.com/">
   <link rel="canonical" href="https://www.cyberdyne-bridge.com/">
@@ -26,7 +26,7 @@
       <a href="#what">概览</a>
       <a href="#architecture">架构</a>
       <a href="#principles">协议</a>
-      <a href="#carriages">车厢</a>
+      <a href="#agents">Agent 子仓</a>
       <a class="nav-cta" href="https://github.com/6750432/cyberdyne-bridge-agent-physical-protocol" target="_blank" rel="noopener">GitHub <span aria-hidden="true">↗</span></a>
     </nav>
   </header>
@@ -34,58 +34,58 @@
   <main id="main">
     <section class="hero" id="top">
       <div class="hero-copy">
-        <p class="eyebrow"><span class="signal" aria-hidden="true"></span>AGENT ↔ PHYSICAL WORLD / REFERENCE IMPLEMENTATION</p>
+        <p class="eyebrow"><span class="signal" aria-hidden="true"></span>AGENT ↔ PHYSICAL WORLD / CBAP v1</p>
         <h1>Cyberdyne<br><span>Bridge</span></h1>
-        <p class="hero-cn">赛博戴恩之桥</p>
-        <p class="lede">一份「Agent ↔ 物理世界」通用协议的参考实现。<br>Minecraft 只是它的低成本物理沙盒。</p>
+        <p class="hero-cn">赛博戴恩之桥 · 协议桥</p>
+        <p class="lede">一个 Agent 申请设备、执行动作、再用服务端事实校验结果的协议。<br>主仓只放 CBAP；四个 Agent 子仓各自接入。</p>
         <div class="hero-actions">
           <a class="btn btn-primary" href="https://github.com/6750432/cyberdyne-bridge-agent-physical-protocol" target="_blank" rel="noopener">进入仓库 <span aria-hidden="true">↗</span></a>
           <a class="btn btn-ghost" href="https://github.com/6750432/cyberdyne-bridge-agent-physical-protocol/blob/main/README.md" target="_blank" rel="noopener">读 README</a>
           <a class="text-link" href="#architecture">看架构 <span aria-hidden="true">↓</span></a>
         </div>
         <dl class="stats">
-          <div><dt>0ms</dt><dd>反射弧</dd></div>
-          <div><dt>26</dt><dd>热插拔车厢</dd></div>
-          <div><dt>&lt;50ms</dt><dd>保命层</dd></div>
-          <div><dt>fail-closed</dt><dd>默认拒绝</dd></div>
+          <div><dt>4</dt><dd>活跃 Agent 子仓</dd></div>
+          <div><dt>61/61</dt><dd>CBAP conformance</dd></div>
+          <div><dt>0.2ms</dt><dd>控制面 p50</dd></div>
+          <div><dt>facts</dt><dd>完成判据</dd></div>
         </dl>
       </div>
 
-      <aside class="hero-panel" aria-label="系统分层">
+      <aside class="hero-panel" aria-label="CBAP 系统分层">
         <div class="panel-head">
-          <span>SYSTEM / LAYERS</span>
+          <span>CBAP / LAYERS</span>
           <span class="panel-live"><i aria-hidden="true"></i>SPEC</span>
         </div>
         <div class="layer-stack">
           <div class="layer">
             <span class="layer-id">05</span>
-            <div class="layer-copy"><strong>云端 LLM</strong><small>意图 / 规划 / 翻译</small></div>
+            <div class="layer-copy"><strong>Agents</strong><small>Cyberdyne · MCP · Mindcraft · Voyager</small></div>
             <span class="layer-tag">外部</span>
           </div>
           <div class="layer">
             <span class="layer-id">04</span>
-            <div class="layer-copy"><strong>指令层</strong><small>中文口令 → 结构化动作</small></div>
-            <span class="layer-tag">规则</span>
-          </div>
-          <div class="layer">
-            <span class="layer-id">03</span>
-            <div class="layer-copy"><strong>任务栈</strong><small>多步任务 · 断点续跑</small></div>
-            <span class="layer-tag">状态</span>
+            <div class="layer-copy"><strong>CBAP-U</strong><small>Unix socket · 一行一条 JSON</small></div>
+            <span class="layer-tag">Agent 面</span>
           </div>
           <div class="layer layer-hot">
+            <span class="layer-id">03</span>
+            <div class="layer-copy"><strong>CBAP Kernel</strong><small>租约 · 安全 · 急停 · 审计</small></div>
+            <span class="layer-tag">控制面</span>
+          </div>
+          <div class="layer">
             <span class="layer-id">02</span>
-            <div class="layer-copy"><strong>反射层</strong><small>保命 / 挨打 / 逃跑 / 吃</small></div>
-            <span class="layer-tag">一票否决</span>
+            <div class="layer-copy"><strong>CBAP-D</strong><small>MCP / Mindcraft / Voyager adapter</small></div>
+            <span class="layer-tag">设备面</span>
           </div>
           <div class="layer">
             <span class="layer-id">01</span>
-            <div class="layer-copy"><strong>节拍器</strong><small>1Hz / 5Hz 自适应</small></div>
-            <span class="layer-tag">心跳</span>
+            <div class="layer-copy"><strong>Bodies / Minecraft</strong><small>真实身体 · 服务端事实源</small></div>
+            <span class="layer-tag">物理</span>
           </div>
         </div>
         <div class="panel-foot">
-          <span>Unix Socket</span>
-          <span>一行一条 JSON</span>
+          <span>UDS · JSON</span>
+          <span>facts + verify</span>
         </div>
       </aside>
     </section>
@@ -94,25 +94,25 @@
       <div class="section-head">
         <p class="kicker">01 / WHAT IT IS</p>
         <div>
-          <h2>不是「会玩 MC 的脚本」，<br>是协议层。</h2>
-          <p class="section-lede">我们想验证的东西与 Minecraft 无关：一个 Agent 要在信息不完整、动作有代价、环境会变的世界里可靠地干活，需要什么样的接口与判据。</p>
+          <h2>不是「LLM 直连 MC」，<br>是协议桥。</h2>
+          <p class="section-lede">我们想验证的东西与 Minecraft 无关：一个 Agent 要在信息不完整、动作有代价、环境会变的世界里可靠地干活，需要什么样的接口与判据。Minecraft 只是低成本、可观测、可复现的沙盒。</p>
         </div>
       </div>
       <div class="cards">
         <article class="card">
           <span class="card-num">01</span>
           <h3>完成判据看事实</h3>
-          <p>手说「发出去了」不算数；背包里真多出那个掉落物，才算挖到。</p>
+          <p>背包、坐标、方块、任务终态才算数。adapter 说成功、命令发出去了，都不算完成。</p>
         </article>
         <article class="card">
           <span class="card-num">02</span>
-          <h3>fail-closed，不许静默</h3>
-          <p>听不懂、拿不准、参数缺，就拒绝执行、记账、出声。吞异常比崩溃更难查。</p>
+          <h3>每设备租约</h3>
+          <p>同一设备同一时刻只有一个 writer；FIFO 等待、显式释放、每设备急停，不靠自觉。</p>
         </article>
         <article class="card">
           <span class="card-num">03</span>
-          <h3>加能力，不碰主链</h3>
-          <p>新能力做成可热插拔车厢：manifest + 补丁 + 宪法体检。过不了，就拒绝起车。</p>
+          <h3>Agent 可替换</h3>
+          <p>主仓只依赖 driver 接口。Cyberdyne、MCP、Mindcraft、Voyager 各自是子仓，不写死进 Kernel。</p>
         </article>
       </div>
     </section>
@@ -121,66 +121,44 @@
       <div class="section-head">
         <p class="kicker">02 / ARCHITECTURE</p>
         <div>
-          <h2>脑在手外面，<br>反射在脑下面。</h2>
-          <p class="section-lede">Python 脑 + Node 手，Unix Domain Socket 通信。云端 LLM 负责规划，本地规则负责拒绝。</p>
+          <h2>Agent 在上面，<br>事实在下面。</h2>
+          <p class="section-lede">CBAP-U 面向 Agent；CBAP-D 面向设备；Kernel 在中间做租约、安全、取消和审计。完整结构以仓库中文架构图为准。</p>
         </div>
       </div>
 
-      <div class="arch-board">
-        <div class="arch-side">
-          <p class="arch-label">BRAIN / PYTHON</p>
-          <div class="arch-node arch-node-accent"><span>05</span><div><strong>云端 LLM</strong><small>意图 / 规划 / 翻译</small></div></div>
-          <div class="arch-arrow"><span>↓</span> fail-closed 校验</div>
-          <div class="arch-node"><span>04</span><div><strong>指令层</strong><small>中文口令 → 结构化动作</small></div></div>
-          <div class="arch-node"><span>03</span><div><strong>任务栈</strong><small>看事实判完成 · 断点续跑</small></div></div>
-          <div class="arch-node arch-node-hot"><span>02</span><div><strong>反射层</strong><small>保命 / 挨打 / 逃跑 / 吃</small></div><b>&lt;50ms</b></div>
-          <div class="arch-node"><span>01</span><div><strong>节拍器 + 热保护</strong><small>1Hz / 5Hz 自适应</small></div></div>
-        </div>
-
-        <div class="arch-link" aria-label="Unix Socket 连接">
-          <span class="arch-link-line" aria-hidden="true"></span>
-          <div><strong>Unix Socket</strong><small>一行一条 JSON</small></div>
-          <span class="arch-link-line" aria-hidden="true"></span>
-        </div>
-
-        <div class="arch-side arch-hand">
-          <p class="arch-label">HAND / NODE + MINEFLAYER</p>
-          <div class="arch-node"><span>H</span><div><strong>动作执行</strong><small>挖 / 放 / 合成 / 开箱</small></div></div>
-          <div class="arch-node"><span>H</span><div><strong>状态回传</strong><small>背包 / 坐标 / 方块 / 实体</small></div></div>
-          <div class="arch-node"><span>H</span><div><strong>0ms 反射弧</strong><small>保命动作不经过云端</small></div></div>
-          <div class="arch-note">手只负责「真的去做」，<br>不负责决定「要不要做」。</div>
-        </div>
-      </div>
+      <img class="arch-image" src="./assets/cbap-structure-zh.png"
+           alt="CBAP 协议桥中文架构图：外部规划器、CBAP-U、CBAP Kernel、CBAP-D、Agent 子仓与 Minecraft 服务端事实">
+      <p class="arch-image-note">图例：实线 = 动作 / 控制；青虚线 = 状态 / 事实 / 结果；金实线 = 自己的旧直连；金虚线 = 未构建 / 部分。</p>
     </section>
 
     <section class="section" id="principles">
       <div class="section-head">
         <p class="kicker">03 / PROTOCOL NOTES</p>
         <div>
-          <h2>每一条，<br>都带着踩坑记录。</h2>
-          <p class="section-lede">不是设计模式合集，是被现实打回来之后留下的判据。</p>
+          <h2>协议不信任<br>「它说成功了」。</h2>
+          <p class="section-lede">这些判据来自真实的竞争、断线、急停和恢复。</p>
         </div>
       </div>
       <ol class="principles">
         <li>
           <span class="principle-num">01</span>
-          <div><h3>完成判据看事实，不看回执</h3><p>手说「发出去了」不算数；背包里真多出那个掉落物，才算挖到。</p></div>
+          <div><h3>完成看服务端事实</h3><p>不是 <code>result.ok</code>。服务端位置、背包、方块和任务终态才是完成判据。</p></div>
         </li>
         <li>
           <span class="principle-num">02</span>
-          <div><h3>fail-closed，且不许静默</h3><p>听不懂、拿不准、参数缺 ⇒ 拒绝执行 + 记账 + 出声。吞异常比崩溃更难查。</p></div>
+          <div><h3>每设备一个 writer</h3><p>租约按设备隔离；等待 FIFO；release、estop、cancel 是不同语义。</p></div>
         </li>
         <li>
           <span class="principle-num">03</span>
-          <div><h3>坐标只能来自证据</h3><p>不猜、不用 <code>or [0,0,0]</code> 兜底；有专门的审计器在扫这件事。</p></div>
+          <div><h3>fail-closed，且出声</h3><p>听不懂、拿不准、参数缺，就拒绝执行并留下原因，不静默吞掉。</p></div>
         </li>
         <li>
           <span class="principle-num">04</span>
-          <div><h3>自愈最小侵入</h3><p>挡路了就地插一步，绝不把正在跑的计划整条作废。</p></div>
+          <div><h3>审计和幂等</h3><p>动作有账；在途请求和重连不会乱重放；危险状态可以急停。</p></div>
         </li>
         <li>
           <span class="principle-num">05</span>
-          <div><h3>记忆能被现实否掉</h3><p>挖过账 + 重启读回过去 5 分钟的方块变化；记错就改，不硬撑。</p></div>
+          <div><h3>Agent 不进主链</h3><p>不同 Agent 只实现 adapter 和设备契约。主仓保持薄，身体和规划器各自演进。</p></div>
         </li>
       </ol>
     </section>
@@ -189,68 +167,68 @@
       <div class="section-head">
         <p class="kicker">04 / CURRENT STATE</p>
         <div>
-          <h2>它能做到，<br>也经常卡住。</h2>
-          <p class="section-lede">2026-10-10 凌晨，清空记忆、只带 64 块食物，从空手第一次独立走到石镐。</p>
+          <h2>四个活跃子仓，<br>一个归档。</h2>
+          <p class="section-lede">CBAP 控制面已通过 61 项 conformance；Alice 的 Forge bridge 源码保留，但未编译、未跑真实服务端，所以不算活跃子仓。</p>
         </div>
       </div>
       <div class="status-grid">
         <div class="status-main">
-          <p class="status-label">从空手到石镐</p>
-          <div class="timeline" aria-label="科技树进度">
-            <span>砍树</span><i aria-hidden="true">→</i><span>木板</span><i aria-hidden="true">→</i><span>工作台</span><i aria-hidden="true">→</i><span>木镐</span><i aria-hidden="true">→</i><span>向下挖</span><i aria-hidden="true">→</i><span class="timeline-end">石镐</span>
+          <p class="status-label">主仓 / 子仓边界</p>
+          <div class="timeline" aria-label="CBAP 组件">
+            <span>CBAP Kernel</span><i aria-hidden="true">→</i><span>CBAP-U</span><i aria-hidden="true">→</i><span>Agent</span><i aria-hidden="true">→</i><span>CBAP-D</span><i aria-hidden="true">→</i><span class="timeline-end">Server facts</span>
           </div>
-          <p>它仍然会走冤枉路、重复失败，需要人读日志找真根。这个仓库最诚实的部分之一，是 <a href="https://github.com/6750432/cyberdyne-bridge-agent-physical-protocol/tree/main/docs/%E6%97%A5%E5%BF%97%E6%91%98%E5%BD%95" target="_blank" rel="noopener">docs/日志摘录/</a> 里那些失败的账。</p>
+          <p>旧版脑 / 手、车厢、老祖思维和 M1–M7b 里程碑已经从主 README 移到 <a href="https://github.com/6750432/cyberdyne-bridge-agent-physical-protocol/blob/main/agents/cyberdyne/docs/LEGACY.md" target="_blank" rel="noopener">Cyberdyne 子链档案</a>。主仓现在描述协议，不再把旧实验细节堆在首页。</p>
         </div>
         <div class="status-side">
-          <p class="status-label">还没做</p>
+          <p class="status-label">当前状态</p>
           <ul class="tag-list">
-            <li>多人协作</li>
-            <li>跨 Agent 通信</li>
-            <li>性能优化</li>
-            <li>第二沙盒</li>
+            <li>4 个活跃子仓</li>
+            <li>61/61 CBAP</li>
+            <li>Alice 未构建</li>
+            <li>旧套件有已知红项</li>
           </ul>
-          <p class="status-note">不假装已经完成。</p>
+          <p class="status-note">不把源码当成已验证。</p>
         </div>
       </div>
     </section>
 
-    <section class="section" id="carriages">
+    <section class="section" id="agents">
       <div class="section-head">
-        <p class="kicker">05 / CARRIAGES</p>
+        <p class="kicker">05 / AGENT SUBREPOS</p>
         <div>
-          <h2>26 节车厢，<br>随时挂，随时摘。</h2>
-          <p class="section-lede">每节车厢一个目录：<code>manifest.json</code> + <code>补丁.py</code> + 测试。起车做宪法体检，过不了就拒绝起车。</p>
+          <h2>同样的协议，<br>不同的身体。</h2>
+          <p class="section-lede">每个子仓拥有自己的 adapter、device / mapping、工具和 smoke test。主仓只负责接口与 conformance。</p>
         </div>
       </div>
       <div class="carriage-stats">
-        <div><strong>26</strong><span>当前编组</span></div>
-        <div><strong>1–7ms</strong><span>实测换轨</span></div>
-        <div><strong>1</strong><span>条 Unix Socket</span></div>
-        <div><strong>2</strong><span>进程：脑 + 手</span></div>
+        <div><strong>4</strong><span>活跃子仓</span></div>
+        <div><strong>1</strong><span>归档：Alice</span></div>
+        <div><strong>61/61</strong><span>CBAP 测试</span></div>
+        <div><strong>0.2ms</strong><span>控制面 p50</span></div>
       </div>
       <div class="cards cards-six">
-        <article class="card card-small"><span class="card-num">核心</span><h3>生存常识</h3><p>常识库 + 求解器接线：落坐标 / 找坐标 / 向下盲挖 / 就地插步。</p></article>
-        <article class="card card-small"><span class="card-num">记忆</span><h3>记性</h3><p>自己放的记下来、挖过账、换木种、合成前补料、重启预热。</p></article>
-        <article class="card card-small"><span class="card-num">采集</span><h3>收集</h3><p>把「挖一步 / 拾一步」收成一条命令，支持成批收集与落坐标。</p></article>
-        <article class="card card-small"><span class="card-num">自愈</span><h3>障碍 / 够不着</h3><p>挡路、够不着，就地插一步；不作废整条计划。</p></article>
-        <article class="card card-small"><span class="card-num">体检</span><h3>物理体检</h3><p>假活、可达性、视线与距离检查；在动作前先问物理世界。</p></article>
-        <article class="card card-small card-accent"><span class="card-num">观测</span><h3>自我模型</h3><p>只读 predicted vs actual、每步体检、step 回执与 plan revision。</p></article>
+        <article class="card card-small card-accent"><span class="card-num">OURS</span><h3>Cyberdyne</h3><p>我们自己的旧脑 / 手直连栈。手可以被 McDriver 包成 CBAP 设备；旧协议仍在子链。</p></article>
+        <article class="card card-small"><span class="card-num">MCP</span><h3>MCP Mineflayer</h3><p>真实 MCP body。公开 MCP tools → CBAP read / write / poll / estop，MCPDriver 走 stdio JSON-RPC。</p></article>
+        <article class="card card-small"><span class="card-num">AUTONOMOUS</span><h3>Mindcraft</h3><p>Mindy 自带规划器。CBAP 观察状态、投递 prompt、停止；不冒充低层动作驱动。</p></article>
+        <article class="card card-small"><span class="card-num">BRIDGE</span><h3>Voyager</h3><p>只接 Mineflayer bridge：state / exec / forward / say / stop。Voyager 的自治规划器和课程还没接。</p></article>
+        <article class="card card-small"><span class="card-num">ARCHIVE</span><h3>Alice</h3><p>Forge 1.20.1 最小 bridge 源码。未编译、未跑真实服务器，不假装是活跃子仓。</p></article>
+        <article class="card card-small"><span class="card-num">NEXT</span><h3>别优化项圈</h3><p>协议桥开销亚毫秒。真正慢的是 Minecraft 动作、Agent 规划和 LLM。</p></article>
       </div>
       <div class="section-foot">
-        <a class="text-link" href="https://github.com/6750432/cyberdyne-bridge-agent-physical-protocol/blob/main/docs/%E5%A4%96%E6%8C%82%E5%88%97%E8%BD%A6.md" target="_blank" rel="noopener">看完整车厢说明 <span aria-hidden="true">↗</span></a>
+        <a class="text-link" href="https://github.com/6750432/cyberdyne-bridge-agent-physical-protocol/tree/main/agents" target="_blank" rel="noopener">看四个子仓 <span aria-hidden="true">↗</span></a>
       </div>
     </section>
 
     <section class="cta">
       <div>
         <p class="kicker">DETAILS / SOURCE / EVIDENCE</p>
-        <h2>细节、源码、验收记录，<br>都在仓库。</h2>
+        <h2>协议、子仓、验收记录，<br>都在仓库。</h2>
         <p>本站只是门面：不镜像文档，不接本地服务，不放运行数据。</p>
       </div>
       <div class="cta-actions">
         <a class="btn btn-primary" href="https://github.com/6750432/cyberdyne-bridge-agent-physical-protocol" target="_blank" rel="noopener">进入 GitHub <span aria-hidden="true">↗</span></a>
         <a class="btn btn-ghost" href="https://github.com/6750432/cyberdyne-bridge-agent-physical-protocol/blob/main/README.md" target="_blank" rel="noopener">读 README</a>
-        <a class="btn btn-ghost" href="https://github.com/6750432/cyberdyne-bridge-agent-physical-protocol/blob/main/docs/%E5%BC%80%E5%8F%91%E5%AE%AA%E6%B3%95.md" target="_blank" rel="noopener">开发宪法</a>
+        <a class="btn btn-ghost" href="https://github.com/6750432/cyberdyne-bridge-agent-physical-protocol/blob/main/spec/README.md" target="_blank" rel="noopener">看协议</a>
       </div>
     </section>
   </main>
@@ -262,6 +240,7 @@
     </div>
     <div class="footer-meta">
       <span>AS IS · 非官方 Minecraft 项目 · AI 协作</span>
+      <a href="https://github.com/6750432/cyberdyne-bridge-agent-physical-protocol/blob/main/README.md#%EF%B8%8F-%E5%85%8D%E8%B4%A3%E5%A3%B0%E6%98%8E--disclaimer" target="_blank" rel="noopener">免责声明</a>
       <a href="https://github.com/6750432/cyberdyne-bridge-agent-physical-protocol/blob/main/LICENSE" target="_blank" rel="noopener">License</a>
     </div>
   </footer>

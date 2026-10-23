@@ -1,7 +1,10 @@
 # Cyberdyne-Bridge · 赛博戴恩之桥
 
-> 一个跑在 Minecraft 里的 AI Agent 架构实验：**0ms 反射弧 + 分层大脑 + 云端 LLM 自主规划 + 长期记忆**。
-> 全部代码、测试、验收报告均由 AI 助手（大肥鱼）自主编写，人类只负责架构设计、安全红线与最终验收。
+> **CBAP v1**：Agent ↔ 物理世界的参考协议桥。
+> 主仓只负责协议、Kernel、租约、安全和审计；具体 Agent 放到独立子仓。
+> Minecraft 只是低成本、可观测、可复现的物理沙盒。
+
+[![CBAP 中文架构图](docs/diagrams/cbap-structure-zh.png)](docs/diagrams/cbap-structure-zh.png)
 
 ---
 
@@ -38,192 +41,147 @@
 
 ---
 
-## 仓库边界（迁移中）
-
-主仓只负责 CBAP 协议、Kernel、租约、安全、审计、conformance 和通用 driver API。
-
-四个活跃 Agent 子仓的契约在 `agents/`：
-
-```text
-agents/cyberdyne/       我们自己的 MC Agent：bridge.py + node/server.js
-agents/mcp-mineflayer/  MCP body + adapter
-agents/mindcraft/       Mindcraft state / prompt / stop adapter
-agents/voyager/         Voyager bridge + adapter
-```
-
-Alice 未构建，放在 `archive/alice/`，不算活跃子仓。
-
-分类、manifest、driver API 和物理搬迁已经落地；外部 agent 的 `drivers/*` / `tools/*` shim 已移除，自有旧脑/手/外挂的根路径仍保留兼容 shim。详见 `docs/REPO_LAYOUT.md`。
-
 ## 这是什么
 
-一句话：**这是一份「Agent ↔ 物理世界」通用协议的参考实现；Minecraft 只是它的低成本物理沙盒。**
+一句话：
 
-我们想验证的东西其实与 Minecraft 无关：一个 Agent 要在**信息不完整、动作有代价、
-环境会变**的世界里可靠地干活，需要什么样的接口与判据。Minecraft 恰好是个便宜、
-可观测、可复现的沙盒，于是拿它当试验台。
+> **Agent 通过 CBAP 申请一个设备，执行动作，再用服务端事实校验结果。**
 
-```
-                    ┌──────────────────────────────┐
-   云 端 LLM ───────▶  大模型层 / 双向翻译器        │  听不懂的话 → 翻译成结构化意图
-                    └──────────────┬───────────────┘
-                                   │ fail-closed 校验（白名单 / 坐标 / 数量 / 宪法）
-                    ┌──────────────▼───────────────┐
-                    │  指令层（中文口令 → 结构化动作）│  规则优先，毫秒级，零成本
-                    └──────────────┬───────────────┘
-                    ┌──────────────▼───────────────┐
-                    │  任务栈（多步任务 · 断点续跑）  │  看事实判完成，不看回执
-                    └──────────────┬───────────────┘
-                    ┌──────────────▼───────────────┐
-   反射层 ★一票否决 ▶│  保命 / 挨打 / 逃跑 / 吃      │  <50ms，永远压过上面所有层
-                    └──────────────┬───────────────┘
-                    ┌──────────────▼───────────────┐
-   热保护（温度红线）▶│  节拍器（1Hz / 5Hz 自适应）   │
-                    └──────────────────────────────┘
+不是「让 LLM 直接操作 Minecraft」，而是把下面这些东西固定成协议：
+
+```text
+Agent
+  │  CBAP-U：Unix socket，一行一条 JSON
+  ▼
+CBAP Kernel
+  │  每设备租约 / FIFO 等待 / 安全模式 / 急停 / 审计
+  │  CBAP-D：不同 Agent 的 adapter
+  ▼
+MCP / Mindcraft / Voyager / 我们自己的 MC Agent
+  │
+  ▼
+Minecraft 服务端（事实源）
 ```
 
-- **脑**（`bridge.py`，Python，纯标准库）：反射层 / 任务栈 / 三觉 / 翻译器 / 心跳 / 记忆
-- **手**（`node/server.js`，Node + mineflayer）：真去挖、放、合成、开箱子
-- 两者之间用 **Unix Domain Socket + 一行一条 JSON** 通信，零额外依赖
-- 新能力一律做成**可热插拔的车厢**（`外挂/<名>/`）：车厢只能勾类，**不许改主链**
+完成判据永远是：
 
-### 为什么值得一看
+```text
+服务端事实 + 校验
+```
 
-不是因为「它能玩 Minecraft」——那只是个沙盒。
-值得看的是它在**协议层**上认真做过的几件事，每一条都带着踩坑记录：
+不是：
 
-| 协议上的做法 | 踩出来的理由 |
+```text
+result.ok
+「命令发出去了」
+「adapter 说成功了」
+```
+
+## 四个活跃 Agent 子仓
+
+主仓不把任何具体 Agent 写死进 Kernel。四个活跃子仓各自拥有 adapter、device/mapping、工具和 smoke：
+
+| 子仓 | 归属 | 设备 | 控制面 |
+|---|---|---|---|
+| [`agents/cyberdyne`](agents/cyberdyne/) | 我们自己的 MC Agent | `mc://bot/DeepSeek` | 旧脑/手直连；手可被 `McDriver` 包成 CBAP 设备 |
+| [`agents/mcp-mineflayer`](agents/mcp-mineflayer/) | 外部 | `mcp://mc/MCPBody` | MCP stdio JSON-RPC |
+| [`agents/mindcraft`](agents/mindcraft/) | 外部 | `mc://mind/Mindy` | state / prompt / stop |
+| [`agents/voyager`](agents/voyager/) | 外部 | `mc://voyager/bot` | state / exec / forward / say / stop |
+
+Alice 未构建，放在 [`archive/alice`](archive/alice/)，不算活跃子仓。
+
+每个子仓都有 `agent.json` 契约和独立 smoke：
+
+```bash
+python3 agents/cyberdyne/smoke.py
+python3 agents/mcp-mineflayer/smoke.py
+python3 agents/mindcraft/smoke.py
+python3 agents/voyager/smoke.py
+```
+
+## 主仓结构
+
+```text
+kernel/       CBAP Kernel：会话 / 租约 / 安全 / 急停 / 审计
+spec/         CBAP 协议与设备契约
+tests/        conformance
+tools/        通用工装（CBAP conformance / 并发 / 故障 / 恢复）
+docs/         协议文档、迁移说明、架构图
+agents/       四个活跃 Agent 子仓
+archive/      Alice 归档
+```
+
+更完整的目录边界、兼容 shim 和迁移阶段见 [`docs/REPO_LAYOUT.md`](docs/REPO_LAYOUT.md)。
+
+## 协议要点
+
+| 做法 | 为什么 |
 |---|---|
-| **完成判据看事实，不看回执** | 手说「发出去了」不算数；背包里真多出那个掉落物才算挖到 |
-| **fail-closed，且不许静默** | 听不懂、拿不准、参数缺 ⇒ 拒绝执行 + 记账 + 出声；吞异常比崩溃更难查 |
-| **坐标只能来自证据** | 不猜、不用 `or [0,0,0]` 兜底（有专门的审计器在扫这件事） |
-| **自愈最小侵入** | 挡路了就**就地插一步**，绝不把正在跑的计划整条作废 |
-| **记忆能被现实否掉、重启能接上** | 「挖过账」+ 开机读回过去 5 分钟的方块变化 |
-| **判据只写一份** | 同一件事在两处各写一套，迟早对不上（试过，很惨） |
+| **完成看服务端事实** | 背包、坐标、方块、任务终态才算数 |
+| **每设备租约** | 同一设备同一时刻只有一个 writer；FIFO 等待 |
+| **release / estop / cancel** | 正常释放、急停、取消是不同语义 |
+| **幂等与在途请求** | 断线重连后不乱重放 |
+| **fail-closed** | 拿不准就拒绝，并且出声 |
+| **审计** | 每次动作有账可查 |
+| **adapter 隔离** | Agent 实现不进 Kernel，主仓只依赖 driver 接口 |
 
-这些做法一条条写在 [`tools/老祖思维-写py的方法.py`](tools/老祖思维-写py的方法.py) 里
-（16 条，能跑：`python3 tools/老祖思维-写py的方法.py 9`），每条的来历也都写在那儿。
+协议细节：
 
-### 现在做到哪儿了（诚实版）
-
-- 它能从**空手**开始自己走完一小段科技树：砍树 → 木板 → 工作台 → 木镐 → 向下挖 → 石镐；
-  **2026-10-10 凌晨**在清空记忆、只带 64 块食物的条件下第一次独立做到。
-- 它仍然**经常卡住**：会走冤枉路、会重复失败、需要人去读日志找出真根。
-  这个仓库里最诚实的部分就是 `docs/日志摘录/` —— 包括那些失败的账。
-- **没做**的：多人协作、跨 Agent 通信、性能优化、插件市场的分发链、非 Minecraft 的第二沙盒。
-- 代码注释目前**以中文为主**（约 3.4 万行含中文）。英文版 README 已有
-  （[`README.en.md`](README.en.md)），**代码注释的英文化在分批做**，不假装已经完成。
-
----
-
-## 协议之外：能力层（19 节车厢）
-
-`外挂/` 底下每节车厢一个目录（`manifest.json` + `补丁.py` + `测*.py`）。
-车厢**只能勾类**，起车时做宪法体检 —— 过不了就**拒绝起车**。所以加功能永远不用碰主链。
-
-| 车厢 | 干什么 |
-|---|---|
-| 生存常识 | 核心：常识库 + 求解器接线（落坐标 / 找坐标 / 向下盲挖 / 就地插步） |
-| 记性 | 账本：自己放的记下来、挖过账、换木种、合成前补料、重启预热 |
-| 复核 / 贯通审计 / 回执探针 | 现状复核 / 决策点审计 / 听力与回执探针（谁吞了消息一目了然） |
-| 障碍自愈 / 够不着自愈 | 挡路、够不着 ⇒ **就地插一步**（不作废整条计划） |
-| 挖空守卫 / 工具查表 | 别挥空镐 / 这一镐要不要镐子（1044 行方块交互表） |
-| 声呐耳朵 / 受限脚本 / 拒单反馈 / 任务书体检 | 听人话就动身（本地翻译器优先）/ 提示词收敛 / 拒单说清 / 任务书体检 |
-| 就地取材 / 分饭 / 收集 / 手上一件事 / 物理体检 / 动作面 | 四级取材 / 回血 / 成批收集 / 单任务锁 / 物理与假活体检 / 动作翻译 |
-
-## 老祖思维 · 写 py 的方法（16 条，压缩版）
-
-完整 16 条（每条带教它的那次事故）在
-[`tools/老祖思维-写py的方法.py`](tools/老祖思维-写py的方法.py)：
-
-1. 同一件事只写一份实现（抄第二遍**必**出事）
-2. 判据在**真正用它的那一刻**再核一遍（路会被人插进新东西）
-3. 阈值对着**真实世界的数**定（差一口气也是差）
-4. 判据走**单调钟**，墙钟只当时间戳
-5. 拿不准就 **fail-closed**，**并且出声**
-6. 闭环绑到**结果**上（「挖」必须绑「拾」）
-7. **误报比漏报更危险**（报警判据宁窄勿宽）
-8. 立红线时写清它**防的是什么**（一刀切迟早砍到自己脚上）
-9. 关键数据**在明面上递**（别赌包壳的链子）
-10. 自愈要**最小侵入**
-11. 替身必须和被测对象**同源**（用例红了先看自己）
-12. 环境缺东西就**补替身**，别改实现
-13. 存**身份**别存号码（`id()` 会复用）
-14. **抽样不是全图**（要什么就点单）
-15. 重跑工具前先看它**第一步**会删什么
-16. 写之前**先看系统时钟**
-
----
-
-## 目录结构
-
-```
-bridge.py              主链（红线：指纹钉死，闸门最后会复查）
-config.json            全部开关与阈值
-node/                  手：server.js + 动作插件 + 寻路插件
-node/测试/             手侧 JS 断言（node --test）
-外挂/                  车厢（每节一个目录：manifest.json + 补丁.py + 测*.py）
-外挂/常识/             本地常识库：配方 / 掉落 / 挖掘矩阵 / 方块交互表 + 求解器 + 配方缓存
-外挂/车钩.py           车厢框架 + 开发宪法
-tools/                 工装：监工、看护、本地翻译器、审计、验收、测试
-docs/                  里程碑报告 / 草案 / 复盘 / 日记
-docs/日志摘录/         脱敏后的真账本（任务 / 手侧 / LLM 审计 / 心跳）
-docs/日记/             小家伙自己的日记（第一人称）
-```
-
----
+- [`spec/README.md`](spec/README.md)
+- [`spec/conformance-v1.md`](spec/conformance-v1.md)
+- [`kernel/legacy_runtime/README.md`](kernel/legacy_runtime/README.md)
 
 ## 快速开始
 
-> ⚠ 先装手侧依赖：`cd node && npm install`。
-> 配方表随仓库带了一份解析好的缓存（`外挂/常识/缓存/原版配方.json`，约 265 KB），
-> 所以**不需要** Mojang 的 `server.jar`。
+只跑协议与控制面，不需要 Minecraft / LLM：
 
 ```bash
-cd node && npm install && cd ..
-bash tools/跑全部.sh        # 全部断言（当前基线：1145 条全过 / 0 失败）
+python3 tools/cbap_conformance.py --target fake
 ```
 
-红线 `bridge.py` 的指纹（`a649665c970d84ba`）会在闸门最后被复查 —— 改了就报红。
+当前结果：
 
-真正跑起来需要一个本地 Minecraft 服务端（RCON + 离线模式）：
+```text
+61/61 tests passed
+```
+
+控制面本地实测：
+
+```text
+device_list  p50 0.221 ms / p95 0.374 ms
+read body    p50 0.236 ms / p95 0.522 ms
+```
+
+跑四个 Agent 子仓的本地 smoke：
 
 ```bash
-bash tools/启动服务端.sh      # 起服务端
-bash tools/启动手.sh          # 起手（身体）
-bash 外挂/启动列车.sh          # 起脑 + 编组
-MC_RCON_PASSWORD=你的口令 python3 tools/rcon.py "list"
+for d in agents/cyberdyne agents/mcp-mineflayer agents/mindcraft agents/voyager; do
+  python3 "$d/smoke.py" || exit 1
+done
 ```
 
-口令**只从环境变量读**，仓库里没有任何真实凭证。
+真正接 Minecraft / MCP / Mindcraft / Voyager 时，先看对应子仓 README 和 `docs/`。
 
----
+## 文档
 
-## 小家伙的日记
-
-三篇第一人称日记在 [`docs/日记/`](docs/日记/)：2026-10-07 / 2026-10-08 / 2026-10-10。
-它自己写的，照实写，写得比我好。
-
-## 里程碑（M1 → M7b）
-
-| 阶段 | 干了什么 | 报告 |
-|---|---|---|
-| M1 | 手脑分离：Unix Socket 协议 + 断线自愈 | `docs/M1-test-report.md` |
-| M2 | 插件热插拔：新能力进 `node/plugins/`，主链动词表不膨胀 | `docs/M2-test-report.md` |
-| M3 | 指令层：中文口令 → 结构化动作（纯规则、毫秒级） | `docs/M3-test-report.md` |
-| M4 | 猎手：挨打应战 / 死斗 / 连击（**宪法第①②条：LLM 不许直接攻击**） | `docs/M4-猎手实测报告-2026-10-01.txt` |
-| M4c | 任务栈：多步任务 / 完成判据看事实 / 断点续跑 / 绕路 | `docs/M4c-验收报告-第二轮-全绿-2026-10-01.txt` |
-| M5–M6 | 三觉（视觉·听觉·触觉）+ 双向翻译器 + 自主心跳 | `docs/M5M6-验收报告-第一轮-2026-10-01.txt` |
-| M7a | 记忆：地点 / 事件 / 人 / 未了事 四类卡片 | `docs/M7a-验收报告-第一轮-2026-10-01.txt` |
-| **M7b** | **动作面：合成 / 从箱子拿 / 往箱子里放** —— 用「外挂」实现，**主链零改动** | `docs/M7b/` |
-| 2026-10 | 车厢化自愈 / 挖过账 / 挖并拾 / 重启预热（`docs/日记/` 那三篇） | `tools/老祖思维-写py的方法.py` |
-
-**验收方式**（这个项目所有里程碑都这么做）：
-
-```bash
-git diff 基线 -- bridge.py     # 输出必须为空 —— 主链一个字节没动
-sha256sum bridge.py            # a649665c970d84ba…
+```text
+docs/diagrams/cbap-structure-zh.png    中文架构图
+docs/REPO_LAYOUT.md                    主仓 / 子仓 / shim / 迁移
+docs/CBAP-内核化设计-2026-10-23.md     Kernel 设计
+docs/CBAP-同设备竞争与故障注入.md      竞争与故障
+docs/CBAP-cancel与MCP恢复.md           cancel / MCP 恢复
+agents/*/docs/                         各 Agent 自己的接入文档
 ```
+
+## 旧子链
+
+旧版 Cyberdyne 脑 / 手、车厢、老祖思维、日记和 M1–M7b 里程碑已经从主 README 移到：
+
+- [`agents/cyberdyne/docs/LEGACY.md`](agents/cyberdyne/docs/LEGACY.md)
+
+这是 Cyberdyne MC Agent 的子链档案，不是 CBAP 主链。
+
+旧套件 `tools/跑全部.sh` 仍有搬迁前就存在的红项（bridge 指纹和几条旧逻辑）；不要把旧套件的红项和 CBAP 的 `61/61` 混在一起。详见 `docs/REPO_LAYOUT.md` 的 Verification。
 
 ## 关于皮肤
 
