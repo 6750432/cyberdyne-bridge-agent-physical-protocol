@@ -110,6 +110,9 @@ inventory · oak_log × 6
 CBAP 真实动作结果
 ```
 
+> 后续的 goal gate 重跑（恰好 3 个）和真实异构并发隔离见
+> [`CBAP-goal-gate与并发隔离.md`](CBAP-goal-gate与并发隔离.md)。
+
 ## 下一步
 
 ```text

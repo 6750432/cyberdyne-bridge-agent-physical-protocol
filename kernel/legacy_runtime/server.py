@@ -133,6 +133,7 @@ class KernelServer:
         self._lock = threading.RLock()
         self._seq = 0
         self._safe = False
+        self._safe_devices: set[str] = set()
         self._fd_counter = 0
 
         self._server: socket.socket | None = None
@@ -554,9 +555,9 @@ class KernelServer:
         _ = f
 
     def _op_write(self, session: Session, rid: str, args: dict, msg: dict) -> None:
-        if self._safe:
-            raise _OpError("E_SAFETY", "gateway is in safe mode after estop")
         f = self._get_fd(session, args)
+        if self._safe or f.device_id in self._safe_devices:
+            raise _OpError("E_SAFETY", "device is in safe mode after estop")
         if f.mode == "r":
             raise _OpError("E_PERM", "fd is read-only")
         if not self._lease_for_fd(f):
@@ -669,14 +670,15 @@ class KernelServer:
         })
 
     def _op_estop(self, session: Session, rid: str, args: dict) -> None:
-        self._safe = True
         f = None
         if args.get("fd"):
             f = self._get_fd(session, args)
             targets = [f.driver]
             with self._lock:
+                self._safe_devices.add(f.device_id)
                 self._leases.pop(f.device_id, None)
         else:
+            self._safe = True
             targets = list(self.drivers)
             with self._lock:
                 self._leases.clear()
@@ -705,7 +707,7 @@ class KernelServer:
             "device": f.driver.describe(),
             "health": f.driver.health(),
             "lease": lease,
-            "safe": self._safe,
+            "safe": self._safe or f.device_id in self._safe_devices,
             "pending": pending,
             "fd": f.fd,
         })

@@ -1,0 +1,152 @@
+{
+  "ok": true,
+  "steps": [
+    {
+      "name": "connect MCP driver",
+      "ok": true,
+      "detail": null
+    },
+    {
+      "name": "MCP driver connected",
+      "ok": true,
+      "detail": {
+        "ok": true,
+        "connected": true,
+        "state_age_ms": 161,
+        "device_id": "mcp://mc/MCPBody",
+        "backend": "mcp-stdio"
+      }
+    },
+    {
+      "name": "connect legacy driver",
+      "ok": true,
+      "detail": null
+    },
+    {
+      "name": "legacy driver connected",
+      "ok": true,
+      "detail": {
+        "ok": true,
+        "connected": true,
+        "state_age_ms": 0,
+        "device_id": "mc://bot/DeepSeek"
+      }
+    },
+    {
+      "name": "kernel hello",
+      "ok": true,
+      "detail": null
+    },
+    {
+      "name": "two real devices visible",
+      "ok": true,
+      "detail": [
+        "mc://bot/DeepSeek",
+        "mcp://mc/MCPBody"
+      ]
+    },
+    {
+      "name": "open both devices",
+      "ok": true,
+      "detail": {
+        "mcp": "fd-1",
+        "legacy": "fd-2"
+      }
+    },
+    {
+      "name": "distinct real states",
+      "ok": true,
+      "detail": {
+        "mcp": [
+          45.30611255696572,
+          68,
+          -41.54754370624839
+        ],
+        "legacy": [
+          473.5,
+          69,
+          -130.5
+        ]
+      }
+    },
+    {
+      "name": "lease MCP",
+      "ok": true,
+      "detail": null
+    },
+    {
+      "name": "legacy write blocked while MCP leased",
+      "ok": true,
+      "detail": {
+        "code": "E_BUSY",
+        "message": "write requires a lease",
+        "retryable": false
+      }
+    },
+    {
+      "name": "lease legacy",
+      "ok": true,
+      "detail": null
+    },
+    {
+      "name": "MCP side write",
+      "ok": true,
+      "detail": {
+        "ok": true,
+        "sent": "concurrency: MCP side"
+      }
+    },
+    {
+      "name": "legacy side write",
+      "ok": true,
+      "detail": {
+        "text": "concurrency: legacy side"
+      }
+    },
+    {
+      "name": "result ids are distinct",
+      "ok": true,
+      "detail": {
+        "mcp": "r-4b91a73bbdba4af9",
+        "legacy": "r-07eeaa8d6ddb45dd"
+      }
+    },
+    {
+      "name": "legacy estop",
+      "ok": true,
+      "detail": {
+        "safe_state": "idle",
+        "driver_ok": true
+      }
+    },
+    {
+      "name": "legacy safe after estop",
+      "ok": true,
+      "detail": {
+        "code": "E_SAFETY",
+        "message": "device is in safe mode after estop",
+        "retryable": false
+      }
+    },
+    {
+      "name": "MCP unaffected by legacy estop",
+      "ok": true,
+      "detail": {
+        "ok": true,
+        "sent": "concurrency: MCP still alive"
+      }
+    }
+  ],
+  "devices": {
+    "mcp://mc/MCPBody": {
+      "device_id": "mcp://mc/MCPBody",
+      "type": "minecraft-mcp-agent",
+      "state": "ready"
+    },
+    "mc://bot/DeepSeek": {
+      "device_id": "mc://bot/DeepSeek",
+      "type": "minecraft-java",
+      "state": "ready"
+    }
+  }
+}

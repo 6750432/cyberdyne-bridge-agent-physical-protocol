@@ -124,6 +124,21 @@ class MultiDeviceTest(unittest.TestCase):
             "args": {"dir": [1, 0], "ms": 10}})
         self.assertTrue(ok.get("ok"), ok)
 
+    def test_estop_is_per_device(self):
+        legacy_fd = self.open("mc://bot/DeepSeek")
+        flow_fd = self.open("mcflow://agent/flow-test")
+        self.assertTrue(self.client.lease(legacy_fd).get("ok"))
+        self.assertTrue(self.client.lease(flow_fd).get("ok"))
+        e = self.client.estop(legacy_fd, reason="isolation")
+        self.assertTrue(e.get("ok"), e)
+        blocked = self.client.call("write", {"fd": legacy_fd, "frame": {
+            "channel": "chat", "op": "say", "args": {"text": "blocked"}}})
+        self.assertEqual(blocked["error"]["code"], "E_SAFETY")
+        _, _, alive = self.client.write(flow_fd, {
+            "channel": "chat", "op": "say",
+            "args": {"text": "flow still alive"}}, deadline_ms=3000)
+        self.assertTrue(alive.get("ok"), alive)
+
     def test_dataflow_event_reaches_poll(self):
         fd = self.open("mcflow://agent/flow-test")
         self.client.lease(fd)
