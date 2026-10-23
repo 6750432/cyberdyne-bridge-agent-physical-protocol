@@ -1,0 +1,16 @@
+{
+  "cbap": "1.0",
+  "device_id": "mc://mind/Mindy",
+  "ops": {
+    "prompt": {
+      "channel": "chat",
+      "op": "prompt",
+      "args": {"text": "string"}
+    },
+    "stop": {
+      "channel": "body",
+      "op": "stop",
+      "args": {}
+    }
+  }
+}
