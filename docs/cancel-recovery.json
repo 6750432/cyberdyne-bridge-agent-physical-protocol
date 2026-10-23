@@ -1,0 +1,119 @@
+{
+  "ok": true,
+  "steps": [
+    {
+      "name": "initial MCP ready",
+      "ok": true,
+      "detail": {
+        "ok": true,
+        "connected": true,
+        "state_age_ms": 160,
+        "device_id": "mcp://mc/MCPBody",
+        "backend": "mcp-stdio"
+      }
+    },
+    {
+      "name": "open + lease",
+      "ok": true,
+      "detail": null
+    },
+    {
+      "name": "long action accepted (cancel)",
+      "ok": true,
+      "detail": {
+        "v": "1.0",
+        "type": "ack",
+        "id": "r-c5440d5c524b40a9",
+        "ts": 1792762322262,
+        "state": "accepted"
+      }
+    },
+    {
+      "name": "cancel acknowledged",
+      "ok": true,
+      "detail": {
+        "canceled": "r-c5440d5c524b40a9"
+      }
+    },
+    {
+      "name": "canceled write result is E_CANCELED",
+      "ok": true,
+      "detail": {
+        "code": "E_CANCELED",
+        "message": "canceled by agent",
+        "retryable": false
+      }
+    },
+    {
+      "name": "MCP auto-restarted after cancel",
+      "ok": true,
+      "detail": {
+        "ok": true,
+        "connected": true,
+        "state_age_ms": 1396,
+        "device_id": "mcp://mc/MCPBody",
+        "backend": "mcp-stdio"
+      }
+    },
+    {
+      "name": "write works after cancel/restart",
+      "ok": true,
+      "detail": {
+        "ok": true,
+        "sent": "after cancel: alive"
+      }
+    },
+    {
+      "name": "long action accepted (crash)",
+      "ok": true,
+      "detail": {
+        "v": "1.0",
+        "type": "ack",
+        "id": "r-73f22bbfa0424e26",
+        "ts": 1792762323510,
+        "state": "accepted"
+      }
+    },
+    {
+      "name": "killed MCP process",
+      "ok": true,
+      "detail": {
+        "pid": 123716
+      }
+    },
+    {
+      "name": "crash pending result is E_IO",
+      "ok": true,
+      "detail": {
+        "code": "E_IO",
+        "message": "hand disconnected: MCP process ended",
+        "retryable": true
+      }
+    },
+    {
+      "name": "MCP auto-restarted after crash",
+      "ok": true,
+      "detail": {
+        "ok": true,
+        "connected": true,
+        "state_age_ms": 222,
+        "device_id": "mcp://mc/MCPBody",
+        "backend": "mcp-stdio"
+      }
+    },
+    {
+      "name": "re-lease after crash",
+      "ok": true,
+      "detail": null
+    },
+    {
+      "name": "write works after crash/restart",
+      "ok": true,
+      "detail": {
+        "ok": true,
+        "sent": "after crash: alive"
+      }
+    }
+  ],
+  "restarts": 2
+}

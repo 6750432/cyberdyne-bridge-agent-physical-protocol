@@ -831,6 +831,15 @@ class KernelServer:
             found.timer.cancel()
         self._finish_pending(found, False, None, None,
                              protocol.error("E_CANCELED", "canceled by agent"))
+        # MCP has no cancel primitive; its driver must terminate/restart the
+        # external process as a best-effort cancellation. Legacy hand has no
+        # cancel hook and keeps its existing semantics.
+        drv = found.driver
+        if drv is not None and hasattr(drv, "cancel"):
+            try:
+                drv.cancel()
+            except Exception:
+                pass
         self._result(session, rid, True, payload={"canceled": target})
 
     # ── result / state / event plumbing ───────────────────────

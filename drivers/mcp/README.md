@@ -93,6 +93,24 @@ curl -s -X POST http://127.0.0.1:8123/api/estop \
 外部 LLM 自主性验证见 `docs/CBAP-外部LLM自主性验证.md`：
 `tools/llm_autonomy.py` 用本地 Qwen3-4B 独立规划，经 CBAP 执行。
 
+## 自动恢复 / cancel
+
+`MCPDriver` 默认：
+
+```text
+auto_restart=True
+restart_delay=0.8s
+```
+
+MCP 进程退出或 cancel 终止后，poll loop 会重启外部 server；崩溃会释放
+Kernel 租约，恢复后客户端必须重新 `lease`。
+
+```text
+cancel：terminate MCP process → E_CANCELED → auto restart
+```
+
+记录见 `docs/CBAP-cancel与MCP恢复.md`。
+
 ## 驱动接口
 
 ```python

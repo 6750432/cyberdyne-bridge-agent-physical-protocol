@@ -71,10 +71,10 @@ python3 tools/cbap_conformance.py --target fake
 2. **每设备单 writer / 每设备 estop**：租约和 safe 状态按 `device_id` 隔离；一个设备 estop 不会封死其他设备。
 3. **租约等待/释放**：`lease wait_ms>0` 进入 FIFO 等待队列；`release` 主动交接，不 estop。
 4. **回执 FIFO**：legacy `cmdResult` 没有请求 ID，设备描述把 `max_inflight` 诚实写成 1；同一动词并发仍可能错配，等 legacy hand 加 `id` 后再消掉这条。
-5. **cancel 不保证停手**：CBAP 请求会回 `E_CANCELED`，但已经发给 legacy hand 的动作可能继续跑完；真正的取消要等手侧支持。
+5. **cancel 是 best-effort**：CBAP 请求会回 `E_CANCELED`；MCP driver 通过终止/重启外部进程实现，legacy hand 已发出的动作仍可能继续跑完。
 6. **estop 是锁存的**：`estop` 后网关进入 `safe`，`write` 回 `E_SAFETY`；v0 没有 `resume` 权限模型，恢复要 close/open 或重启网关。
 7. **没有鉴权**：UDS 默认无 token；TCP/token 字段已留，但 v0 只跑 UDS。
-8. **没有断线重连后的请求重放**：`McDriver` 会重连手，但未完成的 CBAP 请求会 `E_IO`；需要重试的 Agent 自己用 `idempotency_key`。
+8. **没有断线重连后的请求重放**：`McDriver` 会重连手，`MCPDriver` 会自动重启外部 server，但未完成的 CBAP 请求会 `E_IO`；需要重试的 Agent 自己用 `idempotency_key`。MCP 崩溃后租约释放，必须重新 `lease`。
 
 ## 下一步
 

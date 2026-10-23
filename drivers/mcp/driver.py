@@ -41,7 +41,9 @@ class MCPDriver:
                  mapping_path: str | None = None,
                  device_id: str | None = None,
                  poll_interval: float = 0.5,
-                 connect_timeout: float = 40.0):
+                 connect_timeout: float = 40.0,
+                 auto_restart: bool = True,
+                 restart_delay: float = 1.0):
         self.server_path = os.path.abspath(
             server_path or DEFAULT_SERVER_PATH or ".")
         self.host = host
@@ -70,6 +72,8 @@ class MCPDriver:
         ]
         self.poll_interval = max(0.2, float(poll_interval))
         self.connect_timeout = float(connect_timeout)
+        self.auto_restart = bool(auto_restart)
+        self.restart_delay = max(0.2, float(restart_delay))
 
         self.client: MCPStdioClient | None = None
         self.connected = False
@@ -88,6 +92,7 @@ class MCPDriver:
         self._worker_thread: threading.Thread | None = None
         self._actions: queue.Queue = queue.Queue()
         self._action_busy = threading.Event()
+        self._restart_lock = threading.Lock()
         self._state_lock = threading.RLock()
         self._stats_lock = threading.Lock()
         self.stats = {
@@ -103,6 +108,7 @@ class MCPDriver:
             "health": None,
             "food": None,
             "tool_history": [],
+            "restarts": 0,
         }
 
     def describe(self) -> dict:
@@ -128,19 +134,24 @@ class MCPDriver:
 
     # ── lifecycle ─────────────────────────────────────────────
 
+    def _start_client(self) -> dict:
+        if not os.path.isdir(self.cwd):
+            raise ActionError("E_INVAL", f"MCP server cwd not found: {self.cwd}")
+        c = MCPStdioClient(self.command, cwd=self.cwd,
+                           timeout=self.connect_timeout)
+        info = c.start()
+        self.client = c
+        self.connected = True
+        self._set_stats(server_info=info,
+                        connected_at=int(time.time() * 1000),
+                        tool_surface=[t.get("name") for t in c.tools])
+        return info
+
     def connect(self) -> None:
         if self.connected:
             return
-        if not os.path.isdir(self.cwd):
-            raise ActionError("E_INVAL", f"MCP server cwd not found: {self.cwd}")
         self._stop.clear()
-        self.client = MCPStdioClient(self.command, cwd=self.cwd,
-                                     timeout=self.connect_timeout)
-        info = self.client.start()
-        self.connected = True
-        self._set_stats(started_at=int(time.time() * 1000),
-                        server_info=info,
-                        tool_surface=[t.get("name") for t in self.client.tools])
+        self._start_client()
         self._poll_thread = threading.Thread(target=self._poll_loop,
                                              name="mcp-poll", daemon=True)
         self._poll_thread.start()
@@ -192,6 +203,36 @@ class MCPDriver:
             try:
                 self.on_event({"type": "event", "kind": "estop",
                                "why": "MCP process terminated",
+                               "device_id": self.device.get("device_id")})
+            except Exception:
+                pass
+        return True
+
+    def cancel(self) -> bool:
+        """Best-effort cancel of the in-flight MCP tool.
+
+        MCP has no cancel primitive. Terminate the external process; the poll
+        loop will restart it when auto_restart is enabled.
+        """
+        q_keep = queue.Queue()
+        while True:
+            try:
+                item = self._actions.get_nowait()
+            except queue.Empty:
+                break
+            if item is None:
+                continue
+            # Drop queued actions; the canceled kernel request is already done.
+        self._actions = q_keep
+        self.connected = False
+        c = self.client
+        self.client = None
+        if c:
+            c.close()
+        if self.on_event:
+            try:
+                self.on_event({"type": "event", "kind": "cancel",
+                               "why": "MCP process terminated to cancel action",
                                "device_id": self.device.get("device_id")})
             except Exception:
                 pass
@@ -322,7 +363,14 @@ class MCPDriver:
 
     def _poll_loop(self) -> None:
         last_full = 0.0
-        while not self._stop.is_set() and self.connected:
+        while not self._stop.is_set():
+            if not self.connected:
+                if not self.auto_restart:
+                    break
+                if not self._restart_client():
+                    break
+                last_full = 0.0
+                continue
             try:
                 now = time.time()
                 full = (now - last_full) >= 2.0
@@ -334,13 +382,47 @@ class MCPDriver:
                 self._set_stats(last_error=str(e))
                 if self.client and not self.client.connected:
                     self.connected = False
+                    with self._state_cond:
+                        self._state_cond.notify_all()
                     if self.on_disconnect:
                         try:
                             self.on_disconnect(str(e))
                         except Exception:
                             pass
-                    break
             self._stop.wait(self.poll_interval)
+
+    def _restart_client(self) -> bool:
+        if self._stop.is_set() or not self.auto_restart:
+            return False
+        if not self._restart_lock.acquire(blocking=False):
+            return False
+        try:
+            old = self.client
+            self.client = None
+            if old:
+                old.close()
+            attempts = 0
+            while not self._stop.is_set() and attempts < 6:
+                attempts += 1
+                try:
+                    self._start_client()
+                    with self._state_lock:
+                        self._latest_state = None
+                    self._set_stats(restarts=self.stats.get("restarts", 0) + 1,
+                                    restart_attempts=attempts)
+                    if self.on_connect:
+                        try:
+                            self.on_connect()
+                        except Exception:
+                            pass
+                    return True
+                except Exception as e:
+                    self._set_stats(last_error=f"restart: {e}",
+                                    restart_attempts=attempts)
+                    self._stop.wait(self.restart_delay * attempts)
+            return False
+        finally:
+            self._restart_lock.release()
 
     # ── action translation ────────────────────────────────────
 
@@ -478,6 +560,15 @@ class MCPDriver:
                                    else {"result": result})
             except Exception as e:
                 self._set_stats(last_error=str(e), acting="idle")
+                if self.client and not self.client.connected:
+                    self.connected = False
+                    with self._state_cond:
+                        self._state_cond.notify_all()
+                    if self.on_disconnect:
+                        try:
+                            self.on_disconnect(str(e))
+                        except Exception:
+                            pass
                 if self.on_result:
                     self.on_result(cid, False, str(e),
                                    {"tool": tool, "error": str(e)})
