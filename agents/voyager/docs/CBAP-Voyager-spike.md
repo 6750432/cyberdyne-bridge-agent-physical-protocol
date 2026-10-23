@@ -151,7 +151,7 @@ $JAVA -Xmx1G -jar server.jar nogui
 node voyager/env/mineflayer/index.js 3000
 
 # spike
-.python310/bin/python3.10 /path/to/tools/voyager_spike.py
+.python310/bin/python3.10 /path/to/agents/voyager/tools/voyager_spike.py
 ```
 
 测试完成后 server/bridge 已停止。

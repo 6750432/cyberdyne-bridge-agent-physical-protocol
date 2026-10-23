@@ -37,7 +37,7 @@ node src/index.js \
 
 ```bash
 cd /path/to/mineflayer-mcp
-patch -p1 < /path/to/cyberdyne-bridge/drivers/mcp/patches/mineflayer-mcp-place.patch
+patch -p1 < /path/to/cyberdyne-bridge/agents/mcp-mineflayer/driver/patches/mineflayer-mcp-place.patch
 node --check src/bot.js
 node --check src/tools.js
 ```
@@ -51,7 +51,7 @@ node --check src/tools.js
 ```bash
 export CBAP_MCP_SERVER=/path/to/mineflayer-mcp
 export CBAP_NODE_BIN=$(command -v node)
-python3 tools/mcp_dashboard.py \
+python3 agents/mcp-mineflayer/tools/mcp_dashboard.py \
   --server-path "$CBAP_MCP_SERVER" \
   --node "$CBAP_NODE_BIN" \
   --http-port 8123
@@ -67,7 +67,7 @@ python3 tools/mcp_dashboard.py \
 
 ## Dashboard 控制接口
 
-`tools/mcp_dashboard.py` 还暴露了本机控制端点，方便 Agent 直接当 LLM 用：
+`agents/mcp-mineflayer/tools/mcp_dashboard.py` 还暴露了本机控制端点，方便 Agent 直接当 LLM 用：
 
 ```bash
 # 观察
@@ -114,7 +114,8 @@ cancel：terminate MCP process → E_CANCELED → auto restart
 ## 驱动接口
 
 ```python
-from drivers.mcp.driver import MCPDriver
+MCPDriver = importlib.import_module(
+    "agents.mcp-mineflayer.driver.driver").MCPDriver
 from kernel.legacy_runtime.server import KernelServer
 
 drv = MCPDriver(
@@ -157,4 +158,4 @@ equip crafting_table → place → craft stick → craft wooden_pickaxe`。
 python3 -m unittest -v tests.cbap.test_mcp_driver
 ```
 
-用 `tests/cbap/fake_mcp_server.py` 跑协议层；真实 MCP 的截图由 `tools/mcp_dashboard.py` 跑。
+用 `tests/cbap/fake_mcp_server.py` 跑协议层；真实 MCP 的截图由 `agents/mcp-mineflayer/tools/mcp_dashboard.py` 跑。

@@ -37,7 +37,7 @@
   "metadata": {
     "transport": "unix",
     "backend": "mindcraft + mindserver socket.io",
-    "driver": "drivers/mindcraft/adapter.mjs",
+    "driver": "agents/mindcraft/adapter/adapter.mjs",
     "note": "read is full-state; prompt asks the autonomous agent; stop stops the agent process. No direct low-level action injection."
   }
 }

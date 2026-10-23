@@ -7,10 +7,10 @@
 
 ```text
 Qwen3-4B (127.0.0.1:8099)
-  → tools/voyager_qwen_planner.py
+  → agents/voyager/tools/voyager_qwen_planner.py
   → CBAP fd / Kernel
   → McDriver
-  → drivers/voyager/adapter.mjs
+  → agents/voyager/adapter/adapter.mjs
   → Voyager bridge :3000
   → Mineflayer / Minecraft 1.19.2
 ```
@@ -102,5 +102,5 @@ memory           ~4.4 GiB used / ~11 GiB available
 ```bash
 # start boundary-model, MC 1.19.2, bridge, bot, adapter
 # then:
-.python310/bin/python3.10 tools/voyager_qwen_planner.py
+.python310/bin/python3.10 agents/voyager/tools/voyager_qwen_planner.py
 ```

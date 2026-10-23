@@ -19,7 +19,9 @@ import time
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 sys.path.insert(0, ROOT)
 
-from drivers.mcp.driver import MCPDriver
+import importlib
+MCPDriver = importlib.import_module(
+    "agents.mcp-mineflayer.driver.driver").MCPDriver
 from kernel.legacy_runtime.client import CBAPClient
 from kernel.legacy_runtime.server import KernelServer
 from kernel.legacy_runtime import protocol

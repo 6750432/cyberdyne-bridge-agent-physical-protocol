@@ -22,7 +22,9 @@ while not os.path.isdir(os.path.join(ROOT, "kernel")):
     ROOT = _parent
 sys.path.insert(0, ROOT)
 
-from drivers.mcp.driver import MCPDriver
+MCPDriver = __import__(
+    "importlib").import_module(
+    "agents.mcp-mineflayer.driver.driver").MCPDriver
 from kernel.legacy_runtime.client import CBAPClient
 from kernel.legacy_runtime.server import KernelServer
 

@@ -43,7 +43,7 @@ Start Mindcraft with `MINECRAFT_PORT=25565 MINDSERVER_PORT=8080` and
 Start adapter:
 
 ```bash
-node drivers/mindcraft/adapter.mjs \
+node agents/mindcraft/adapter/adapter.mjs \
   --port 8080 --agent Mindy \
   --socket /tmp/mindcraft-cbap.sock \
   --moduleRoot /home/bzys17mintstart/external/mindcraft/package.json
@@ -52,7 +52,7 @@ node drivers/mindcraft/adapter.mjs \
 Probe:
 
 ```bash
-python3 tools/mindcraft_cbap.py --target 22,67,-54
+python3 agents/mindcraft/tools/mindcraft_cbap.py --target 22,67,-54
 ```
 
 ## Semantics

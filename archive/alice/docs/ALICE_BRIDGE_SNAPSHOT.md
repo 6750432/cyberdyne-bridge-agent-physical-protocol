@@ -30,9 +30,9 @@ POST /stop
 源码：
 
 ```text
-drivers/alice/bridge/CbapBridge.java
-drivers/alice/README.md
-tools/alice_bridge_probe.py
+archive/alice/bridge/CbapBridge.java
+archive/alice/bridge/README.md
+archive/alice/tools/alice_bridge_probe.py
 docs/CBAP-Alice-minimal-bridge.md
 ```
 
@@ -88,7 +88,7 @@ WalkTo 真实闭环
 ```text
 1. 在新的 Alice 版本上重新确认 BotManager.assignWalkTo / BotStateReport
 2. 重新应用 CbapBridge.java
-3. 构建并跑 tools/alice_bridge_probe.py
+3. 构建并跑 archive/alice/tools/alice_bridge_probe.py
 4. 再决定是否扩成正式 driver
 ```
 

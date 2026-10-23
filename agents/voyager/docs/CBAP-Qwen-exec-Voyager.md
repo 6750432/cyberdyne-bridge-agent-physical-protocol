@@ -39,10 +39,10 @@ Minecraft 服务端日志：
 
 ```text
 Qwen3-4B :8099
-  → tools/voyager_qwen_exec.py
+  → agents/voyager/tools/voyager_qwen_exec.py
   → CBAP exec
   → McDriver
-  → drivers/voyager/adapter.mjs
+  → agents/voyager/adapter/adapter.mjs
   → Voyager bridge /step
   → Mineflayer
   → Minecraft 1.19.2
@@ -107,5 +107,5 @@ memory            ~4.5 GiB used / ~10 GiB available
 ```bash
 # start boundary-model, MC 1.19.2, bridge, bot, adapter
 # then:
-.python310/bin/python3.10 tools/voyager_qwen_exec.py
+.python310/bin/python3.10 agents/voyager/tools/voyager_qwen_exec.py
 ```

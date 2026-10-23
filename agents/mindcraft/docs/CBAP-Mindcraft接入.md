@@ -35,13 +35,13 @@ headless 补丁只改了两个 UI/vision 入口的**加载时机**，没有改 M
 planner、prompt、action 逻辑：
 
 ```text
-drivers/mindcraft/patches/mindcraft-headless.patch
+agents/mindcraft/adapter/patches/mindcraft-headless.patch
 ```
 
 ### 2. CBAP adapter
 
 ```text
-drivers/mindcraft/adapter.mjs
+agents/mindcraft/adapter/adapter.mjs
 ```
 
 它通过 MindServer 的公开 socket.io API：
@@ -55,8 +55,8 @@ stop-agent        → estop / stop
 Python 侧复用 `McDriver`，设备定义：
 
 ```text
-drivers/mindcraft/device.json
-drivers/mindcraft/mapping.json
+agents/mindcraft/adapter/device.json
+agents/mindcraft/adapter/mapping.json
 ```
 
 支持：
@@ -121,13 +121,13 @@ SETTINGS_JSON='{"auto_open_ui":false,...}' \
 node main.js
 
 # CBAP adapter
-node drivers/mindcraft/adapter.mjs \
+node agents/mindcraft/adapter/adapter.mjs \
   --port 8080 --agent Mindy \
   --socket /tmp/mindcraft-cbap.sock \
   --moduleRoot /home/bzys17mintstart/external/mindcraft/package.json
 
 # CBAP probe (assumes Mindy + adapter are up)
-python3 tools/mindcraft_cbap.py --target 22,67,-54
+python3 agents/mindcraft/tools/mindcraft_cbap.py --target 22,67,-54
 ```
 
 ## 下一步

@@ -46,9 +46,9 @@ spawn（或已有 bot）
 
 ## 代码
 
-- `drivers/alice/bridge/CbapBridge.java`
-- `tools/alice_bridge_probe.py`
-- `drivers/alice/README.md`
+- `archive/alice/bridge/CbapBridge.java`
+- `archive/alice/tools/alice_bridge_probe.py`
+- `archive/alice/bridge/README.md`
 
 ## 状态
 

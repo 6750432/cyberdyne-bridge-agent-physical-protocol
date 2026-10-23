@@ -16,7 +16,7 @@
   "limits": {"max_frame": 65536, "max_inflight": 1, "rate_hz": 1, "max_command_ms": 60000},
   "safety": {"estop": "bridge /stop", "watchdog_ms": 5000, "safe_state": "bridge-stopped"},
   "metadata": {
-    "driver": "drivers/voyager/adapter.mjs",
+    "driver": "agents/voyager/adapter/adapter.mjs",
     "bridge": "http://127.0.0.1:3000",
     "note": "exec runs explicit JS through Voyager's bridge; no LLM"
   }

@@ -73,7 +73,7 @@
   },
   "metadata": {
     "transport": "stdio",
-    "driver": "drivers/mcp/driver.py",
+    "driver": "agents/mcp-mineflayer/driver/driver.py",
     "server": "swaynos/mineflayer-mcp",
     "note": "MCP server owns the bot; CBAP driver launches it and only uses public MCP tools."
   }

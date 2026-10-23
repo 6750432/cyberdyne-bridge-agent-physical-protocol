@@ -12,7 +12,7 @@
 停止：外挂/车钩.py（旧脑）
 停止：node node/server.js（旧手）
 保留：Minecraft Java server
-保留：tools/mcp_dashboard.py + external mineflayer-mcp（MCPBody）
+保留：agents/mcp-mineflayer/tools/mcp_dashboard.py + external mineflayer-mcp（MCPBody）
 ```
 
 旧手退出日志：

@@ -27,7 +27,7 @@
 在外部 `mineflayer-mcp` 副本上打一个小 patch：
 
 ```text
-drivers/mcp/patches/mineflayer-mcp-place.patch
+agents/mcp-mineflayer/driver/patches/mineflayer-mcp-place.patch
 ```
 
 补丁做四件事：
@@ -42,7 +42,7 @@ drivers/mcp/patches/mineflayer-mcp-place.patch
 
 ```bash
 cd /path/to/mineflayer-mcp
-patch -p1 < /path/to/cyberdyne-bridge/drivers/mcp/patches/mineflayer-mcp-place.patch
+patch -p1 < /path/to/cyberdyne-bridge/agents/mcp-mineflayer/driver/patches/mineflayer-mcp-place.patch
 node --check src/bot.js
 node --check src/tools.js
 ```

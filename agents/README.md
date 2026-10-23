@@ -37,17 +37,14 @@ launch / smoke test / agent-specific docs
 
 ## Migration rule
 
-Physical move is complete; compatibility shims:
+External agent shims are removed. The remaining root shims are only for our own
+legacy brain/hand/plugin constants:
 
 ```text
 bridge.py / node / 外挂 / config.json -> agents/cyberdyne
- drivers/mcp        -> agents/mcp-mineflayer/driver
-drivers/mindcraft  -> agents/mindcraft/adapter
-drivers/voyager    -> agents/voyager/adapter
-drivers/alice      -> archive/alice/bridge
 ```
 
-Keep those shims until external launch scripts and tests are migrated.
+Keep them until bridge/hand/plugin path constants are migrated.
 
 Each active subrepo also owns a local `smoke.py`; the main conformance suite
 runs all four through `tests/cbap/test_agent_smoke.py`.

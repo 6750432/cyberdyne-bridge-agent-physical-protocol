@@ -1,1 +1,0 @@
-../archive/alice/tools/alice_bridge_probe.py

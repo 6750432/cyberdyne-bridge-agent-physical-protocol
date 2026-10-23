@@ -5,7 +5,7 @@
 ```text
 CBAP Kernel
   → McDriver (line-JSON)
-  → drivers/voyager/adapter.mjs
+  → agents/voyager/adapter/adapter.mjs
   → Voyager bridge :3000
   → Mineflayer / Minecraft 1.19.2
 ```
@@ -40,5 +40,5 @@ It also includes the optional `minecrafthawkeye` guard used by the spike.
 
 ```bash
 # server + bridge + bot must be running
-python3 tools/voyager_cbap.py
+python3 agents/voyager/tools/voyager_cbap.py
 ```

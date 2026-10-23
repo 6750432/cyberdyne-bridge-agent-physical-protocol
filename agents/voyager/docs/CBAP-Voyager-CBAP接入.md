@@ -7,7 +7,7 @@
 
 ```text
 device: mc://voyager/bot
-adapter: drivers/voyager/adapter.mjs
+adapter: agents/voyager/adapter/adapter.mjs
 kernel: McDriver + CBAP Kernel
 ```
 
@@ -103,8 +103,8 @@ curl -X POST localhost:3000/start -H 'Content-Type: application/json' \
   -d '{"port":25565,"reset":"hard","inventory":{},"waitTicks":10}'
 
 # adapter
-node drivers/voyager/adapter.mjs --bridge http://127.0.0.1:3000
+node agents/voyager/adapter/adapter.mjs --bridge http://127.0.0.1:3000
 
 # CBAP probe
-.python310/bin/python3.10 tools/voyager_cbap.py
+.python310/bin/python3.10 agents/voyager/tools/voyager_cbap.py
 ```

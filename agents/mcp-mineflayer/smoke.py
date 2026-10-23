@@ -13,7 +13,9 @@ for p in [Path(__file__).parent / "driver/driver.py",
           Path(__file__).parent / "driver/mapping.json"]:
     if not p.exists():
         raise SystemExit(f"missing: {p}")
-from drivers.mcp.driver import MCPDriver  # noqa: E402
+import importlib  # noqa: E402
+MCPDriver = importlib.import_module(
+    "agents.mcp-mineflayer.driver.driver").MCPDriver
 assert MCPDriver.__name__ == "MCPDriver"
 json.loads((Path(__file__).parent / "driver/device.json").read_text())
 json.loads((Path(__file__).parent / "driver/mapping.json").read_text())

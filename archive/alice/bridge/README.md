@@ -9,7 +9,7 @@ deterministic task.
 Copy:
 
 ```text
-drivers/alice/bridge/CbapBridge.java
+archive/alice/bridge/CbapBridge.java
 ```
 
 to:
@@ -56,7 +56,7 @@ task.current idle
 task.lastTerminal terminal=SUCCESS (when available)
 ```
 
-`tools/alice_bridge_probe.py` does this directly over HTTP, without GPT or any
+`archive/alice/tools/alice_bridge_probe.py` does this directly over HTTP, without GPT or any
 paid API.
 
 ## Status

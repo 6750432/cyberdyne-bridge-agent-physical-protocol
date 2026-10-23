@@ -1,1 +1,0 @@
-../agents/mcp-mineflayer/tools/mcp_dashboard.py

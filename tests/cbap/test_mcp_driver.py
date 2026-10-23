@@ -4,6 +4,7 @@
 
 from __future__ import annotations
 
+import importlib
 import os
 import shutil
 import sys
@@ -11,7 +12,8 @@ import tempfile
 import time
 import unittest
 
-from drivers.mcp.driver import MCPDriver
+MCPDriver = importlib.import_module(
+    "agents.mcp-mineflayer.driver.driver").MCPDriver
 from kernel.legacy_runtime.client import CBAPClient
 from kernel.legacy_runtime.server import KernelServer
 

@@ -1,1 +1,0 @@
-../agents/voyager/tools/voyager_spike.py

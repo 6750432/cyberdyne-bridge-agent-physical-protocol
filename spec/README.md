@@ -19,16 +19,16 @@
 - `drivers/mc/device.json` / `mapping.json` 已覆盖真实 legacy hand 的完整命令面（21 个 op，含 collect / chest / furnace / give）；
 - `drivers/dataflow/`：外部 MC Agent 的通用数据流驱动；一个 Kernel 可同时挂 legacy hand + dataflow Agent（`KernelServer(drivers=[...])`）；
 - `tests/cbap/test_multi_device.py`：同一 Kernel 下两个设备并存、独立租约、独立读写；
-- `drivers/mcp/`：真实外部 MCP MC Agent（`swaynos/mineflayer-mcp`）的 stdio adapter；公开 MCP tools → CBAP read/write/poll/estop；
+- `agents/mcp-mineflayer/driver/`：真实外部 MCP MC Agent（`swaynos/mineflayer-mcp`）的 stdio adapter；公开 MCP tools → CBAP read/write/poll/estop；
 - `tests/cbap/test_data.py`：设备通道、映射、参数类型、legacy 字段名 / dataflow / MCP 8 条数据契约测试通过；
 - `tests/cbap/test_mcp_driver.py`：MCP stdio 协议、状态、move/chat、estop 4 条通过；
 - `tests/cbap/test_conformance.py`：20 条一致性用例 + D1/D4/D5 驱动安全用例通过；
 - 网关/驱动/适配器/数据合计 61 条：`python3 tools/cbap_conformance.py --target fake`；
-- 真实 MCP 外设 demo：`python3 tools/mcp_dashboard.py --server-path ...`，截图 `docs/screenshots/cbap-mcp-live.png`；
+- 真实 MCP 外设 demo：`python3 agents/mcp-mineflayer/tools/mcp_dashboard.py --server-path ...`，截图 `docs/screenshots/cbap-mcp-live.png`；
 - 本 Agent 直接当 LLM 的真实任务：`docs/CBAP-真实MCP-LLM任务.md`，截图 `docs/screenshots/cbap-mcp-llm-task.png`（采集 3 个 spruce_log）；
 - 完整木镐链路：`docs/CBAP-真实MCP-木镐任务.md`，截图 `docs/screenshots/cbap-mcp-pickaxe.png`（原木 → 木板 → 工作台 → 木棍 → 木镐 → 装备）；
 - 石镐/熔炉链路：`docs/CBAP-真实MCP-石镐熔炉任务.md`，截图 `docs/screenshots/cbap-mcp-stone-pickaxe.png`（木镐挖石 → 石镐 → 熔炉）；
-- MCP place 修复：`docs/CBAP-MCP-place修复.md`，截图 `docs/screenshots/cbap-mcp-place-fixed.png`；补丁 `drivers/mcp/patches/mineflayer-mcp-place.patch`（只修外部 server 的方块选择/hotbar/确认，不动 bridge/node）；
+- MCP place 修复：`docs/CBAP-MCP-place修复.md`，截图 `docs/screenshots/cbap-mcp-place-fixed.png`；补丁 `agents/mcp-mineflayer/driver/patches/mineflayer-mcp-place.patch`（只修外部 server 的方块选择/hotbar/确认，不动 bridge/node）；
 - 外部 LLM 自主性：`docs/CBAP-外部LLM自主性验证.md`，截图 `docs/screenshots/cbap-mcp-autonomy.png`；Qwen3-4B 独立规划；
 - Goal gate 与真实异构并发：`docs/CBAP-goal-gate与并发隔离.md`，截图 `docs/screenshots/cbap-mcp-goalgate.png`；第二次外部规划恰好 3 个 oak_log；MCP + legacy hand 同 Kernel 的租约/结果/estop 隔离通过；
 - 双外部 LLM 并发：`docs/CBAP-双外部LLM并发.md`，结果 `docs/dual-agent.json`；两个独立 Qwen planner 通过各自 CBAP fd 驱动两个真实异构设备，动作/结果不串；
@@ -39,7 +39,7 @@
 - Voyager CBAP 接入：`docs/CBAP-Voyager-CBAP接入.md`，结果 `docs/voyager-cbap.json`；`mc://voyager/bot` 的 state/forward/say/exec/stop 8/8 通过，无付费 API；
 - 本地 Qwen 控制 Voyager：`docs/CBAP-Qwen控制Voyager.md`，结果 `docs/voyager-qwen.json`；4 步 forward×2/say/done，无 GPT-4/API；
 - Qwen 生成 JS + Voyager exec：`docs/CBAP-Qwen-exec-Voyager.md`，结果 `docs/voyager-qwen-exec.json`；4B 生成 jump+chat JS，onChat 验证通过，无付费 API；
-- Alice 最小 bridge：`docs/CBAP-Alice-minimal-bridge.md`，源码 `drivers/alice/bridge/CbapBridge.java`，probe `tools/alice_bridge_probe.py`；未编译/未跑 Forge。
+- Alice 最小 bridge：`docs/CBAP-Alice-minimal-bridge.md`，源码 `archive/alice/bridge/CbapBridge.java`，probe `archive/alice/tools/alice_bridge_probe.py`；未编译/未跑 Forge。
 
 ## 还没做
 
@@ -48,7 +48,7 @@
 - legacy `cmdResult` 加 `id`，消掉网关的 FIFO 配对限制；
 - D2（estop 回 ok 但设备仍动）/ D3（驱动 watchdog）的驱动侧强制用例；当前 D1/D4/D5 已接入一致性执行器；
 - MCP server 只是真实身体/工具层；外部 LLM/MCP Agent 的自主规划回路还没接（当前 Kernel 是调用方）；
-- MCP 第一刀不支持 stop/collect/chest/furnace（server 没有对应工具），见 `drivers/mcp/README.md`。
+- MCP 第一刀不支持 stop/collect/chest/furnace（server 没有对应工具），见 `agents/mcp-mineflayer/driver/README.md`。
 
 ## 命名约定
 

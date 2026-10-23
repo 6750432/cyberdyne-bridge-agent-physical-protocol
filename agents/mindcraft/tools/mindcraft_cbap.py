@@ -50,8 +50,8 @@ def main() -> int:
 
     try:
         driver = McDriver(args.adapter,
-                          device_path=os.path.join(ROOT, "drivers/mindcraft/device.json"),
-                          mapping_path=os.path.join(ROOT, "drivers/mindcraft/mapping.json"),
+                          device_path=os.path.join(ROOT, "agents/mindcraft/adapter/device.json"),
+                          mapping_path=os.path.join(ROOT, "agents/mindcraft/adapter/mapping.json"),
                           connect_timeout=5, reconnect=True)
         driver.connect()
         kernel = KernelServer(drivers=[driver], socket_path=sock,

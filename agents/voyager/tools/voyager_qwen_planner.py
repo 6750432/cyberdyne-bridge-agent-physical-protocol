@@ -73,8 +73,8 @@ def main() -> int:
 
     try:
         driver = McDriver("/tmp/voyager-cbap.sock",
-                          device_path=os.path.join(ROOT, "drivers/voyager/device.json"),
-                          mapping_path=os.path.join(ROOT, "drivers/voyager/mapping.json"),
+                          device_path=os.path.join(ROOT, "agents/voyager/adapter/device.json"),
+                          mapping_path=os.path.join(ROOT, "agents/voyager/adapter/mapping.json"),
                           connect_timeout=5, reconnect=True)
         driver.connect()
         kernel = KernelServer(drivers=[driver], socket_path=sock,

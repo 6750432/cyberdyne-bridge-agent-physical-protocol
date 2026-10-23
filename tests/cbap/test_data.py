@@ -16,8 +16,8 @@ DEVICE = os.path.join(ROOT, "drivers", "mc", "device.json")
 MAPPING = os.path.join(ROOT, "drivers", "mc", "mapping.json")
 FLOW_DEVICE = os.path.join(ROOT, "drivers", "dataflow", "device.json")
 FLOW_MAPPING = os.path.join(ROOT, "drivers", "dataflow", "mapping.json")
-MCP_DEVICE = os.path.join(ROOT, "drivers", "mcp", "device.json")
-MCP_MAPPING = os.path.join(ROOT, "drivers", "mcp", "mapping.json")
+MCP_DEVICE = os.path.join(ROOT, "agents", "mcp-mineflayer", "driver", "device.json")
+MCP_MAPPING = os.path.join(ROOT, "agents", "mcp-mineflayer", "driver", "mapping.json")
 
 EXPECTED_OPS = {
     "move", "jump", "jumpattack", "sneak", "swimdown", "eat",

@@ -16,7 +16,7 @@
     "smoke": "agents/mcp-mineflayer/smoke.py"
   },
   "cbap": {
-    "driver_module": "drivers.mcp.driver",
+    "driver_module": "agents.mcp-mineflayer.driver.driver",
     "driver_factory": "MCPDriver",
     "device_id": "mcp://mc/MCPBody",
     "transport": "mcp-stdio"

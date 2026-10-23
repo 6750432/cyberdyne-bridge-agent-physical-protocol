@@ -1,6 +1,6 @@
 # Repository layout and migration boundary
 
-Status: **phase 3 — tools/docs moved; per-agent smoke tests; shims still in place**
+Status: **phase 4 — external agent shims removed; own legacy shims remain**
 
 ## Current
 
@@ -57,28 +57,27 @@ Alice is archived: source-only, not compiled, not smoke-tested.
 
 ## Compatibility shims
 
-Old paths are symlinks, so services, imports, and tests keep working:
+External agent shims are removed. Remaining root shims are only for our own
+legacy brain/hand/plugin constants:
 
 ```text
-bridge.py             -> agents/cyberdyne/brain/bridge.py
-config.json           -> agents/cyberdyne/config.json
-node                  -> agents/cyberdyne/hand/node
-外挂                   -> agents/cyberdyne/plugins
-drivers/mcp           -> agents/mcp-mineflayer/driver
-drivers/mindcraft     -> agents/mindcraft/adapter
-drivers/voyager       -> agents/voyager/adapter
-drivers/alice         -> archive/alice/bridge
+bridge.py   -> agents/cyberdyne/brain/bridge.py
+config.json -> agents/cyberdyne/config.json
+node        -> agents/cyberdyne/hand/node
+外挂         -> agents/cyberdyne/plugins
 ```
+
+MCP, Mindcraft, Voyager and Alice are addressed by their real paths.
 
 ## Why shims instead of changing imports now
 
 The current kernel/tests/tools still use concrete paths such as:
 
 ```text
-drivers.mcp.driver
 drivers.mc.driver
-tools/mindcraft_cbap.py
-node/server.js
+agents/mcp-mineflayer.driver.driver
+agents/mindcraft/tools/mindcraft_cbap.py
+agents/cyberdyne/hand/node/server.js
 ```
 
 The symlinks preserve those paths while the physical files are separated.
@@ -92,9 +91,10 @@ Removing a shim is a separate migration after every caller has moved.
 3. Compatibility shims for existing paths              [done]
 4. Agent tools/docs moved into agent subrepos          [done]
 5. Independent per-agent smoke tests                   [done]
-6. Full conformance suite                              [61/61 passed]
-7. Remove shims after callers migrate                  [next]
-8. Decide whether to use real git submodules/remotes   [later]
+6. External callers moved off shims                    [done]
+7. External agent shims removed                        [done]
+8. Own legacy path constants migrated                  [next]
+9. Decide whether to use real git submodules/remotes   [later]
 ```
 
 ## Contract
@@ -127,3 +127,38 @@ archive/alice/agent.json
 
 Discovery is implemented in `kernel/driver_api.py`; it only reads manifests
 and imports a factory on explicit request.
+
+## Verification (2026-10-24)
+
+```text
+CBAP conformance: 61/61 passed
+brain launcher:   bash tools/启动大脑.sh --help  -> ok
+launcher syntax:  bash -n on all three root launch shims -> ok
+Alice probe:      archive/alice/tools/alice_bridge_probe.py --help -> ok
+JS tests:         22 + 6 + 8 passed
+external shims:   drivers/{mcp,mindcraft,voyager,alice},
+                  tools/{mcp_dashboard,mindcraft_cbap,voyager_*,alice_bridge_probe}
+                  are removed
+```
+
+`tools/跑全部.sh` still reports six legacy files red. They were already red
+before the physical move; the bridge fingerprint expected by those tests is
+`a649...` while the checked-in bridge has been `658c...` since commit
+`2ef1ab5`. They are not caused by the subrepo split:
+
+```text
+测任务书.py        bridge fingerprint
+测挖空守卫.py      bridge fingerprint
+测贯通审计.py      bridge fingerprint
+测工具查表.py      D2 pre-existing
+测常识.py          N1/N3/N4 pre-existing
+测生存常识.py      B15b/G2/C13/R5b pre-existing
+```
+
+The JS path failure was caused by the move (block-table lookup was three
+directories up); `proto_body.js` now also looks in
+`agents/cyberdyne/plugins/常识/方块交互表.json`, and all 22 JS tests pass.
+
+Own legacy shims remain because `bridge.py`, `node` and `外挂` are still
+hardcoded by the old brain/hand/plugin code. They are not external-agent
+shims.

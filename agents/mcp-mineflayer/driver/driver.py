@@ -22,7 +22,7 @@ import time
 from typing import Any
 
 from drivers.mc.driver import ActionError
-from drivers.mcp.client import MCPError, MCPStdioClient
+from .client import MCPError, MCPStdioClient
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 DEFAULT_SERVER_PATH = os.environ.get("CBAP_MCP_SERVER", "")
