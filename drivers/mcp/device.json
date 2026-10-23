@@ -1,0 +1,79 @@
+{
+  "device_id": "mcp://mc/MCPBody",
+  "type": "minecraft-mcp-agent",
+  "cbap": "1.0",
+  "display_name": "External MCP Minecraft agent (mineflayer-mcp)",
+  "channels": {
+    "body": {
+      "direction": "rw",
+      "read": [
+        "pose",
+        "hp",
+        "food",
+        "held"
+      ],
+      "write": [
+        "move",
+        "goto"
+      ]
+    },
+    "world": {
+      "direction": "rw",
+      "read": [
+        "scan",
+        "blocks",
+        "chat"
+      ],
+      "write": [
+        "dig",
+        "place",
+        "attack",
+        "use"
+      ]
+    },
+    "inventory": {
+      "direction": "rw",
+      "read": [
+        "items"
+      ],
+      "write": [
+        "craft"
+      ]
+    },
+    "chat": {
+      "direction": "rw",
+      "read": [
+        "chat"
+      ],
+      "write": [
+        "say"
+      ]
+    }
+  },
+  "capabilities": [
+    "locomotion",
+    "manipulation",
+    "vision",
+    "inventory",
+    "chat",
+    "crafting",
+    "combat"
+  ],
+  "limits": {
+    "max_frame": 65536,
+    "max_inflight": 2,
+    "rate_hz": 2,
+    "max_command_ms": 120000
+  },
+  "safety": {
+    "estop": "terminate-mcp-process+disconnect-bot",
+    "watchdog_ms": 10000,
+    "safe_state": "offline"
+  },
+  "metadata": {
+    "transport": "stdio",
+    "driver": "drivers/mcp/driver.py",
+    "server": "swaynos/mineflayer-mcp",
+    "note": "MCP server owns the bot; CBAP driver launches it and only uses public MCP tools."
+  }
+}

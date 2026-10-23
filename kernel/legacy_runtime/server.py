@@ -948,6 +948,7 @@ def _state_payload(s: dict) -> dict:
             "scan": s.get("scan"),
             "blocks": s.get("blocks") or [],
             "furnace": s.get("furnace"),
+            "chat": s.get("chat") or [],
         },
         "players": s.get("players") or [],
         "near": s.get("near") or [],

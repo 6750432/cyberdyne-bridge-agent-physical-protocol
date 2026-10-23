@@ -16,6 +16,8 @@ DEVICE = os.path.join(ROOT, "drivers", "mc", "device.json")
 MAPPING = os.path.join(ROOT, "drivers", "mc", "mapping.json")
 FLOW_DEVICE = os.path.join(ROOT, "drivers", "dataflow", "device.json")
 FLOW_MAPPING = os.path.join(ROOT, "drivers", "dataflow", "mapping.json")
+MCP_DEVICE = os.path.join(ROOT, "drivers", "mcp", "device.json")
+MCP_MAPPING = os.path.join(ROOT, "drivers", "mcp", "mapping.json")
 
 EXPECTED_OPS = {
     "move", "jump", "jumpattack", "sneak", "swimdown", "eat",
@@ -105,6 +107,21 @@ class DataContractTest(unittest.TestCase):
                 self.assertIn(ch, dev["channels"])
                 self.assertIn(op, dev["channels"][ch].get("write") or [])
         self.assertEqual(set(mp["ops"]), EXPECTED_OPS - {"jumpattack"})
+
+    def test_mcp_mapping_matches_channels(self) -> None:
+        with open(MCP_DEVICE, encoding="utf-8") as f:
+            dev = json.load(f)
+        with open(MCP_MAPPING, encoding="utf-8") as f:
+            mp = json.load(f)
+        self.assertEqual(dev["device_id"], mp["device_id"])
+        for op, spec in mp["ops"].items():
+            with self.subTest(op=op):
+                ch = spec["channel"]
+                self.assertIn(ch, dev["channels"])
+                self.assertIn(op, dev["channels"][ch].get("write") or [])
+        self.assertEqual(set(mp["ops"]),
+                         {"move", "goto", "dig", "place", "attack",
+                          "use", "craft", "say"})
 
     def test_dataflow_driver_maps_generic_args(self) -> None:
         d = DataFlowDriver("/tmp/does-not-exist.sock",

@@ -27,6 +27,7 @@ MODULES = [
     "tests.cbap.test_brain_adapter",
     "tests.cbap.test_conformance",
     "tests.cbap.test_multi_device",
+    "tests.cbap.test_mcp_driver",
 ]
 
 

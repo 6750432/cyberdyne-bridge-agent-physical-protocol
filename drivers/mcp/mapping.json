@@ -1,0 +1,65 @@
+{
+  "cbap": "1.0",
+  "device_id": "mcp://mc/MCPBody",
+  "ops": {
+    "move": {
+      "channel": "body",
+      "op": "move",
+      "args": {
+        "dir": "vec2",
+        "?ms": "int",
+        "?p": "vec3"
+      }
+    },
+    "goto": {
+      "channel": "body",
+      "op": "goto",
+      "args": {
+        "p": "vec3"
+      }
+    },
+    "dig": {
+      "channel": "world",
+      "op": "dig",
+      "args": {
+        "p": "vec3"
+      }
+    },
+    "place": {
+      "channel": "world",
+      "op": "place",
+      "args": {
+        "p": "vec3"
+      }
+    },
+    "attack": {
+      "channel": "world",
+      "op": "attack",
+      "args": {
+        "target": "int"
+      }
+    },
+    "use": {
+      "channel": "world",
+      "op": "use",
+      "args": {
+        "?p": "vec3"
+      }
+    },
+    "craft": {
+      "channel": "inventory",
+      "op": "craft",
+      "args": {
+        "item": "string",
+        "?count": "int"
+      }
+    },
+    "say": {
+      "channel": "chat",
+      "op": "say",
+      "args": {
+        "text": "string"
+      }
+    }
+  }
+}

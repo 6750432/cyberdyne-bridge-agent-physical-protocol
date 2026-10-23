@@ -19,16 +19,21 @@
 - `drivers/mc/device.json` / `mapping.json` 已覆盖真实 legacy hand 的完整命令面（21 个 op，含 collect / chest / furnace / give）；
 - `drivers/dataflow/`：外部 MC Agent 的通用数据流驱动；一个 Kernel 可同时挂 legacy hand + dataflow Agent（`KernelServer(drivers=[...])`）；
 - `tests/cbap/test_multi_device.py`：同一 Kernel 下两个设备并存、独立租约、独立读写；
-- `tests/cbap/test_data.py`：设备通道、映射、参数类型、legacy 字段名 5 条数据契约测试通过；
+- `drivers/mcp/`：真实外部 MCP MC Agent（`swaynos/mineflayer-mcp`）的 stdio adapter；公开 MCP tools → CBAP read/write/poll/estop；
+- `tests/cbap/test_data.py`：设备通道、映射、参数类型、legacy 字段名 / dataflow / MCP 8 条数据契约测试通过；
+- `tests/cbap/test_mcp_driver.py`：MCP stdio 协议、状态、move/chat、estop 4 条通过；
 - `tests/cbap/test_conformance.py`：20 条一致性用例 + D1/D4/D5 驱动安全用例通过；
-- 网关/驱动/适配器/数据合计 47 条：`python3 tools/cbap_conformance.py --target fake`。
+- 网关/驱动/适配器/数据合计 52 条：`python3 tools/cbap_conformance.py --target fake`；
+- 真实 MCP 外设 demo：`python3 tools/mcp_dashboard.py --server-path ...`，截图 `docs/screenshots/cbap-mcp-live.png`。
 
 ## 还没做
 
 - 让 `bridge.py` 真正通过 `CBAPClient` 调手（现在网关是新 Agent 的入口，`bridge.py` 还走旧 `接线口`）；
 - `cbap-pkg` 包管理器规范/实现；
 - legacy `cmdResult` 加 `id`，消掉网关的 FIFO 配对限制；
-- D2（estop 回 ok 但设备仍动）/ D3（驱动 watchdog）的驱动侧强制用例；当前 D1/D4/D5 已接入一致性执行器。
+- D2（estop 回 ok 但设备仍动）/ D3（驱动 watchdog）的驱动侧强制用例；当前 D1/D4/D5 已接入一致性执行器；
+- MCP server 只是真实身体/工具层；外部 LLM/MCP Agent 的自主规划回路还没接（当前 Kernel 是调用方）；
+- MCP 第一刀不支持 stop/collect/chest/furnace（server 没有对应工具），见 `drivers/mcp/README.md`。
 
 ## 命名约定
 
