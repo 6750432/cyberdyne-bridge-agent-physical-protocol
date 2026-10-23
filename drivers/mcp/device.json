@@ -37,7 +37,8 @@
         "items"
       ],
       "write": [
-        "craft"
+        "craft",
+        "equip"
       ]
     },
     "chat": {

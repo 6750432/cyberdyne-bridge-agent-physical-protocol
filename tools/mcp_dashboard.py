@@ -325,6 +325,10 @@ class Handler(BaseHTTPRequestHandler):
                         return
                     frame = body.get("frame") or body
                     rid, ack, result = c.write(fd, frame, deadline_ms=120000)
+                    label = str(frame.get("op") or "action")
+                    add_cbap("write", label=label, op=frame.get("op"), id=rid)
+                    record_result(rid, result, label)
+                    refresh(RUNTIME.get("driver"))
                     self._json({"ok": bool(result.get("ok")),
                                 "id": rid, "ack": ack, "result": result})
                     return

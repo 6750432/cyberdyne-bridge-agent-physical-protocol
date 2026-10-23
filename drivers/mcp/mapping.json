@@ -60,6 +60,14 @@
       "args": {
         "text": "string"
       }
+    },
+    "equip": {
+      "channel": "inventory",
+      "op": "equip",
+      "args": {
+        "name": "string",
+        "?destination": "string"
+      }
     }
   }
 }

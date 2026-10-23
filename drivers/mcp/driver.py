@@ -264,7 +264,7 @@ class MCPDriver:
             try:
                 blocks = self._call("observe", {
                     "target": "blocks",
-                    "blockTypes": ["oak_log", "stone", "grass_block", "dirt"],
+                    "blockTypes": ["oak_log", "stone", "grass_block", "dirt", "crafting_table"],
                     "maxDistance": 16, "maxCount": 8}, timeout=20)
                 state["blocks"] = (blocks or {}).get("blocks") or []
                 state["scan"] = {"blocks": state["blocks"]}
@@ -411,6 +411,13 @@ class MCPDriver:
                      "count": int(args.get("count") or 1)}
             if not targs["itemName"]:
                 raise ActionError("E_INVAL", "craft needs item")
+        elif op == "equip":
+            tool = "inventory"
+            name = str(args.get("name") or "")
+            if not name:
+                raise ActionError("E_INVAL", "equip needs name")
+            targs = {"action": "equip", "name": name,
+                     "destination": args.get("destination") or "hand"}
         elif op == "stop":
             raise ActionError("E_NOTSUP",
                               "MCP mineflayer server has no stop tool; use estop")

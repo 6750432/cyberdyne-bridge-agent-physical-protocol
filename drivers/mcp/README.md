@@ -91,7 +91,7 @@ kernel = KernelServer(drivers=[drv], socket_path="./cbap.sock")
 
 ```text
 read:  status / observe position / observe blocks / inventory inspect / observe chat
-write: move / goto / dig / place / chat / attack / use / craft
+write: move / goto / dig / place / chat / attack / use / craft / equip
 poll:  CBAP state，500 ms
 estop: 终止外部 MCP 进程并断开 bot
 ```
@@ -101,6 +101,10 @@ estop: 终止外部 MCP 进程并断开 bot
 ```text
 stop：MCP server 没有 stop 工具；用 estop 做硬停。
 collect / chest / furnace：当前 MCP server 没有对应工具。
+
+工作台链路已经实测：`craft spruce_planks → craft crafting_table →
+equip crafting_table → place → craft stick → craft wooden_pickaxe`。
+记录见 `docs/CBAP-真实MCP-木镐任务.md`。
 ```
 
 ## 集成测试

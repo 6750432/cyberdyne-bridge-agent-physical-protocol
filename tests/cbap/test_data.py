@@ -121,7 +121,7 @@ class DataContractTest(unittest.TestCase):
                 self.assertIn(op, dev["channels"][ch].get("write") or [])
         self.assertEqual(set(mp["ops"]),
                          {"move", "goto", "dig", "place", "attack",
-                          "use", "craft", "say"})
+                          "use", "craft", "equip", "say"})
 
     def test_dataflow_driver_maps_generic_args(self) -> None:
         d = DataFlowDriver("/tmp/does-not-exist.sock",
