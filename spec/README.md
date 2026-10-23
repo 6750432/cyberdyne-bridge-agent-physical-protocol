@@ -35,7 +35,8 @@
 - 同设备竞争与故障注入：`docs/CBAP-同设备竞争与故障注入.md`，结果 `docs/contention-fault.json`；lease/E_BUSY、wait_ms FIFO、release 交接、MCP crash→E_IO/unhealthy 14/14 通过；
 - Cancel 与 MCP 恢复：`docs/CBAP-cancel与MCP恢复.md`，结果 `docs/cancel-recovery.json`；cancel→E_CANCELED、自动重启、crash→E_IO、恢复后重新 lease 并续写 13/13 通过；
 - Mindcraft 接入：`docs/CBAP-Mindcraft接入.md`，截图 `docs/screenshots/cbap-mindcraft.png`，结果 `docs/mindcraft-cbap.json`；真实 Mindy 通过 adapter 暴露 state/prompt/stop，8/8 通过；
-- Voyager spike：`docs/CBAP-Voyager-spike.md`，结果 `docs/voyager-spike.json`；Python 3.10 + Voyager bridge + MC 1.19.2 + 手写 JS，5/5 通过（不含 GPT-4/VoyagerEnv）。
+- Voyager spike：`docs/CBAP-Voyager-spike.md`，结果 `docs/voyager-spike.json`；Python 3.10 + Voyager bridge + MC 1.19.2 + 手写 JS，5/5 通过（不含 GPT-4/VoyagerEnv）；
+- Voyager CBAP 接入：`docs/CBAP-Voyager-CBAP接入.md`，结果 `docs/voyager-cbap.json`；`mc://voyager/bot` 的 state/forward/say/exec/stop 8/8 通过，无付费 API。
 
 ## 还没做
 

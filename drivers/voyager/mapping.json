@@ -1,0 +1,10 @@
+{
+  "cbap": "1.0",
+  "device_id": "mc://voyager/bot",
+  "ops": {
+    "forward": {"channel": "body", "op": "forward", "args": {}},
+    "exec": {"channel": "body", "op": "exec", "args": {"code": "string"}},
+    "say": {"channel": "chat", "op": "say", "args": {"text": "string"}},
+    "stop": {"channel": "body", "op": "stop", "args": {}}
+  }
+}

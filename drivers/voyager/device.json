@@ -1,0 +1,23 @@
+{
+  "device_id": "mc://voyager/bot",
+  "type": "minecraft-voyager-bridge",
+  "cbap": "1.0",
+  "display_name": "Voyager Mineflayer bridge (1.19.2)",
+  "channels": {
+    "body": {
+      "direction": "rw",
+      "read": ["pose", "hp", "food", "held"],
+      "write": ["forward", "exec", "stop"]
+    },
+    "inventory": {"direction": "r", "read": ["items"]},
+    "chat": {"direction": "rw", "read": ["chat"], "write": ["say"]}
+  },
+  "capabilities": ["locomotion", "chat", "code-exec", "stop"],
+  "limits": {"max_frame": 65536, "max_inflight": 1, "rate_hz": 1, "max_command_ms": 60000},
+  "safety": {"estop": "bridge /stop", "watchdog_ms": 5000, "safe_state": "bridge-stopped"},
+  "metadata": {
+    "driver": "drivers/voyager/adapter.mjs",
+    "bridge": "http://127.0.0.1:3000",
+    "note": "exec runs explicit JS through Voyager's bridge; no LLM"
+  }
+}
