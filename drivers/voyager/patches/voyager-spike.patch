@@ -1,0 +1,22 @@
+diff --git a/voyager/env/mineflayer/index.js b/voyager/env/mineflayer/index.js
+index 7fb0a87..0ba7227 100644
+--- a/voyager/env/mineflayer/index.js
++++ b/voyager/env/mineflayer/index.js
+@@ -99,12 +99,15 @@ app.post("/start", (req, res) => {
+         const tool = require("mineflayer-tool").plugin;
+         const collectBlock = require("mineflayer-collectblock").plugin;
+         const pvp = require("mineflayer-pvp").plugin;
+-        const minecraftHawkEye = require("minecrafthawkeye");
++        let minecraftHawkEye = null;
++try { minecraftHawkEye = require("minecrafthawkeye"); } catch (e) {
++    console.log("minecrafthawkeye missing; bow aiming disabled");
++}
+         bot.loadPlugin(pathfinder);
+         bot.loadPlugin(tool);
+         bot.loadPlugin(collectBlock);
+         bot.loadPlugin(pvp);
+-        bot.loadPlugin(minecraftHawkEye);
++        if (minecraftHawkEye) bot.loadPlugin(minecraftHawkEye);
+ 
+         // bot.collectBlock.movements.digCost = 0;
+         // bot.collectBlock.movements.placeCost = 0;
