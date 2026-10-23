@@ -49,4 +49,7 @@ drivers/alice      -> archive/alice/bridge
 
 Keep those shims until external launch scripts and tests are migrated.
 
+Each active subrepo also owns a local `smoke.py`; the main conformance suite
+runs all four through `tests/cbap/test_agent_smoke.py`.
+
 The `agent.json` manifests are the contract for the future loader.

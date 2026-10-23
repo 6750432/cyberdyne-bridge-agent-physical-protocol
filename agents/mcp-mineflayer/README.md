@@ -12,5 +12,9 @@ transport: MCP stdio JSON-RPC 2.0
 The root `drivers/mcp` path is a compatibility symlink to this subrepo.
 Existing tests and tools continue to import `drivers.mcp.driver`.
 
+Local smoke: `python3 agents/mcp-mineflayer/smoke.py`
+Dashboard: `agents/mcp-mineflayer/tools/mcp_dashboard.py` (root `tools/`
+symlink remains).
+
 The upstream place patch is kept at
 `driver/patches/mineflayer-mcp-place.patch`.

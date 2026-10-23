@@ -24,3 +24,7 @@ config.json -> agents/cyberdyne/config.json
 ```
 
 This keeps the existing service and launch scripts working.
+
+Local smoke: `python3 agents/cyberdyne/smoke.py`
+Agent tools: `agents/cyberdyne/tools/` (launchers are physically here; root
+`tools/启动*.sh` are compatibility symlinks).

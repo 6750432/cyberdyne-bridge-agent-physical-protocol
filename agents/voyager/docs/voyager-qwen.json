@@ -1,0 +1,147 @@
+{
+  "ok": true,
+  "model": "local Qwen3-4B",
+  "task": "forward once; say 'qwen controlled voyager'; done",
+  "steps": [
+    {
+      "name": "open device",
+      "ok": true,
+      "detail": "fd-1"
+    },
+    {
+      "name": "lease",
+      "ok": true,
+      "detail": null
+    },
+    {
+      "name": "initial state",
+      "ok": true,
+      "detail": [
+        9.5,
+        64,
+        22.5
+      ]
+    },
+    {
+      "turn": 1,
+      "model": "/home/bzys17mintstart/models/Qwen3-4B-Instruct-2507-Q4_K_M.gguf",
+      "action": {
+        "action": "forward"
+      },
+      "ok": true,
+      "result": null
+    },
+    {
+      "name": "Qwen forward",
+      "ok": true,
+      "detail": {
+        "turn": 1,
+        "model": "/home/bzys17mintstart/models/Qwen3-4B-Instruct-2507-Q4_K_M.gguf",
+        "action": {
+          "action": "forward"
+        },
+        "ok": true,
+        "result": null
+      }
+    },
+    {
+      "turn": 2,
+      "model": "/home/bzys17mintstart/models/Qwen3-4B-Instruct-2507-Q4_K_M.gguf",
+      "action": {
+        "action": "forward"
+      },
+      "ok": true,
+      "result": null
+    },
+    {
+      "name": "Qwen forward",
+      "ok": true,
+      "detail": {
+        "turn": 2,
+        "model": "/home/bzys17mintstart/models/Qwen3-4B-Instruct-2507-Q4_K_M.gguf",
+        "action": {
+          "action": "forward"
+        },
+        "ok": true,
+        "result": null
+      }
+    },
+    {
+      "turn": 3,
+      "model": "/home/bzys17mintstart/models/Qwen3-4B-Instruct-2507-Q4_K_M.gguf",
+      "action": {
+        "action": "say",
+        "text": "qwen controlled voyager"
+      },
+      "ok": true,
+      "result": null
+    },
+    {
+      "name": "Qwen say",
+      "ok": true,
+      "detail": {
+        "turn": 3,
+        "model": "/home/bzys17mintstart/models/Qwen3-4B-Instruct-2507-Q4_K_M.gguf",
+        "action": {
+          "action": "say",
+          "text": "qwen controlled voyager"
+        },
+        "ok": true,
+        "result": null
+      }
+    },
+    {
+      "turn": 4,
+      "model": "/home/bzys17mintstart/models/Qwen3-4B-Instruct-2507-Q4_K_M.gguf",
+      "action": {
+        "action": "done"
+      },
+      "ok": true
+    },
+    {
+      "name": "Qwen chose done",
+      "ok": true,
+      "detail": {
+        "turn": 4,
+        "model": "/home/bzys17mintstart/models/Qwen3-4B-Instruct-2507-Q4_K_M.gguf",
+        "action": {
+          "action": "done"
+        },
+        "ok": true
+      }
+    },
+    {
+      "name": "move observed",
+      "ok": true,
+      "detail": {
+        "before": [
+          9.5,
+          64,
+          22.5
+        ],
+        "after": [
+          9.5,
+          64,
+          22.7
+        ]
+      }
+    },
+    {
+      "name": "chat issued",
+      "ok": true,
+      "detail": "qwen controlled voyager"
+    }
+  ],
+  "before": [
+    9.5,
+    64,
+    22.5
+  ],
+  "after": [
+    9.5,
+    64,
+    22.7
+  ],
+  "move_done": true,
+  "chat_done": true
+}

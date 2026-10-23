@@ -10,7 +10,11 @@
     "upstream": "external/Voyager",
     "adapter": "agents/voyager/adapter/adapter.mjs",
     "driver": "agents/voyager/adapter",
-    "state_patch": "agents/voyager/adapter/patches/voyager-state.patch"
+    "state_patch": "agents/voyager/adapter/patches/voyager-state.patch",
+    "tools": [
+      "agents/voyager/tools/"
+    ],
+    "smoke": "agents/voyager/smoke.py"
   },
   "cbap": {
     "driver_module": "drivers.mc.driver",

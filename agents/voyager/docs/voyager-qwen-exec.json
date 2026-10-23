@@ -1,0 +1,81 @@
+{
+  "ok": true,
+  "model": "local Qwen3-4B",
+  "task": "jump once and say 'qwen exec works'",
+  "steps": [
+    {
+      "name": "open",
+      "ok": true,
+      "detail": "fd-1"
+    },
+    {
+      "name": "lease",
+      "ok": true,
+      "detail": null
+    },
+    {
+      "name": "initial state",
+      "ok": true,
+      "detail": {
+        "pos": [
+          11.5,
+          68,
+          41.5
+        ],
+        "hp": 20,
+        "food": 20,
+        "on_ground": true,
+        "held": null,
+        "durability": null,
+        "acting": null
+      }
+    },
+    {
+      "attempt": 1,
+      "model": "/home/bzys17mintstart/models/Qwen3-4B-Instruct-2507-Q4_K_M.gguf",
+      "action": {
+        "action": "exec",
+        "code": "bot.setControlState('jump', true); bot.setControlState('jump', false); bot.chat('qwen exec works');"
+      },
+      "code": "bot.setControlState('jump', true); bot.setControlState('jump', false); bot.chat('qwen exec works');",
+      "ok": true,
+      "result": {
+        "onChat": [
+          "qwen exec works"
+        ]
+      },
+      "onChat": [
+        "qwen exec works"
+      ]
+    },
+    {
+      "name": "Qwen exec",
+      "ok": true,
+      "detail": {
+        "attempt": 1,
+        "model": "/home/bzys17mintstart/models/Qwen3-4B-Instruct-2507-Q4_K_M.gguf",
+        "action": {
+          "action": "exec",
+          "code": "bot.setControlState('jump', true); bot.setControlState('jump', false); bot.chat('qwen exec works');"
+        },
+        "code": "bot.setControlState('jump', true); bot.setControlState('jump', false); bot.chat('qwen exec works');",
+        "ok": true,
+        "result": {
+          "onChat": [
+            "qwen exec works"
+          ]
+        },
+        "onChat": [
+          "qwen exec works"
+        ]
+      }
+    },
+    {
+      "name": "exact chat observed",
+      "ok": true,
+      "detail": [
+        "qwen exec works"
+      ]
+    }
+  ]
+}

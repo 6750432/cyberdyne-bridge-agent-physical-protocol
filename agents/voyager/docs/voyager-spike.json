@@ -1,0 +1,166 @@
+{
+  "ok": true,
+  "python": "3.10.14",
+  "bridge": "http://127.0.0.1:3000",
+  "mc_port": 25565,
+  "code": "await bot.waitForTicks(10);\nbot.setControlState('forward', true);\nawait bot.waitForTicks(20);\nbot.setControlState('forward', false);\nbot.chat('voyager spike: manual task OK');",
+  "steps": [
+    {
+      "name": "bridge /start connected",
+      "ok": true,
+      "detail": {
+        "name": "bot",
+        "position": {
+          "x": -4.5,
+          "y": -60,
+          "z": -8.5
+        },
+        "health": 20,
+        "inventory": {},
+        "elapsed_s": 4.28
+      }
+    },
+    {
+      "name": "manual JS /step executed",
+      "ok": true,
+      "detail": {
+        "onChat": [
+          "voyager spike: manual task OK"
+        ],
+        "elapsedTime": 70
+      }
+    },
+    {
+      "name": "manual movement changed position",
+      "ok": true,
+      "detail": {
+        "before": {
+          "x": -4.5,
+          "y": -60,
+          "z": -8.5
+        },
+        "after": {
+          "x": -4.5,
+          "y": -60,
+          "z": -4.186573060475261
+        }
+      }
+    },
+    {
+      "name": "manual chat observed",
+      "ok": true,
+      "detail": [
+        "voyager spike: manual task OK"
+      ]
+    },
+    {
+      "name": "bridge /stop",
+      "ok": true,
+      "detail": null
+    }
+  ],
+  "events": [
+    [
+      "onChat",
+      {
+        "onChat": "voyager spike: manual task OK",
+        "voxels": [
+          "dirt",
+          "grass_block"
+        ],
+        "status": {
+          "health": 20,
+          "food": 20,
+          "saturation": 5,
+          "oxygen": 20,
+          "position": {
+            "x": -4.5,
+            "y": -60,
+            "z": -4.4424177380418195
+          },
+          "velocity": {
+            "x": 0,
+            "y": -0.0784000015258789,
+            "z": 0.11785842372264366
+          },
+          "yaw": 3.141592653589793,
+          "pitch": 0,
+          "onGround": true,
+          "equipment": [
+            null,
+            null,
+            null,
+            null,
+            null,
+            null
+          ],
+          "name": "bot",
+          "isInWater": false,
+          "isInLava": false,
+          "isCollidedHorizontally": false,
+          "isCollidedVertically": true,
+          "biome": "",
+          "entities": {},
+          "timeOfDay": "sunrise",
+          "inventoryUsed": 0,
+          "elapsedTime": 50
+        },
+        "inventory": {},
+        "nearbyChests": {},
+        "blockRecords": []
+      }
+    ],
+    [
+      "observe",
+      {
+        "voxels": [
+          "dirt",
+          "grass_block"
+        ],
+        "status": {
+          "health": 20,
+          "food": 20,
+          "saturation": 5,
+          "oxygen": 20,
+          "position": {
+            "x": -4.5,
+            "y": -60,
+            "z": -4.186573060475261
+          },
+          "velocity": {
+            "x": 0,
+            "y": -0.0784000015258789,
+            "z": 0
+          },
+          "yaw": 3.141592653589793,
+          "pitch": 0,
+          "onGround": true,
+          "equipment": [
+            null,
+            null,
+            null,
+            null,
+            null,
+            null
+          ],
+          "name": "bot",
+          "isInWater": false,
+          "isInLava": false,
+          "isCollidedHorizontally": false,
+          "isCollidedVertically": true,
+          "biome": "",
+          "entities": {},
+          "timeOfDay": "sunrise",
+          "inventoryUsed": 0,
+          "elapsedTime": 70
+        },
+        "inventory": {},
+        "nearbyChests": {},
+        "blockRecords": [
+          "dirt",
+          "grass_block"
+        ]
+      }
+    ]
+  ]
+}

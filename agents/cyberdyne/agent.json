@@ -9,7 +9,11 @@
   "runtime": {
     "brain": "agents/cyberdyne/brain/bridge.py",
     "hand": "agents/cyberdyne/hand/node/server.js",
-    "plugins": "agents/cyberdyne/plugins/"
+    "plugins": "agents/cyberdyne/plugins/",
+    "tools": [
+      "agents/cyberdyne/tools/"
+    ],
+    "smoke": "agents/cyberdyne/smoke.py"
   },
   "cbap": {
     "driver_module": "drivers.mc.driver",

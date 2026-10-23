@@ -10,7 +10,11 @@
     "upstream": "external/mindcraft",
     "adapter": "agents/mindcraft/adapter/adapter.mjs",
     "driver": "agents/mindcraft/adapter",
-    "headless_patch": "agents/mindcraft/adapter/patches/mindcraft-headless.patch"
+    "headless_patch": "agents/mindcraft/adapter/patches/mindcraft-headless.patch",
+    "tools": [
+      "agents/mindcraft/tools/"
+    ],
+    "smoke": "agents/mindcraft/smoke.py"
   },
   "cbap": {
     "driver_module": "drivers.mc.driver",

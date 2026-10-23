@@ -1,6 +1,6 @@
 # Repository layout and migration boundary
 
-Status: **phase 2 — physical agent code moved; compatibility shims in place**
+Status: **phase 3 — tools/docs moved; per-agent smoke tests; shims still in place**
 
 ## Current
 
@@ -16,16 +16,27 @@ cyberdyne-bridge/                  main repository = CBAP
       brain/bridge.py
       hand/node/server.js
       plugins/
+      tools/
       config.json
+      smoke.py
       agent.json
     mcp-mineflayer/
       driver/
+      tools/
+      docs/
+      smoke.py
       agent.json
     mindcraft/
       adapter/
+      tools/
+      docs/
+      smoke.py
       agent.json
     voyager/
       adapter/
+      tools/
+      docs/
+      smoke.py
       agent.json
   archive/
     alice/
@@ -79,9 +90,11 @@ Removing a shim is a separate migration after every caller has moved.
 1. Driver API + manifest discovery                     [done]
 2. Physical agent code moved                           [done]
 3. Compatibility shims for existing paths              [done]
-4. Full conformance suite                              [60/60 passed]
-5. Remove shims after callers migrate                  [next]
-6. Decide whether to use real git submodules/remotes   [later]
+4. Agent tools/docs moved into agent subrepos          [done]
+5. Independent per-agent smoke tests                   [done]
+6. Full conformance suite                              [61/61 passed]
+7. Remove shims after callers migrate                  [next]
+8. Decide whether to use real git submodules/remotes   [later]
 ```
 
 ## Contract
@@ -102,7 +115,7 @@ Agent owns:
 transport adapter / driver
 device/mapping
 upstream patch
-agent-specific smoke test
+agent-specific smoke test / tools / docs
 ```
 
 The authoritative machine-readable manifests live in:

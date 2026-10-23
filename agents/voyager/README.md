@@ -15,3 +15,6 @@ only. The Voyager planner, curriculum, skill library, and critic are not wired.
 
 The root `drivers/voyager` path is a compatibility symlink to this adapter.
 The state endpoint patch is kept at `adapter/patches/voyager-state.patch`.
+
+Local smoke: `python3 agents/voyager/smoke.py`
+Tools: `agents/voyager/tools/` (root `tools/` symlinks remain).

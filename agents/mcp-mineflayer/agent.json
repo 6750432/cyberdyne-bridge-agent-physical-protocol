@@ -9,7 +9,11 @@
   "runtime": {
     "upstream": "external/mineflayer-mcp",
     "driver": "agents/mcp-mineflayer/driver",
-    "patch": "agents/mcp-mineflayer/driver/patches/mineflayer-mcp-place.patch"
+    "patch": "agents/mcp-mineflayer/driver/patches/mineflayer-mcp-place.patch",
+    "tools": [
+      "agents/mcp-mineflayer/tools/"
+    ],
+    "smoke": "agents/mcp-mineflayer/smoke.py"
   },
   "cbap": {
     "driver_module": "drivers.mcp.driver",

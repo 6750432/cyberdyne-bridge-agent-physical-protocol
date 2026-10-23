@@ -29,6 +29,7 @@ MODULES = [
     "tests.cbap.test_multi_device",
     "tests.cbap.test_mcp_driver",
     "tests.cbap.test_plugins",
+    "tests.cbap.test_agent_smoke",
 ]
 
 

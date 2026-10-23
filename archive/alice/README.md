@@ -5,7 +5,8 @@ Status: **archived / unbuilt**
 ```text
 bridge source: archive/alice/bridge/CbapBridge.java
 shim:          drivers/alice -> archive/alice/bridge
-probe:         tools/alice_bridge_probe.py
+probe shim:    tools/alice_bridge_probe.py
+probe:         archive/alice/tools/alice_bridge_probe.py
 snapshot:      archive/alice-cbap-minimal-bridge-20261023.tar.gz
 ```
 
