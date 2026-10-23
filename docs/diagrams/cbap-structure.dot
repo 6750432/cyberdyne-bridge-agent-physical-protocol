@@ -1,0 +1,131 @@
+digraph CBAP {
+  graph [
+    rankdir=TB,
+    bgcolor="#0b1012",
+    fontname="DejaVu Sans",
+    fontcolor="#8fb7af",
+    fontsize=13,
+    nodesep=0.35,
+    ranksep=0.45,
+    pad=0.35,
+    splines=true,
+    compound=true
+  ];
+  node [
+    shape=box,
+    style="rounded,filled",
+    fontname="DejaVu Sans",
+    fontsize=11,
+    fontcolor="#dcebe5",
+    color="#31484a",
+    fillcolor="#121e21",
+    penwidth=1.2,
+    margin="0.14,0.08"
+  ];
+  edge [
+    color="#5fa88f",
+    fontname="DejaVu Sans",
+    fontsize=9,
+    fontcolor="#8fb7af",
+    arrowsize=0.6,
+    penwidth=1.1
+  ];
+
+  subgraph cluster_agents {
+    label=<<B>PLANNERS / AGENTS</B>   ·   外部决策者>;
+    style="rounded,dashed"; color="#2d5548"; fontcolor="#8fd0ae";
+    margin=12;
+    qwen  [label="Qwen3-4B\nlocal planner", fillcolor="#102b24", color="#3f8f75"];
+    mind  [label="Mindcraft\nMindy  ·  own planner", fillcolor="#102b24", color="#3f8f75"];
+    voy   [label="Voyager\nbridge only  ·  planner not wired", fillcolor="#102b24", color="#3f8f75"];
+    alice [label="Alice\nForge mod  ·  refactor", style="rounded,filled,dashed", fillcolor="#2a2416", color="#b58b3e"];
+    manual[label="Assistant /\nmanual probe", fillcolor="#102b24", color="#3f8f75"];
+  }
+
+  subgraph cluster_u {
+    label=<<B>CBAP-U</B>   ·   agent-facing>;
+    style="rounded"; color="#23614f"; fontcolor="#7dd3b0";
+    uds_u [shape=box, style="rounded,filled", fillcolor="#0d1c19", color="#47a980",
+           label=<<B>Unix socket</B><BR/>newline-delimited JSON<BR/><FONT POINT-SIZE="9">open · read · write · poll</FONT><BR/><FONT POINT-SIZE="9">lease · release · estop · stat</FONT>>];
+  }
+
+  kernel [label=<<B>CBAP KERNEL</B><BR/><FONT POINT-SIZE="9">single Python process · stdlib only · no broker / DB</FONT><BR/><BR/><FONT POINT-SIZE="10">sessions / fds</FONT><BR/><FONT POINT-SIZE="10">per-device lease + FIFO waiters</FONT><BR/><FONT POINT-SIZE="10">pending · idempotency · cancel</FONT><BR/><FONT POINT-SIZE="10">per-device safe mode · estop</FONT><BR/><FONT POINT-SIZE="10">state cache · poll · facts</FONT><BR/><FONT POINT-SIZE="10">audit.jsonl</FONT>>,
+          fillcolor="#103129", color="#48a77f", penwidth=2.2, fontsize=13];
+
+  subgraph cluster_d {
+    label=<<B>CBAP-D</B>   ·   device-facing adapters>;
+    style="rounded"; color="#24515b"; fontcolor="#83c7d3";
+    mc_drv   [label=<<B>McDriver</B><BR/>line-JSON<BR/><FONT POINT-SIZE="9">legacy hand · max_inflight=1</FONT>>, fillcolor="#0f2026", color="#3f7f8a"];
+    mcp_drv  [label=<<B>MCPDriver</B><BR/>stdio JSON-RPC 2.0<BR/><FONT POINT-SIZE="9">real MCP tool calls</FONT>>, fillcolor="#0f2026", color="#3f7f8a"];
+    mind_drv [label=<<B>Mindcraft adapter</B><BR/>socket.io → line-JSON<BR/><FONT POINT-SIZE="9">state · prompt · stop</FONT>>, fillcolor="#0f2026", color="#3f7f8a"];
+    voy_drv  [label=<<B>Voyager adapter</B><BR/>HTTP bridge → line-JSON<BR/><FONT POINT-SIZE="9">state · exec · forward · say</FONT>>, fillcolor="#0f2026", color="#3f7f8a"];
+    alice_drv[label=<<B>Alice CbapBridge</B><BR/>Forge HTTP<BR/><FONT POINT-SIZE="9">source only · unbuilt</FONT>>, style="rounded,filled,dashed", fillcolor="#2a2416", color="#b58b3e"];
+  }
+
+  subgraph cluster_b {
+    label=<<B>BODIES / DEVICES</B>   ·   server-authoritative>;
+    style="rounded"; color="#3c3c3c"; fontcolor="#b9b9b9";
+    legacy [label="legacy node/server.js\nDeepSeek", fillcolor="#181818", color="#555555"];
+    mcp    [label="MCPBody\nmineflayer-mcp", fillcolor="#181818", color="#555555"];
+    mindy  [label="Mindcraft Mindy\nMindServer", fillcolor="#181818", color="#555555"];
+    vbody  [label="Voyager bridge\nMineflayer 1.19.2", fillcolor="#181818", color="#555555"];
+    aliceb [label="Alice BotPlayer\nForge 1.20.1", style="rounded,filled,dashed", fillcolor="#241f14", color="#b58b3e"];
+  }
+
+  mc [label=<<B>MINECRAFT SERVER(S)</B><BR/><FONT POINT-SIZE="9">1.21.1 · 1.19.2 · 1.20.1 Forge (separate)</FONT>>,
+      shape=cylinder, fillcolor="#14201a", color="#6d8f5d"];
+
+  facts [shape=note, style="filled", fillcolor="#14201a", color="#6d8f5d",
+         fontcolor="#b9d8a8",
+         label=<<B>SERVER FACTS</B><BR/><FONT POINT-SIZE="9">pos · inventory · blocks<BR/>task terminal · events</FONT>>];
+
+  audit [shape=note, style="filled", fillcolor="#241f14", color="#8f7338",
+         fontcolor="#d8c28c",
+         label=<<B>AUDIT</B><BR/><FONT POINT-SIZE="9">JSONL append</FONT>>];
+
+  legend [shape=note, style="filled", fillcolor="#0d1517", color="#3a5557",
+          fontcolor="#9db8b0", fontsize=9,
+          label=<<B>LEGEND</B><BR/>solid = action / control<BR/>cyan dashed = state / facts / result<BR/>gold dashed = unbuilt / partial<BR/><BR/><B>write path</B> 1 open/lease → 2 write → 3 route → 4 execute<BR/><B>completion</B> 5 state/fact → 6 verify; never trust result.ok>];
+
+  // agents → UDS
+  qwen -> uds_u [label=" actions / prompts"];
+  mind -> uds_u [label=" state / prompt / stop"];
+  voy  -> uds_u [label=" state / exec / stop"];
+  manual -> uds_u [label=" probe / planner"];
+  alice -> uds_u [style=dashed, color="#b58b3e", label=" future", fontcolor="#c9a85e"];
+
+  // UDS → kernel
+  uds_u -> kernel [label=" CBAP-U requests\n  (one JSON line)", color="#5fa88f", penwidth=1.4];
+
+  // kernel → adapters
+  kernel -> mc_drv   [label=" route", color="#5fa88f"];
+  kernel -> mcp_drv  [label=" route", color="#5fa88f"];
+  kernel -> mind_drv [label=" route", color="#5fa88f"];
+  kernel -> voy_drv  [label=" route", color="#5fa88f"];
+  kernel -> alice_drv [style=dashed, color="#b58b3e", label=" unbuilt", fontcolor="#c9a85e"];
+
+  // adapters → bodies
+  mc_drv -> legacy   [color="#6b8a83"];
+  mcp_drv -> mcp     [color="#6b8a83"];
+  mind_drv -> mindy  [color="#6b8a83"];
+  voy_drv -> vbody   [color="#6b8a83"];
+  alice_drv -> aliceb [style=dashed, color="#b58b3e"];
+
+  // bodies → server
+  legacy -> mc [color="#4c6b4f"];
+  mcp -> mc    [color="#4c6b4f"];
+  mindy -> mc  [color="#4c6b4f"];
+  vbody -> mc  [color="#4c6b4f"];
+  aliceb -> mc [style=dashed, color="#b58b3e"];
+
+  // facts return (conceptual)
+  mc -> facts [style=dashed, color="#7cc7e8", label=" observe", constraint=false];
+  facts -> kernel [style=dashed, color="#7cc7e8", label=" state / result\n facts + verify", fontcolor="#9ed8ef", constraint=false];
+  kernel -> uds_u [style=dashed, color="#7cc7e8", label=" read / poll / result", fontcolor="#9ed8ef", constraint=false];
+  uds_u -> qwen [style=dashed, color="#7cc7e8", label=" observations", fontcolor="#9ed8ef", constraint=false];
+
+  { rank=same; mc; facts; audit; legend; }
+
+  kernel -> audit [style=dashed, color="#8f7338", label=" append", fontcolor="#d8c28c", constraint=false];
+
+        }
