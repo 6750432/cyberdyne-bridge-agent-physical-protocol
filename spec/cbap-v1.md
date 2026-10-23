@@ -343,8 +343,19 @@ v1 **MAY** 支持：共享内存、串口、CAN、ROS 2/DDS（作为 v1.x 扩展
 ```
 
 - 返回 `{"lease_id":"l-1","expires_at":1700000030000}`。
-- 同一 actuator 同时只能有一个写租约；冲突 → `E_BUSY`。
+- 同一 actuator 同时只能有一个写租约；冲突且未请求等待 → `E_BUSY`。
+- 可选 `wait_ms`：冲突时进入 FIFO 等待队列；`release`、estop 或租约过期后交给队首；超时 → `E_TIMEOUT`。
 - 租约过期 **MUST** 自动释放；未续租的 writer **MUST NOT** 继续写。
+
+### 6.7.1 `release`
+
+```json
+{"op":"release","args":{"fd":"fd-7"}}
+```
+
+- 主动释放当前 fd 持有的租约，不关闭 fd、不触发 estop。
+- 返回 `{"released":true}`；没有持有租约时 `released:false`。
+- 释放后队首 waiter 可取得租约。
 
 ### 6.8 `estop`
 

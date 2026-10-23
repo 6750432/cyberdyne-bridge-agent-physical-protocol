@@ -206,8 +206,15 @@ class CBAPClient:
             args["channel"] = channel
         return self.call("read", args, timeout)
 
-    def lease(self, fd: str, ttl_ms: int = 30000, timeout: float = 5.0) -> dict:
-        return self.call("lease", {"fd": fd, "ttl_ms": ttl_ms}, timeout)
+    def lease(self, fd: str, ttl_ms: int = 30000, timeout: float = 5.0,
+              wait_ms: int = 0) -> dict:
+        args = {"fd": fd, "ttl_ms": ttl_ms}
+        if wait_ms:
+            args["wait_ms"] = int(wait_ms)
+        return self.call("lease", args, timeout)
+
+    def release(self, fd: str, timeout: float = 5.0) -> dict:
+        return self.call("release", {"fd": fd}, timeout)
 
     def write(self, fd: str, frame: dict, deadline_ms: int = 5000,
               idempotency_key: str | None = None, timeout: float = 5.0) -> tuple[str, dict, dict]:

@@ -13,8 +13,8 @@
       "name": "A gets lease",
       "ok": true,
       "detail": {
-        "lease_id": "l-1f64fbe15bf343d9",
-        "expires_at": 1792761735466
+        "lease_id": "l-17aa8c481d814175",
+        "expires_at": 1792761939568
       }
     },
     {
@@ -44,20 +44,27 @@
       }
     },
     {
-      "name": "A lease expired (no renewal call)",
+      "name": "B is queued for lease",
       "ok": true,
-      "detail": "waited past TTL"
+      "detail": "wait_ms=5000"
     },
     {
-      "name": "B acquires after A TTL expiry",
+      "name": "A releases lease voluntarily",
       "ok": true,
       "detail": {
-        "lease_id": "l-079cb9d3f00a4241",
-        "expires_at": 1792761765773
+        "released": true
       }
     },
     {
-      "name": "B write after handoff",
+      "name": "B wakes and acquires after release",
+      "ok": true,
+      "detail": {
+        "lease_id": "l-d1873df1b7074119",
+        "expires_at": 1792761968374
+      }
+    },
+    {
+      "name": "B write after fair handoff",
       "ok": true,
       "detail": {
         "ok": true,
@@ -79,8 +86,8 @@
       "detail": {
         "v": "1.0",
         "type": "ack",
-        "id": "r-64f8881842024e79",
-        "ts": 1792761735778,
+        "id": "r-ff2f5db3b4fc4c25",
+        "ts": 1792761938379,
         "state": "accepted"
       }
     },
@@ -88,7 +95,7 @@
       "name": "killed MCP process",
       "ok": true,
       "detail": {
-        "pid": 121785
+        "pid": 122162
       }
     },
     {

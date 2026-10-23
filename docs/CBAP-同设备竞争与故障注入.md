@@ -36,14 +36,16 @@ A write chat
 B write（无租约）
 → E_BUSY: write requires a lease
 
-等待 A TTL 过期（没有调用 A.lease 续租）
-→ B lease
-→ ok
+B lease wait_ms=5000
+→ 进入 FIFO 等待队列
+
+A release（主动释放，不关闭 fd）
+→ B 被唤醒并取得租约
 
 B write chat
 → ok
 
-A write（旧租约已失效）
+A write（已不是 owner）
 → E_BUSY: write requires a lease
 ```
 
@@ -51,12 +53,21 @@ A write（旧租约已失效）
 
 ```text
 同一设备同一时刻只有一个 writer
-竞争失败没有静默排队，返回 E_BUSY
-租约过期后可以交接
+立即抢失败返回 E_BUSY
+显式 wait_ms 会进入 FIFO 等待队列
+主动 release 会把手里的租约交给队首 waiter
 旧 writer 不能继续写
 ```
 
-当前仲裁策略是 **非阻塞争抢 + 调用方重试**，不是公平队列。
+仲裁策略：
+
+```text
+immediate lease   → 非阻塞，E_BUSY
+lease wait_ms>0   → FIFO 排队，release/过期后交给队首
+release           → 主动释放，不 estop、不关闭 fd
+```
+
+wait_ms 超时返回 `E_TIMEOUT`。
 
 ## 二、MCP 进程崩溃注入
 
@@ -83,7 +94,7 @@ Kernel 会把设备断开映射成 E_IO
 ## 结果
 
 ```text
-contention_and_fault.py: 13/13 checks passed
+contention_and_fault.py: 14/14 checks passed
 ```
 
 完整机器结果：
@@ -97,7 +108,8 @@ contention_and_fault.py: 13/13 checks passed
 ```text
 lease 排他
 E_BUSY
-TTL 交接
+wait_ms FIFO 排队
+主动 release 交接
 旧 writer 失效
 pending 请求遇到 MCP crash → E_IO
 health → unhealthy
@@ -106,8 +118,7 @@ health → unhealthy
 未验证：
 
 ```text
-公平队列 / 优先级
-租约主动释放 API
+优先级 / 抢占
 cancel 与已经发出的 MCP 动作
 MCP 自动重启/恢复
 同设备两个外部 LLM planner 的完整对话仲裁

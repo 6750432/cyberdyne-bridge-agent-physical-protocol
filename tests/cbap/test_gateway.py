@@ -7,6 +7,7 @@ from __future__ import annotations
 import os
 import shutil
 import tempfile
+import threading
 import time
 import unittest
 
@@ -109,6 +110,38 @@ class GatewayTest(unittest.TestCase):
         r = self.client.read(fd, channel="body", timeout_ms=1000)
         self.assertTrue(r.get("ok"), r)
         self.assertGreater(r["payload"]["frame"]["body"]["pos"][0], 0.0)
+
+    def test_fair_lease_wait_and_release(self) -> None:
+        fd1 = self._open()
+        c2 = CBAPClient(self.cbap_sock, agent_id="waiter")
+        c2.connect(); c2.hello()
+        try:
+            r2 = c2.open(DEVICE_ID)
+            self.assertTrue(r2.get("ok"), r2)
+            fd2 = r2["payload"]["fd"]
+            self.assertTrue(self.client.lease(fd1).get("ok"))
+            got = {}
+
+            def wait_lease():
+                got["r"] = c2.lease(fd2, ttl_ms=30000, wait_ms=3000, timeout=8)
+
+            t = threading.Thread(target=wait_lease, daemon=True)
+            t.start()
+            time.sleep(0.2)
+            self.assertTrue(self.client.release(fd1).get("payload", {}).get("released"))
+            t.join(timeout=5)
+            self.assertFalse(t.is_alive(), "waiter did not wake")
+            self.assertTrue(got.get("r", {}).get("ok"), got)
+            old = self.client.call("write", {"fd": fd1, "frame": {
+                "channel": "chat", "op": "say", "args": {"text": "stale"}}})
+            self.assertEqual(old["error"]["code"], "E_BUSY")
+            _, _, res = c2.write(fd2, {
+                "channel": "chat", "op": "say",
+                "args": {"text": "new owner"}}, deadline_ms=3000)
+            self.assertTrue(res.get("ok"), res)
+            self.assertTrue(c2.release(fd2).get("payload", {}).get("released"))
+        finally:
+            c2.close()
 
     def test_chat_event_poll(self) -> None:
         fd = self._open()

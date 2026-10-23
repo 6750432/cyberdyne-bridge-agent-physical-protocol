@@ -135,6 +135,9 @@ class KernelServer:
         self._safe = False
         self._safe_devices: set[str] = set()
         self._fd_counter = 0
+        self._lease_cv = threading.Condition(self._lock)
+        # device_id -> deque of (token, session, fd, ttl_ms, deadline_monotonic)
+        self._lease_waiters: dict[str, deque] = {}
 
         self._server: socket.socket | None = None
         self._stop = threading.Event()
@@ -384,7 +387,7 @@ class KernelServer:
                          err=protocol.error("E_INVAL", "args must be object"))
             return
         if op not in ("open", "close", "read", "write", "ioctl", "poll",
-                      "lease", "estop", "stat", "device_list", "resume"):
+                      "lease", "release", "estop", "stat", "device_list", "resume"):
             self._result(session, rid, False,
                          err=protocol.error("E_NOTSUP", f"unknown op: {op}"))
             return
@@ -392,7 +395,8 @@ class KernelServer:
             "open": "read", "read": "read", "poll": "read",
             "stat": "read", "device_list": "read",
             "write": "write", "close": "write", "ioctl": "read",
-            "lease": "lease", "estop": "estop", "resume": "admin",
+            "lease": "lease", "release": "lease",
+            "estop": "estop", "resume": "admin",
         }.get(op)
         if required and required not in session.capabilities:
             self._result(session, rid, False,
@@ -414,6 +418,8 @@ class KernelServer:
                 self._op_poll(session, rid, args)
             elif op == "lease":
                 self._op_lease(session, rid, args)
+            elif op == "release":
+                self._op_release(session, rid, args)
             elif op == "estop":
                 self._op_estop(session, rid, args)
             elif op == "stat":
@@ -452,6 +458,7 @@ class KernelServer:
                 return None
             if lease["expires_at"] <= time.time():
                 self._leases.pop(fd.device_id, None)
+                self._lease_cv.notify_all()
                 return None
             if lease["fd"] != fd.fd:
                 return None
@@ -484,6 +491,7 @@ class KernelServer:
                 self._leases.pop(fd.device_id, None)
                 fd.lease_id = None
                 fd.lease_expires = 0.0
+                self._lease_cv.notify_all()
                 return True
             return False
 
@@ -663,11 +671,68 @@ class KernelServer:
         if isinstance(_h, dict) and _h.get("ok") is False:
             raise _OpError("E_SAFETY", "driver health is not ok; refusing new lease")
         ttl = args.get("ttl_ms", self.lease_ttl_ms)
-        lease = self._acquire_lease(session, f, ttl)
+        wait_ms = args.get("wait_ms", 0)
+        if not isinstance(wait_ms, int) or wait_ms < 0:
+            raise _OpError("E_INVAL", "wait_ms must be a non-negative int")
+        if wait_ms == 0:
+            with self._lock:
+                if self._lease_waiters.get(f.device_id):
+                    raise _OpError("E_BUSY", "lease waiters are queued")
+            lease = self._acquire_lease(session, f, ttl)
+            self._result(session, rid, True, payload={
+                "lease_id": lease["lease_id"],
+                "expires_at": int(lease["expires_at"] * 1000),
+            })
+            return
+
+        token = object()
+        deadline = time.monotonic() + wait_ms / 1000.0
+        with self._lease_cv:
+            q = self._lease_waiters.setdefault(f.device_id, deque())
+            q.append((token, session, f, ttl, deadline))
+            try:
+                while True:
+                    lease = self._leases.get(f.device_id)
+                    if lease and lease["expires_at"] <= time.time():
+                        self._leases.pop(f.device_id, None)
+                        self._lease_cv.notify_all()
+                    if q and q[0][0] is token:
+                        try:
+                            lease = self._acquire_lease(session, f, ttl)
+                        except _OpError as e:
+                            if e.code != "E_BUSY":
+                                raise
+                        else:
+                            q.popleft()
+                            if not q:
+                                self._lease_waiters.pop(f.device_id, None)
+                            self._lease_cv.notify_all()
+                            break
+                    left = deadline - time.monotonic()
+                    if left <= 0:
+                        raise _OpError("E_TIMEOUT", "lease wait timed out")
+                    self._lease_cv.wait(min(left, 0.1))
+            finally:
+                q2 = self._lease_waiters.get(f.device_id)
+                if q2 is not None:
+                    try:
+                        q2.remove((token, session, f, ttl, deadline))
+                    except ValueError:
+                        pass
+                    if not q2:
+                        self._lease_waiters.pop(f.device_id, None)
+                    self._lease_cv.notify_all()
         self._result(session, rid, True, payload={
             "lease_id": lease["lease_id"],
             "expires_at": int(lease["expires_at"] * 1000),
         })
+
+    def _op_release(self, session: Session, rid: str, args: dict) -> None:
+        f = self._get_fd(session, args)
+        held = self._release_lease(f)
+        self._result(session, rid, True, payload={"released": held})
+        self._audit("release", agent=session.agent_id, id=rid, fd=f.fd,
+                    released=held)
 
     def _op_estop(self, session: Session, rid: str, args: dict) -> None:
         f = None
@@ -677,11 +742,13 @@ class KernelServer:
             with self._lock:
                 self._safe_devices.add(f.device_id)
                 self._leases.pop(f.device_id, None)
+                self._lease_cv.notify_all()
         else:
             self._safe = True
             targets = list(self.drivers)
             with self._lock:
                 self._leases.clear()
+                self._lease_cv.notify_all()
         oks = []
         safe_state = "idle"
         for d in targets:
@@ -858,6 +925,7 @@ class KernelServer:
                 _f = self._fds.get(_lease.get("fd"))
                 if _f is not None and _f.driver is driver:
                     self._leases.pop(_dev, None)
+            self._lease_cv.notify_all()
         for p in pend:
             self._finish_pending(
                 p, False, None, None,
@@ -882,6 +950,14 @@ class KernelServer:
                             pass
                 if not q:
                     self._pending.pop(cmd, None)
+        with self._lock:
+            for _dev, q in list(self._lease_waiters.items()):
+                for item in list(q):
+                    if item[1] is session:
+                        q.remove(item)
+                if not q:
+                    self._lease_waiters.pop(_dev, None)
+            self._lease_cv.notify_all()
         for f in fds:
             if self._release_lease(f):
                 f.driver.estop()

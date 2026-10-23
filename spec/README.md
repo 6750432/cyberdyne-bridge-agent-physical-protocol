@@ -23,7 +23,7 @@
 - `tests/cbap/test_data.py`：设备通道、映射、参数类型、legacy 字段名 / dataflow / MCP 8 条数据契约测试通过；
 - `tests/cbap/test_mcp_driver.py`：MCP stdio 协议、状态、move/chat、estop 4 条通过；
 - `tests/cbap/test_conformance.py`：20 条一致性用例 + D1/D4/D5 驱动安全用例通过；
-- 网关/驱动/适配器/数据合计 55 条：`python3 tools/cbap_conformance.py --target fake`；
+- 网关/驱动/适配器/数据合计 56 条：`python3 tools/cbap_conformance.py --target fake`；
 - 真实 MCP 外设 demo：`python3 tools/mcp_dashboard.py --server-path ...`，截图 `docs/screenshots/cbap-mcp-live.png`；
 - 本 Agent 直接当 LLM 的真实任务：`docs/CBAP-真实MCP-LLM任务.md`，截图 `docs/screenshots/cbap-mcp-llm-task.png`（采集 3 个 spruce_log）；
 - 完整木镐链路：`docs/CBAP-真实MCP-木镐任务.md`，截图 `docs/screenshots/cbap-mcp-pickaxe.png`（原木 → 木板 → 工作台 → 木棍 → 木镐 → 装备）；
@@ -32,7 +32,7 @@
 - 外部 LLM 自主性：`docs/CBAP-外部LLM自主性验证.md`，截图 `docs/screenshots/cbap-mcp-autonomy.png`；Qwen3-4B 独立规划；
 - Goal gate 与真实异构并发：`docs/CBAP-goal-gate与并发隔离.md`，截图 `docs/screenshots/cbap-mcp-goalgate.png`；第二次外部规划恰好 3 个 oak_log；MCP + legacy hand 同 Kernel 的租约/结果/estop 隔离通过；
 - 双外部 LLM 并发：`docs/CBAP-双外部LLM并发.md`，结果 `docs/dual-agent.json`；两个独立 Qwen planner 通过各自 CBAP fd 驱动两个真实异构设备，动作/结果不串；
-- 同设备竞争与故障注入：`docs/CBAP-同设备竞争与故障注入.md`，结果 `docs/contention-fault.json`；lease/E_BUSY/TTL 交接和 MCP crash→E_IO/unhealthy 13/13 通过。
+- 同设备竞争与故障注入：`docs/CBAP-同设备竞争与故障注入.md`，结果 `docs/contention-fault.json`；lease/E_BUSY、wait_ms FIFO、release 交接、MCP crash→E_IO/unhealthy 14/14 通过。
 
 ## 还没做
 

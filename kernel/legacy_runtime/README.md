@@ -6,7 +6,7 @@
 Agent --CBAP-U--> KernelServer --McDriver--> node/server.js（legacy hand）
 ```
 
-- `KernelServer`：CBAP-U 服务，处理 `hello/open/read/write/ioctl/poll/lease/estop/stat/device_list`。
+- `KernelServer`：CBAP-U 服务，处理 `hello/open/read/write/ioctl/poll/lease/release/estop/stat/device_list`。
 - `McDriver`：CBAP-D 形状的 MC 驱动包壳，直接说 `node/server.js` 的 line-JSON。
 - `CBAPClient`：最小 Python 客户端，给测试/示例用。
 - `brain_adapter.py`：`接线口` 形状的适配器（`连/收/发/断`），让未来的 `bridge.py` 可以一行换过来；现在没有接进主链。
@@ -50,7 +50,7 @@ c.close()
 python3 tools/cbap_conformance.py --target fake
 ```
 
-当前 55 条用例（网关/驱动/适配器/数据/20 条一致性 + D1/D4/D5）：
+当前 56 条用例（网关/驱动/适配器/数据/20 条一致性 + D1/D4/D5）：
 
 - hello/welcome、device_list
 - open/read
@@ -69,11 +69,12 @@ python3 tools/cbap_conformance.py --target fake
 
 1. **多设备但单 Kernel**：v0 已支持一个 Kernel 挂多个驱动（legacy MC hand + dataflow Agent），但不做跨 Kernel/跨机器路由。
 2. **每设备单 writer / 每设备 estop**：租约和 safe 状态按 `device_id` 隔离；一个设备 estop 不会封死其他设备。
-3. **回执 FIFO**：legacy `cmdResult` 没有请求 ID，设备描述把 `max_inflight` 诚实写成 1；同一动词并发仍可能错配，等 legacy hand 加 `id` 后再消掉这条。
-4. **cancel 不保证停手**：CBAP 请求会回 `E_CANCELED`，但已经发给 legacy hand 的动作可能继续跑完；真正的取消要等手侧支持。
-5. **estop 是锁存的**：`estop` 后网关进入 `safe`，`write` 回 `E_SAFETY`；v0 没有 `resume` 权限模型，恢复要 close/open 或重启网关。
-6. **没有鉴权**：UDS 默认无 token；TCP/token 字段已留，但 v0 只跑 UDS。
-7. **没有断线重连后的请求重放**：`McDriver` 会重连手，但未完成的 CBAP 请求会 `E_IO`；需要重试的 Agent 自己用 `idempotency_key`。
+3. **租约等待/释放**：`lease wait_ms>0` 进入 FIFO 等待队列；`release` 主动交接，不 estop。
+4. **回执 FIFO**：legacy `cmdResult` 没有请求 ID，设备描述把 `max_inflight` 诚实写成 1；同一动词并发仍可能错配，等 legacy hand 加 `id` 后再消掉这条。
+5. **cancel 不保证停手**：CBAP 请求会回 `E_CANCELED`，但已经发给 legacy hand 的动作可能继续跑完；真正的取消要等手侧支持。
+6. **estop 是锁存的**：`estop` 后网关进入 `safe`，`write` 回 `E_SAFETY`；v0 没有 `resume` 权限模型，恢复要 close/open 或重启网关。
+7. **没有鉴权**：UDS 默认无 token；TCP/token 字段已留，但 v0 只跑 UDS。
+8. **没有断线重连后的请求重放**：`McDriver` 会重连手，但未完成的 CBAP 请求会 `E_IO`；需要重试的 Agent 自己用 `idempotency_key`。
 
 ## 下一步
 

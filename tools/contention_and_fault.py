@@ -9,6 +9,7 @@ import json
 import os
 import sys
 import tempfile
+import threading
 import time
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
@@ -71,15 +72,24 @@ def main() -> int:
         step("B write blocked (no lease)", rb.get("error", {}).get("code") == "E_BUSY",
              rb.get("error"))
 
-        time.sleep(1.8)
-        step("A lease expired (no renewal call)", True, "waited past TTL")
-        lb2 = b.lease(fb, ttl_ms=30000)
-        step("B acquires after A TTL expiry", lb2.get("ok"),
-             lb2.get("payload") or lb2.get("error"))
+        got = {}
+        def wait_for_lease():
+            got["r"] = b.lease(fb, ttl_ms=30000, wait_ms=5000, timeout=8)
+
+        t = threading.Thread(target=wait_for_lease, daemon=True)
+        t.start()
+        time.sleep(0.3)
+        step("B is queued for lease", t.is_alive(), "wait_ms=5000")
+        rel = a.release(fa)
+        step("A releases lease voluntarily", rel.get("ok") and rel.get("payload", {}).get("released"),
+             rel.get("payload") or rel.get("error"))
+        t.join(timeout=5)
+        step("B wakes and acquires after release", not t.is_alive() and got.get("r", {}).get("ok"),
+             got.get("r", {}).get("payload") if got.get("r") else "timeout")
         _, _, rb2 = b.write(fb, {"channel": "chat", "op": "say",
                                  "args": {"text": "contention: B owns"}},
                             deadline_ms=30000)
-        step("B write after handoff", rb2.get("ok"), rb2.get("payload") or rb2.get("error"))
+        step("B write after fair handoff", rb2.get("ok"), rb2.get("payload") or rb2.get("error"))
         ra2 = a.call("write", {"fd": fa, "frame": {
             "channel": "chat", "op": "say",
             "args": {"text": "contention: A stale"}}})
