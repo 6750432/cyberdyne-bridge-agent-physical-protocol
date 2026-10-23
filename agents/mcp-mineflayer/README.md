@@ -4,14 +4,13 @@ Status: **active / external**
 
 ```text
 upstream:  external/mineflayer-mcp
-driver:    drivers/mcp
+driver:    agents/mcp-mineflayer/driver
 device:    mcp://mc/MCPBody
 transport: MCP stdio JSON-RPC 2.0
 ```
 
-The `MCPDriver` is still in the main repository during the migration window.
-Its current paths and imports must not change until the plugin boundary is
-tested.
+The root `drivers/mcp` path is a compatibility symlink to this subrepo.
+Existing tests and tools continue to import `drivers.mcp.driver`.
 
 The upstream place patch is kept at
-`drivers/mcp/patches/mineflayer-mcp-place.patch`.
+`driver/patches/mineflayer-mcp-place.patch`.

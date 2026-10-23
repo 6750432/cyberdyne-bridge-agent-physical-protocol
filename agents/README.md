@@ -8,10 +8,10 @@ boundary is covered by tests.
 
 | id | ownership | device | surface | runtime |
 |---|---|---|---|---|
-| `cyberdyne` | ours | `mc://bot/DeepSeek` | legacy brain/hand | direct UDS; hand can be wrapped by `McDriver` |
-| `mcp-mineflayer` | external | `mcp://mc/MCPBody` | MCP tools | MCP stdio JSON-RPC |
-| `mindcraft` | external | `mc://mind/Mindy` | state / prompt / stop | MindServer socket.io |
-| `voyager` | external | `mc://voyager/bot` | state / exec / forward / say / stop | HTTP bridge |
+| `cyberdyne` | ours | `mc://bot/DeepSeek` | legacy brain/hand | `agents/cyberdyne/`; direct UDS; hand can be wrapped by `McDriver` |
+| `mcp-mineflayer` | external | `mcp://mc/MCPBody` | MCP tools | `agents/mcp-mineflayer/driver/`; MCP stdio JSON-RPC |
+| `mindcraft` | external | `mc://mind/Mindy` | state / prompt / stop | `agents/mindcraft/adapter/`; MindServer socket.io |
+| `voyager` | external | `mc://voyager/bot` | state / exec / forward / say / stop | `agents/voyager/adapter/`; HTTP bridge |
 
 ## Archived
 
@@ -37,12 +37,16 @@ launch / smoke test / agent-specific docs
 
 ## Migration rule
 
-Until the physical move is complete:
+Physical move is complete; compatibility shims:
 
 ```text
-do not move bridge.py / node/
-do not move drivers/mcp|mindcraft|voyager
-keep existing imports and tests green
+bridge.py / node / 外挂 / config.json -> agents/cyberdyne
+ drivers/mcp        -> agents/mcp-mineflayer/driver
+drivers/mindcraft  -> agents/mindcraft/adapter
+drivers/voyager    -> agents/voyager/adapter
+drivers/alice      -> archive/alice/bridge
 ```
+
+Keep those shims until external launch scripts and tests are migrated.
 
 The `agent.json` manifests are the contract for the future loader.

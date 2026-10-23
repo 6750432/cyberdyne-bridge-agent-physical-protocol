@@ -53,7 +53,7 @@ agents/voyager/         Voyager bridge + adapter
 
 Alice 未构建，放在 `archive/alice/`，不算活跃子仓。
 
-当前只完成分类、manifest 和 driver API；物理代码搬迁要等插件边界和兼容 shim 测试通过后再做。详见 `docs/REPO_LAYOUT.md`。
+分类、manifest、driver API 和物理搬迁已经落地；旧的根路径和 `drivers/*` 用符号链接保持兼容，未改运行路径。详见 `docs/REPO_LAYOUT.md`。
 
 ## 这是什么
 

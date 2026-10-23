@@ -8,9 +8,9 @@
   "summary": "Voyager Mineflayer HTTP bridge exposed through a line-JSON adapter. Voyager's autonomous agent is not wired.",
   "runtime": {
     "upstream": "external/Voyager",
-    "adapter": "drivers/voyager/adapter.mjs",
-    "driver": "drivers/voyager",
-    "state_patch": "drivers/voyager/patches/voyager-state.patch"
+    "adapter": "agents/voyager/adapter/adapter.mjs",
+    "driver": "agents/voyager/adapter",
+    "state_patch": "agents/voyager/adapter/patches/voyager-state.patch"
   },
   "cbap": {
     "driver_module": "drivers.mc.driver",

@@ -8,9 +8,9 @@
   "summary": "Real autonomous Mindcraft agent exposed as state/prompt/stop.",
   "runtime": {
     "upstream": "external/mindcraft",
-    "adapter": "drivers/mindcraft/adapter.mjs",
-    "driver": "drivers/mindcraft",
-    "headless_patch": "drivers/mindcraft/patches/mindcraft-headless.patch"
+    "adapter": "agents/mindcraft/adapter/adapter.mjs",
+    "driver": "agents/mindcraft/adapter",
+    "headless_patch": "agents/mindcraft/adapter/patches/mindcraft-headless.patch"
   },
   "cbap": {
     "driver_module": "drivers.mc.driver",

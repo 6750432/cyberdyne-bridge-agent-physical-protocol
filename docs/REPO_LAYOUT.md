@@ -1,65 +1,87 @@
 # Repository layout and migration boundary
 
-Status: **phase 1 — classification + driver API; runtime paths unchanged**
+Status: **phase 2 — physical agent code moved; compatibility shims in place**
 
-## Target
+## Current
 
 ```text
-cyberdyne-bridge/                  main repository = CBAP only
+cyberdyne-bridge/                  main repository = CBAP
   kernel/                          protocol, kernel, leases, safety, audit
   spec/                            CBAP contracts
   tests/                           conformance tests
-  tools/                           generic CBAP tooling
+  tools/                           generic CBAP + integration probes
   docs/
-  agents/                          logical agent sub-repositories
+  agents/
     cyberdyne/
+      brain/bridge.py
+      hand/node/server.js
+      plugins/
+      config.json
+      agent.json
     mcp-mineflayer/
+      driver/
+      agent.json
     mindcraft/
+      adapter/
+      agent.json
     voyager/
+      adapter/
+      agent.json
   archive/
-    alice/                         unbuilt, not active
+    alice/
+      bridge/CbapBridge.java
+      agent.json                 # archived, not active
 ```
 
 ## Active agents
 
 ```text
-cyberdyne       our own brain/hand
-mcp-mineflayer  MCP body
-mindcraft       autonomous agent, state/prompt/stop
-voyager         bridge only, not Voyager Python agent
+cyberdyne       our own brain/hand; direct UDS is legacy, hand can be wrapped by McDriver
+mcp-mineflayer  MCP body; MCP stdio JSON-RPC
+mindcraft       autonomous agent; state / prompt / stop
+voyager         bridge only; not Voyager Python agent
 ```
 
-## Why not physically move yet
+Alice is archived: source-only, not compiled, not smoke-tested.
 
-The current `KernelServer`, tests, and tools still import concrete drivers:
+## Compatibility shims
+
+Old paths are symlinks, so services, imports, and tests keep working:
 
 ```text
-drivers.mc
-drivers.mcp
-drivers.dataflow
-drivers.mindcraft
-drivers.voyager
+bridge.py             -> agents/cyberdyne/brain/bridge.py
+config.json           -> agents/cyberdyne/config.json
+node                  -> agents/cyberdyne/hand/node
+外挂                   -> agents/cyberdyne/plugins
+drivers/mcp           -> agents/mcp-mineflayer/driver
+drivers/mindcraft     -> agents/mindcraft/adapter
+drivers/voyager       -> agents/voyager/adapter
+drivers/alice         -> archive/alice/bridge
 ```
 
-Moving them now would break:
+## Why shims instead of changing imports now
+
+The current kernel/tests/tools still use concrete paths such as:
 
 ```text
-tests.cbap.test_gateway
-tests.cbap.test_multi_device
-tests.cbap.test_mcp_driver
-tools/*
+drivers.mcp.driver
+drivers.mc.driver
+tools/mindcraft_cbap.py
+node/server.js
 ```
 
-## Migration sequence
+The symlinks preserve those paths while the physical files are separated.
+Removing a shim is a separate migration after every caller has moved.
+
+## Migration status
 
 ```text
-1. Driver API + manifest discovery                     [this phase]
-2. Add compatibility shims for existing imports        [next]
-3. Move agent-owned adapters behind package boundaries
-4. Move tests per agent; keep generic conformance in main
-5. Move our own bridge.py / node/ with service-path shims
-6. Re-run full suite
-7. Only then consider real git submodules / remotes
+1. Driver API + manifest discovery                     [done]
+2. Physical agent code moved                           [done]
+3. Compatibility shims for existing paths              [done]
+4. Full conformance suite                              [60/60 passed]
+5. Remove shims after callers migrate                  [next]
+6. Decide whether to use real git submodules/remotes   [later]
 ```
 
 ## Contract

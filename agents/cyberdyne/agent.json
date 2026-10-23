@@ -7,9 +7,9 @@
   "kind": "legacy-direct-agent",
   "summary": "Our original brain + hand. Direct UDS is legacy and is not the CBAP path.",
   "runtime": {
-    "brain": "bridge.py",
-    "hand": "node/server.js",
-    "plugins": "外挂/"
+    "brain": "agents/cyberdyne/brain/bridge.py",
+    "hand": "agents/cyberdyne/hand/node/server.js",
+    "plugins": "agents/cyberdyne/plugins/"
   },
   "cbap": {
     "driver_module": "drivers.mc.driver",

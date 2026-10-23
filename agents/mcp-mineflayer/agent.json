@@ -8,8 +8,8 @@
   "summary": "Real external Mineflayer MCP server wrapped by MCPDriver.",
   "runtime": {
     "upstream": "external/mineflayer-mcp",
-    "driver": "drivers/mcp",
-    "patch": "drivers/mcp/patches/mineflayer-mcp-place.patch"
+    "driver": "agents/mcp-mineflayer/driver",
+    "patch": "agents/mcp-mineflayer/driver/patches/mineflayer-mcp-place.patch"
   },
   "cbap": {
     "driver_module": "drivers.mcp.driver",
