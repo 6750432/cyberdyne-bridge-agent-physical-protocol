@@ -185,6 +185,13 @@ def 装上(bridge, 日志=None, 数=None, **kw):
         try:
             _统计["看过"] += 1
             新步骤, 说明 = 收(步骤)
+            # ★★★ 2026-10-23 B 口径：接单时先给 collect 记背包基准。
+            _数物品 = getattr(self, "_物品数量", None)
+            for _步 in (新步骤 or []):
+                if callable(_数物品) and isinstance(_步, dict) \
+                        and _步.get("动作") == "collect" \
+                        and _步.get("挖前数量") is None:
+                    _步["挖前数量"] = _数物品(s, _步.get("物品"))
             for x in 说明:
                 _说(f"[收集] {x}")
             if 说明:
@@ -210,6 +217,11 @@ def 装上(bridge, 日志=None, 数=None, **kw):
                 #   修：跟「挖/放」同一条闸（动手重下毫秒 ✓ 默认 5 秒）✓
                 #     重下 = 打断 ✗ 老祖句 4：同一输入同一结果 ✓
                 #     卡住才提前重下 ✓（跟主链 _下发 的写法一模一样 ✓）
+                # ★★★ 2026-10-23 B 口径：基准必须在节流 return 之前写好。
+                if 步.get("挖前数量") is None:
+                    _数物品 = getattr(self, "_物品数量", None)
+                    if callable(_数物品):
+                        步["挖前数量"] = _数物品(s, 步.get("物品"))
                 重下 = self._数("动手重下毫秒", 5000) / 1000.0
                 卡住 = isinstance(s.get("stuck_ms"), (int, float)) and s["stuck_ms"] < 1500
                 if 现在 - self.上次下发 < 重下 and not 卡住:

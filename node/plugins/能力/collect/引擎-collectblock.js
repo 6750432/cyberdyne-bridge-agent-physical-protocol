@@ -84,7 +84,24 @@ async function 执行(bot, a) {
     日志(`  [collect#${单}] 拒：引擎没装上（${装的原因}）✗`);
     return { ok: false, why: `collect 引擎没装上（${装的原因}）` };
   }
-  const 引擎 = bot.collectBlock;
+  let 引擎 = bot.collectBlock;
+  if (!引擎 || typeof 引擎.collect !== 'function') {
+    // ★★★ 2026-10-23 真机：手重连后 bot 是**新对象**，启动时挂的 collectBlock
+    //   留在旧 bot 上；旧代码只看 bot.collectBlock 就直接拒，永远收不了。
+    //   这里按需补挂一次（同一 bot 已挂就不会走到这里）。
+    try {
+      const 包 = require('mineflayer-collectblock');
+      bot.loadPlugin(包.plugin);
+      引擎 = bot.collectBlock;
+      可用 = !!(引擎 && typeof 引擎.collect === 'function');
+      装的原因 = 可用 ? '按需补挂上了 ✓' : 'loadPlugin 后仍没有 collectBlock ✗';
+      日志(`  [collect#${单}] 旧 bot 上没有 collectBlock ⇒ 按需补挂：${装的原因}`);
+    } catch (e) {
+      可用 = false;
+      装的原因 = `按需补挂失败：${e && (e.code || e.message)}`;
+      日志(`  [collect#${单}] 按需补挂失败：${装的原因}`);
+    }
+  }
   if (!引擎 || typeof 引擎.collect !== 'function') {
     日志(`  [collect#${单}] 拒：collectBlock 不在 bot 上 ✗`);
     return { ok: false, why: 'collectBlock 不在 bot 上（插件没挂成功 ✗）' };
