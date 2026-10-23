@@ -1,5 +1,14 @@
 # 门面站部署
 
+## 当前状态
+
+```text
+GitHub Pages：已启用（GitHub Actions）
+临时地址：https://6750432.github.io/cyberdyne-bridge-agent-physical-protocol/
+自定义域名：www.cyberdyne-bridge.com（DNS 已添加，等待 GitHub 完成校验/签发 HTTPS）
+```
+
+
 这是 `cyberdyne-bridge.com` 的静态门面：只放项目摘要和仓库链接，不镜像文档、不接本地服务、不放运行数据。
 
 ## 本地预览
