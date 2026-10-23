@@ -30,7 +30,8 @@
 - 石镐/熔炉链路：`docs/CBAP-真实MCP-石镐熔炉任务.md`，截图 `docs/screenshots/cbap-mcp-stone-pickaxe.png`（木镐挖石 → 石镐 → 熔炉）；
 - MCP place 修复：`docs/CBAP-MCP-place修复.md`，截图 `docs/screenshots/cbap-mcp-place-fixed.png`；补丁 `drivers/mcp/patches/mineflayer-mcp-place.patch`（只修外部 server 的方块选择/hotbar/确认，不动 bridge/node）；
 - 外部 LLM 自主性：`docs/CBAP-外部LLM自主性验证.md`，截图 `docs/screenshots/cbap-mcp-autonomy.png`；Qwen3-4B 独立规划；
-- Goal gate 与真实异构并发：`docs/CBAP-goal-gate与并发隔离.md`，截图 `docs/screenshots/cbap-mcp-goalgate.png`；第二次外部规划恰好 3 个 oak_log；MCP + legacy hand 同 Kernel 的租约/结果/estop 隔离通过。
+- Goal gate 与真实异构并发：`docs/CBAP-goal-gate与并发隔离.md`，截图 `docs/screenshots/cbap-mcp-goalgate.png`；第二次外部规划恰好 3 个 oak_log；MCP + legacy hand 同 Kernel 的租约/结果/estop 隔离通过；
+- 双外部 LLM 并发：`docs/CBAP-双外部LLM并发.md`，结果 `docs/dual-agent.json`；两个独立 Qwen planner 通过各自 CBAP fd 驱动两个真实异构设备，动作/结果不串。
 
 ## 还没做
 

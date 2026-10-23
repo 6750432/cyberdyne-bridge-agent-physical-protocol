@@ -1,0 +1,188 @@
+{
+  "ok": true,
+  "socket": "/tmp/cbap-dual-md1q2l8p/cbap.sock",
+  "agents": {
+    "alpha": {
+      "device_id": "mcp://mc/MCPBody",
+      "fd": "fd-2",
+      "initial": {
+        "pos": [
+          45.30611255696572,
+          68,
+          -41.54754370624839
+        ],
+        "hp": 20,
+        "items": {
+          "oak_planks": 24,
+          "wooden_pickaxe": 1,
+          "stone_pickaxe": 1,
+          "oak_log": 3
+        }
+      },
+      "steps": [
+        {
+          "step": 1,
+          "model": "/home/bzys17mintstart/models/Qwen3-4B-Instruct-2507-Q4_K_M.gguf",
+          "action": {
+            "action": "chat",
+            "text": "alpha online"
+          },
+          "reason": "",
+          "result_id": "r-5aae2f740b32461d",
+          "ok": true,
+          "result": {
+            "ok": true,
+            "sent": "alpha online"
+          }
+        },
+        {
+          "step": 2,
+          "model": "/home/bzys17mintstart/models/Qwen3-4B-Instruct-2507-Q4_K_M.gguf",
+          "action": {
+            "action": "move",
+            "dir": [
+              1,
+              0
+            ],
+            "ms": 500
+          },
+          "reason": "",
+          "result_id": "r-2e2de4bbca5244a1",
+          "ok": true,
+          "result": {
+            "reached": true,
+            "position": {
+              "x": 45.306,
+              "y": 68,
+              "z": -41.548
+            },
+            "target": {
+              "x": 46.30611255696572,
+              "y": 68,
+              "z": -41.54754370624839
+            }
+          }
+        },
+        {
+          "step": 3,
+          "model": "/home/bzys17mintstart/models/Qwen3-4B-Instruct-2507-Q4_K_M.gguf",
+          "action": {
+            "action": "done"
+          },
+          "reason": "",
+          "ok": true
+        }
+      ],
+      "final": {
+        "pos": [
+          45.30611255696572,
+          68,
+          -41.54754370624839
+        ],
+        "hp": 20,
+        "items": {
+          "oak_planks": 24,
+          "wooden_pickaxe": 1,
+          "stone_pickaxe": 1,
+          "oak_log": 3
+        }
+      },
+      "chat_done": true,
+      "move_done": true
+    },
+    "beta": {
+      "device_id": "mc://bot/DeepSeek",
+      "fd": "fd-1",
+      "initial": {
+        "pos": [
+          473.5,
+          69,
+          -130.5
+        ],
+        "hp": 20,
+        "items": {
+          "birch_planks": 2,
+          "oak_log": 101,
+          "stick": 142,
+          "birch_sapling": 3,
+          "oak_sapling": 19,
+          "apple": 3
+        }
+      },
+      "steps": [
+        {
+          "step": 1,
+          "model": "/home/bzys17mintstart/models/Qwen3-4B-Instruct-2507-Q4_K_M.gguf",
+          "action": {
+            "action": "chat",
+            "text": "beta online"
+          },
+          "reason": "",
+          "result_id": "r-7635d86533864592",
+          "ok": true,
+          "result": {
+            "text": "beta online"
+          }
+        },
+        {
+          "step": 2,
+          "model": "/home/bzys17mintstart/models/Qwen3-4B-Instruct-2507-Q4_K_M.gguf",
+          "action": {
+            "action": "move",
+            "dir": [
+              1,
+              0
+            ],
+            "ms": 500
+          },
+          "reason": "",
+          "result_id": "r-a7bfda67d842495a",
+          "ok": true,
+          "result": {
+            "ms": 500
+          }
+        },
+        {
+          "step": 3,
+          "model": "/home/bzys17mintstart/models/Qwen3-4B-Instruct-2507-Q4_K_M.gguf",
+          "action": {
+            "action": "done"
+          },
+          "reason": "",
+          "ok": true
+        }
+      ],
+      "final": {
+        "pos": [
+          473.5,
+          69,
+          -130.5
+        ],
+        "hp": 20,
+        "items": {
+          "birch_planks": 2,
+          "oak_log": 101,
+          "stick": 142,
+          "birch_sapling": 3,
+          "oak_sapling": 19,
+          "apple": 3
+        }
+      },
+      "chat_done": true,
+      "move_done": true
+    }
+  },
+  "devices": [
+    {
+      "device_id": "mcp://mc/MCPBody",
+      "type": "minecraft-mcp-agent",
+      "state": "ready"
+    },
+    {
+      "device_id": "mc://bot/DeepSeek",
+      "type": "minecraft-java",
+      "state": "ready"
+    }
+  ],
+  "thread_errors": []
+}
