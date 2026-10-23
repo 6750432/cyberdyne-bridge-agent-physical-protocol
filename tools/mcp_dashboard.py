@@ -151,7 +151,7 @@ HTML = r"""<!doctype html>
       <div class="eyebrow">Cyberdyne Bridge / CBAP-D</div>
       <h1>REAL MCP PERIPHERAL <span>ONLINE</span></h1>
       <div class="sub">Kernel → CBAP-D → external MCP server → real Mineflayer bot<br>
-      the MCP server is not modified; only public MCP tools are called.</div>
+      small MCP place patch (block + hotbar); everything else via public MCP tools.</div>
     </div>
     <div class="badge"><span class="dot"></span>LIVE / KERNEL ATTACHED</div>
   </header>
@@ -212,7 +212,7 @@ HTML = r"""<!doctype html>
         <div class="k">side effects</div><div class="v">only public MCP tools</div>
       </div>
       <div class="flow" style="margin-top:18px">
-        <span class="node">no core patch</span>
+        <span class="node">MCP place patch (block + hotbar)</span>
         <span class="node">no bridge.py edit</span>
         <span class="node">no node/server.js edit</span>
       </div>
@@ -331,6 +331,12 @@ class Handler(BaseHTTPRequestHandler):
                     refresh(RUNTIME.get("driver"))
                     self._json({"ok": bool(result.get("ok")),
                                 "id": rid, "ack": ack, "result": result})
+                    return
+                if self.path.startswith("/api/tool"):
+                    driver = RUNTIME.get("driver")
+                    name = body.get("name") or "status"
+                    out = driver.tool(name, body.get("args") or {})
+                    self._json({"ok": True, "result": out})
                     return
                 if self.path.startswith("/api/observe"):
                     driver = RUNTIME.get("driver")

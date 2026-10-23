@@ -264,7 +264,7 @@ class MCPDriver:
             try:
                 blocks = self._call("observe", {
                     "target": "blocks",
-                    "blockTypes": ["oak_log", "stone", "grass_block", "dirt", "crafting_table"],
+                    "blockTypes": ["oak_log", "stone", "grass_block", "dirt", "crafting_table", "furnace", "spruce_planks"],
                     "maxDistance": 16, "maxCount": 8}, timeout=20)
                 state["blocks"] = (blocks or {}).get("blocks") or []
                 state["scan"] = {"blocks": state["blocks"]}
@@ -291,6 +291,10 @@ class MCPDriver:
                 self.on_state(copy.deepcopy(state))
             except Exception:
                 pass
+
+    def tool(self, name: str, args: dict | None = None) -> Any:
+        """Invoke a public MCP tool (diagnostics/adapters)."""
+        return self._call(name, args or {}, timeout=30)
 
     def observe(self, target: str, **kwargs) -> Any:
         args = {"target": target}
@@ -386,6 +390,8 @@ class MCPDriver:
             dx, dy, dz = self._delta(p)
             tool = op
             targs = {"dx": dx, "dy": dy, "dz": dz}
+            if args.get("item"):
+                targs["itemName"] = str(args["item"])
         elif op == "say":
             tool = "chat"
             targs = {"message": str(args.get("text") or "")}

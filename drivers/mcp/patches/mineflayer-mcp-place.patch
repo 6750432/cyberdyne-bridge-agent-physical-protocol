@@ -1,0 +1,152 @@
+--- a/src/tools.js
++++ b/src/tools.js
+@@ -112,13 +112,14 @@
+   },
+   {
+     name: "place",
+-    description: "Place a block from inventory at a nearby position.",
++    description: "Place a block from inventory at a nearby position. Optional itemName selects the block.",
+     inputSchema: {
+       type: "object",
+       properties: {
+         dx: { type: "integer", description: "X offset from bot feet." },
+         dy: { type: "integer", description: "Y offset from bot feet." },
+         dz: { type: "integer", description: "Z offset from bot feet." },
++        itemName: { type: "string", description: "Optional inventory block name to place." },
+       },
+       required: ["dx", "dy", "dz"],
+       additionalProperties: false,
+@@ -237,7 +238,12 @@
+     .strict(),
+ 
+   place: z
+-    .object({ dx: z.number().int(), dy: z.number().int(), dz: z.number().int() })
++    .object({
++      dx: z.number().int(),
++      dy: z.number().int(),
++      dz: z.number().int(),
++      itemName: z.string().min(1).max(64).optional(),
++    })
+     .strict(),
+ 
+   attack: z
+@@ -468,7 +474,10 @@
+ 
+     // ── place ─────────────────────────────────────────────────────────────
+     case "place": {
+-      const result = await bot.placeBlock({ dx: args.dx, dy: args.dy, dz: args.dz });
++      const result = await bot.placeBlock({
++        dx: args.dx, dy: args.dy, dz: args.dz,
++        itemName: args.itemName,
++      });
+       return { content: [{ type: "text", text: JSON.stringify(result) }] };
+     }
+ 
+--- a/src/bot.js
++++ b/src/bot.js
+@@ -800,7 +800,7 @@
+ 
+   // ---------- M3-P1: place_block ----------
+ 
+-  async placeBlock({ dx, dy, dz } = {}) {
++  async placeBlock({ dx, dy, dz, itemName } = {}) {
+     this._assertSpawned();
+     const bot = this._bot;
+     const origin = bot.entity?.position;
+@@ -813,36 +813,53 @@
+       Math.floor(origin.z) + Number(dz)
+     );
+ 
+-    // Auto-equip: find a placeable block item anywhere in inventory and equip it.
+-    // In creative mode, bot.inventory.items() may be stale — also check quickBarSlot.
++    // Auto-equip a *placeable block*, never a tool in the hand. This was the
++    // root cause of "server did not confirm placement" in survival: the old
++    // code preferred any in-hand item, so a pickaxe was sent as a block.
+     const inv = bot.inventory;
+     let itemToPlace = null;
++    const blockNames = new Set(Object.keys(bot.registry?.blocksByName ?? {}));
++    const isPlaceable = (item) => Boolean(
++      item && item.name !== "air" && blockNames.has(item.name)
++    );
+ 
+-    // Prefer item already in hand if there is one.
+-    const inHand = inv?.slots?.[bot.quickBarSlot] ?? null;
+-    if (inHand && inHand.name !== "air") {
+-      itemToPlace = inHand;
++    if (itemName) {
++      itemToPlace = (inv?.items() ?? []).find(
++        (item) => item?.name === itemName && isPlaceable(item)
++      ) ?? null;
++      if (!itemToPlace) {
++        throw new McpError(
++          ErrorCodes.INVALID_PARAMS,
++          `place_block: inventory has no placeable block "${itemName}"`
++        );
++      }
+     } else {
+-      for (const item of inv?.items() ?? []) {
+-        if (item && item.name !== "air") {
+-          itemToPlace = item;
+-          break;
+-        }
++      const inHand = inv?.slots?.[bot.quickBarSlot] ?? null;
++      if (isPlaceable(inHand)) {
++        itemToPlace = inHand;
++      } else {
++        itemToPlace = (inv?.items() ?? []).find(isPlaceable) ?? null;
+       }
+     }
+     if (!itemToPlace) {
+-      throw new McpError(ErrorCodes.INVALID_PARAMS, "place_block: inventory is empty");
++      throw new McpError(
++        ErrorCodes.INVALID_PARAMS,
++        "place_block: inventory has no placeable block"
++      );
+     }
+     try {
+-      await bot.equip(itemToPlace, "hand");
+-    } catch (err) {
+-      // equip can fail in creative mode — if there's already something in hand, proceed anyway.
+-      const stillInHand = inv?.slots?.[bot.quickBarSlot];
+-      if (!stillInHand) {
+-        const n = normalizeError(err, "place_block: equip failed");
+-        throw new McpError(n.code, n.message, n.data);
++      // Hotbar items are selected directly. This avoids a mineflayer/state
++      // desync where bot.equip() reports success but placeBlock still sends
++      // the old tool in hand, which the server silently rejects.
++      if (Number.isInteger(itemToPlace.slot) &&
++          itemToPlace.slot >= 36 && itemToPlace.slot <= 44) {
++        bot.setQuickBarSlot(itemToPlace.slot - 36);
++      } else {
++        await bot.equip(itemToPlace, "hand");
+       }
+-      itemToPlace = stillInHand;
++    } catch (err) {
++      const n = normalizeError(err, "place_block: equip failed");
++      throw new McpError(n.code, n.message, n.data);
+     }
+ 
+     // Find a solid adjacent block to place against.
+@@ -869,11 +886,17 @@
+     }
+ 
+     try {
+-      // Use _genericPlace directly to avoid the blockUpdate timeout in 1.21.1.
+-      // _genericPlace sends the placement packet; we then verify via blockAt.
+-      await bot._genericPlace(referenceBlock, faceVec, { forceLook: "force", swingArm: "right" });
+-      // Small wait for server to process.
+-      await new Promise((r) => setTimeout(r, 200));
++      // Prefer the public mineflayer API (it waits for the blockUpdate),
++      // falling back to _genericPlace for 1.21.1 servers that time out.
++      try {
++        await bot.placeBlock(referenceBlock, faceVec);
++      } catch (primaryErr) {
++        await bot._genericPlace(referenceBlock, faceVec, {
++          forceLook: "force", swingArm: "right",
++        });
++      }
++      // Give the server a moment to echo the block change.
++      await new Promise((r) => setTimeout(r, 300));
+       const actual = bot.blockAt(targetPos);
+       if (actual && actual.name !== "air" && actual.name !== "cave_air") {
+         return {

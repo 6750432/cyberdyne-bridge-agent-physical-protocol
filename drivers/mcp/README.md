@@ -5,7 +5,7 @@
 - 它是一个真实的外部进程，自带 Mineflayer bot；
 - 官方 API 是标准 MCP stdio（JSON-RPC 2.0）；
 - 9 个工具 / 6 个资源，正好能映射到 CBAP 的 body / world / inventory / chat；
-- 不需要改它的核心，也不需要改 `bridge.py` 或 `node/server.js`。
+- 需要一个小的 `place` 兼容 patch（见下）；`bridge.py` 和 `node/server.js` 不改。
 
 ## 为什么不是 Mindcraft
 
@@ -27,6 +27,24 @@ node src/index.js \
   --username MCPBody --version 1.21.1 \
   --lock /tmp/cbap-mcp.lock --log-level warn
 ```
+
+## MCP place patch（必要）
+
+原版 `mineflayer-mcp` 在生存模式下会把手中的镐子当方块发送，导致
+`server did not confirm placement ... block is "air"`。
+
+应用本仓库补丁：
+
+```bash
+cd /path/to/mineflayer-mcp
+patch -p1 < /path/to/cyberdyne-bridge/drivers/mcp/patches/mineflayer-mcp-place.patch
+node --check src/bot.js
+node --check src/tools.js
+```
+
+修复内容：只选可放置方块、可选 `itemName`、hotbar 直接选择、
+公开 `bot.placeBlock` + `_genericPlace` 回退、300ms 确认等待。
+详见 `docs/CBAP-MCP-place修复.md`。
 
 ## 启动 CBAP dashboard
 

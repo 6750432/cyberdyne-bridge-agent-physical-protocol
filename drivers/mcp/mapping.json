@@ -29,7 +29,8 @@
       "channel": "world",
       "op": "place",
       "args": {
-        "p": "vec3"
+        "p": "vec3",
+        "?item": "string"
       }
     },
     "attack": {

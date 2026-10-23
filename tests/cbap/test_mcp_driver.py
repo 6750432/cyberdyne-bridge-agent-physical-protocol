@@ -102,9 +102,10 @@ class MCPDriverTest(unittest.TestCase):
         self.driver._latest_state = {"pos": [10.5, 64.9, 10.2]}
         pl = self.driver.map_action({
             "channel": "world", "op": "place",
-            "args": {"p": [12, 64, 10]}})
+            "args": {"p": [12, 64, 10], "item": "furnace"}})
         self.assertEqual(pl["tool"], "place")
-        self.assertEqual(pl["args"], {"dx": 2, "dy": 0, "dz": 0})
+        self.assertEqual(pl["args"], {"dx": 2, "dy": 0, "dz": 0,
+                                      "itemName": "furnace"})
 
     def test_estop_terminates_mcp_process(self):
         self.client.lease(self.fd)
