@@ -1633,7 +1633,7 @@ def 装上(bridge, 日志=None, **kw):
             栈类.发 = 发
         _说("[记性] 降层闭环挂上了 ✓ 骨架：1宽/1高/45° ✓（挖到 Y 层为准 ✓ 一拍一判 ✓ 不是固定步数 ✓）")
 
-    def 接(self, 名字, 步骤, s):
+    def 接(self, 名字, 步骤, s, **kw):
         # ★ 入口探针（2026-10-15 定案用 ✓ 只记一笔 ✓ 不改逻辑 ✗）
         try:
             open("logs/包装探针.jsonl", "a", encoding="utf-8").write(
@@ -1651,7 +1651,7 @@ def 装上(bridge, 日志=None, **kw):
             for 名, 位 in 记了:
                 _说(f"[记性] 计划里有「放 {名}」@{位} ✓（等手确认再记账 ✓ 计划坐标不是事实 ✗）")
             if 说明:
-                return 原接(self, 名字, 新步骤, s)
+                return 原接(self, 名字, 新步骤, s, **kw)
         except Exception as e:
             # ★★★ 2026-10-09：**光打一句 e 不够** ✗ —— 主人截图里那句
             #   「cannot unpack non-iterable NoneType object」根本看不出是哪儿 ✓
@@ -1661,7 +1661,7 @@ def 装上(bridge, 日志=None, **kw):
             print("[记性] 现场：" + " ⏪ ".join(
                 f"{x.filename.split('/')[-1]}:{x.lineno} {x.name}"
                 for x in _tb.extract_tb(e.__traceback__)[-4:]), flush=True)
-        return 原接(self, 名字, 步骤, s)
+        return 原接(self, 名字, 步骤, s, **kw)
 
     # ★ 2026-10-17 P0-3：**手确认放下了才记账** ✓（计划坐标不是事实 ✗）
     叙类 = getattr(bridge, "叙事者", None)

@@ -251,6 +251,26 @@ def _状态帧():
     return {}
 
 
+def _物品数(s, 名):
+    try:
+        return float(((s or {}).get("items") or {}).get(str(名), 0) or 0)
+    except Exception:
+        return 0.0
+
+
+def _读箱子账():
+    """只读任务栈的箱子账（logs/箱子账.json）：箱子侧总持有量的已知部分。"""
+    try:
+        with open(os.path.join(根, "logs", "箱子账.json"), encoding="utf-8") as f:
+            原 = json.load(f)
+        if isinstance(原, dict):
+            return {str(k): float(v) for k, v in 原.items()
+                    if isinstance(v, (int, float))}
+    except Exception:
+        pass
+    return {}
+
+
 def _回执增量():
     """从上次偏移读新回执，累计 goto/dig 噪声。只读文件。"""
     with _回执锁:
@@ -447,6 +467,14 @@ def _记录任务开始(任, s, 来源):
     计划 = list(任.get("步骤") or [])
     预测 = _预测任务(计划)
     体检 = _物理体检(计划, s)
+    _目标物品 = 任.get("目标物品")
+    try:
+        _目标数量 = float(任.get("目标数量")) if 任.get("目标数量") is not None else None
+    except Exception:
+        _目标数量 = None
+    _背 = _物品数(s, _目标物品) if _目标物品 else 0.0
+    _箱 = float(_读箱子账().get(str(_目标物品), 0) or 0) if _目标物品 else 0.0
+    _有 = _背 + _箱
     with _记录锁:
         if tid in _任务:
             return
@@ -459,13 +487,21 @@ def _记录任务开始(任, s, 来源):
                       "plan_revision_count": 0,
                       "plan_revision_events": [],
                       "pred_after_revision": 预测,
-                      "predicted_duration_after_revision": 预测.get("predicted_duration_sec")}
+                      "predicted_duration_after_revision": 预测.get("predicted_duration_sec"),
+                      "target_item": _目标物品, "requested_target": _目标数量,
+                      "delivered_qty": 0.0,
+                      "inventory_start": _背, "chest_start": _箱, "owned_start": _有}
     _回执累计.update({"goto_sent": 0, "dig_sent": 0, "goto_interrupted": 0,
                       "goto_path_timeout": 0, "dig_failed": 0})
     _记账({"事件": "任务开始", "task_id": tid, "task_name": 任.get("名字"),
            "start_pos": (s or {}).get("pos"), "steps": len(计划),
            "plan_action_histogram": dict(Counter(str((x or {}).get("动作") or "?") for x in 计划)),
-           "predicted": 预测, "physical_check": 体检, "source": 来源})
+           "predicted": 预测, "physical_check": 体检,
+           "target_item": _目标物品, "requested_target": _目标数量,
+           "inventory_qty": round(_背, 3), "chest_qty": round(_箱, 3),
+           "owned_qty": round(_有, 3), "delivered_qty": 0.0,
+           "order_satisfied": (bool(_有 + 1e-9 >= _目标数量) if _目标数量 is not None else None),
+           "source": 来源})
     _记录步骤开始(任, 0, 来源, s)
 
 
@@ -491,7 +527,8 @@ def _记录步骤开始(任, idx, 来源, s=None):
                 if ("第 %d 步" % (idx + 1)) in x or ("第 %d 步" % idx) in x]
         _步[key] = {"start": time.time(), "pred": 预测,
                     "action": 步.get("动作"), "target": 步.get("方块") or 步.get("物品"),
-                    "p": 步.get("p"), "receipt_base": dict(_回执累计),
+                    "p": 步.get("p"), "qty": 步.get("数量"),
+                    "receipt_base": dict(_回执累计),
                     "last_receipt": {k: 0 for k in _回执累计},
                     "last_receipt_write": 0.0, "warned": False}
     _记账({"事件": "步骤开始", "task_id": tid, "step_idx": idx,
@@ -527,6 +564,11 @@ def _记录步骤完成(任, idx, 来源):
     预测 = (数据 or {}).get("pred") or {}
     基 = (数据 or {}).get("receipt_base") or {}
     步回 = {k: int(_回执累计.get(k, 0)) - int(基.get(k, 0)) for k in _回执累计}
+    if (数据 or {}).get("action") == "给":
+        try:
+            _任务[tid]["delivered_qty"] = float(_任务[tid].get("delivered_qty") or 0) + float((数据 or {}).get("qty") or 0)
+        except Exception:
+            pass
     _记账({"事件": "步骤完成", "task_id": tid, "step_idx": idx,
            "action": (数据 or {}).get("action"),
            "target": (数据 or {}).get("target"),
@@ -534,6 +576,7 @@ def _记录步骤完成(任, idx, 来源):
            "predicted": 预测,
            "error": {"elapsed_sec": round(实际 - float(预测.get("predicted_step_sec") or 0), 2)},
            "step_receipt_stats": 步回,
+           "delivered_qty": round(float((_任务.get(tid) or {}).get("delivered_qty") or 0), 3),
            "warning_fired": bool((数据 or {}).get("warned")),
            "warning_false_positive": bool((数据 or {}).get("warned")),
            "prediction_error_type": "step_time",
@@ -568,6 +611,7 @@ def _记录步骤失败(任, idx, 原因, 来源):
            "predicted": 预测,
            "error": {"elapsed_sec": round(实际 - float(预测.get("predicted_step_sec") or 0), 2)},
            "step_receipt_stats": 步回,
+           "delivered_qty": round(float((_任务.get(tid) or {}).get("delivered_qty") or 0), 3),
            "warning_fired": bool((数据 or {}).get("warned")),
            "warning_hit": bool((数据 or {}).get("warned")) and str(预测.get("predicted_failure_code")) == "pathfinder_interrupt_loop",
            "prediction_error_type": "step_failure",
@@ -600,7 +644,7 @@ def _记录任务结束(任, 状态, 来源, preempted_by=None):
     elif preempted_by:
         失败码 = "batch_policy_timeout_preempted"
     elif 状态 == "败":
-        失败码 = "task_failed"
+        失败码 = str(任.get("failure_code") or "task_failed")
     elif 状态 == "中止":
         失败码 = "aborted"
     else:
@@ -612,6 +656,17 @@ def _记录任务结束(任, 状态, 来源, preempted_by=None):
     当前秒 = float(预测后.get("predicted_duration_sec") or 0)
     开始步 = int(预测.get("predicted_steps") or 0)
     当前步 = int(数据.get("plan_current_steps") or 开始步)
+    _状态 = _状态帧()
+    _目标物品 = 任.get("目标物品") or 数据.get("target_item")
+    try:
+        _目标数量 = float(任.get("目标数量")) if 任.get("目标数量") is not None else 数据.get("requested_target")
+    except Exception:
+        _目标数量 = 数据.get("requested_target")
+    _背 = _物品数(_状态, _目标物品) if _目标物品 else 0.0
+    _箱 = float(_读箱子账().get(str(_目标物品), 0) or 0) if _目标物品 else 0.0
+    _有 = _背 + _箱
+    _交付 = float(数据.get("delivered_qty") or 0)
+    _满足 = (bool(_有 + 1e-9 >= float(_目标数量)) if _目标数量 is not None else None)
     _记账({"事件": "任务结束", "task_id": tid, "task_name": 任.get("名字"),
            "status": 状态, "actual": {"success": 成功, "steps": 实际步,
                                       "steps_from_task_stack": 栈步,
@@ -619,7 +674,14 @@ def _记录任务结束(任, 状态, 来源, preempted_by=None):
                                       "capture_gap": 捕获差,
                                       "task_stack_step_index": 任.get("第几步"),
                                       "duration_sec": 实际秒,
-                                      "failed_steps": 数据.get("failed", 0)},
+                                      "failed_steps": 数据.get("failed", 0),
+                                      "target_item": _目标物品,
+                                      "requested_target": _目标数量,
+                                      "inventory_qty": round(_背, 3),
+                                      "chest_qty": round(_箱, 3),
+                                      "owned_qty": round(_有, 3),
+                                      "delivered_qty": round(_交付, 3),
+                                      "order_satisfied": _满足},
            "predicted": 预测,
            "error": {"steps": 实际步 - 当前步,
                      "steps_at_start": 实际步 - 开始步,
@@ -641,6 +703,10 @@ def _记录任务结束(任, 状态, 来源, preempted_by=None):
            "duration_error_reduced_is_causal": False,
            "duration_error_reduced_note": "这是旧计划预测与新计划重预测之差，不是计划修订实际耗时。",
            "predicted_after_revision": 预测后,
+           "target_item": _目标物品, "requested_target": _目标数量,
+           "inventory_qty": round(_背, 3), "chest_qty": round(_箱, 3),
+           "owned_qty": round(_有, 3), "delivered_qty": round(_交付, 3),
+           "order_satisfied": _满足,
            "failure_code": 失败码, "preempted_by": preempted_by,
            "prediction_error_type": ("preempted" if preempted_by else
                                       ("step_failure" if not 成功 else "step_time")),
@@ -653,10 +719,10 @@ def _记录任务结束(任, 状态, 来源, preempted_by=None):
 # ══════════════════════════ 四、钩子（全部回调原函数 + 原样返回） ══════════════════════════
 
 def _做接(原):
-    def 新接(self, 名字, 步骤, s):
+    def 新接(self, 名字, 步骤, s, **kw):
         旧 = getattr(self, "任务", None)
         旧id = 旧.get("id") if isinstance(旧, dict) else None
-        结果 = 原(self, 名字, 步骤, s)
+        结果 = 原(self, 名字, 步骤, s, **kw)
         try:
             新 = getattr(self, "任务", None)
             if 结果 and isinstance(新, dict):

@@ -176,7 +176,7 @@ def 装上(bridge, 日志=None, 数=None, **kw):
     旧动作 = set(getattr(栈类, "允许动作", ()) or ())
     栈类.允许动作 = frozenset(旧动作 | {"collect"})
 
-    def 接(self, 名字, 步骤, s):
+    def 接(self, 名字, 步骤, s, **kw):
         # ★ 入口探针（2026-10-15 定案用 ✓ 只记一笔 ✓ 不改逻辑 ✗）
         try:
             open("logs/包装探针.jsonl", "a", encoding="utf-8").write(
@@ -188,10 +188,10 @@ def 装上(bridge, 日志=None, 数=None, **kw):
             for x in 说明:
                 _说(f"[收集] {x}")
             if 说明:
-                return 原接(self, 名字, 新步骤, s)
+                return 原接(self, 名字, 新步骤, s, **kw)
         except Exception as e:
             print(f"[收集] 出岔子（不影响主链，按原样接单）：{e}", flush=True)
-        return 原接(self, 名字, 步骤, s)
+        return 原接(self, 名字, 步骤, s, **kw)
 
     # ★★ 规矩 ②③：新动作光"允许"**还不够** ✗ 得有人干这两件事 ✓
     #   （今天栽过「你说开了可它不会」那个坑 ✓ —— 光开闸不接线，等于没做 ✓）

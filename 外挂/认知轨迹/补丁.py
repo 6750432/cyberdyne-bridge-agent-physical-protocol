@@ -158,8 +158,8 @@ def 装上(bridge, 日志=None, 数=None, 车钩=None, **kw):
     if callable(原接):
         _原[("接", id(类))] = 原接
 
-        def 接(self, 名字, 步骤, s):
-            结果 = 原接(self, 名字, 步骤, s)          # ★ 第一件事：回调原函数 ✓ 原样返回 ✓
+        def 接(self, 名字, 步骤, s, **kw):
+            结果 = 原接(self, 名字, 步骤, s, **kw)          # ★ 第一件事：回调原函数 ✓ 原样返回 ✓
             try:
                 if _开关 and 结果:
                     步 = list(步骤 or [])

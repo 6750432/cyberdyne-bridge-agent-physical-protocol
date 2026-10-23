@@ -1427,6 +1427,9 @@ class 任务栈:
         self.日志路径 = os.path.join(日志目录, "任务.jsonl")
         self.快照路径 = os.path.join(日志目录, "任务快照.json")
         self.上次下发 = 0.0
+        # ★ B 口径：总持有量 = 背包 + 箱子。箱子账只记**手真放/取**的增减。
+        self.箱子账路 = os.path.join(日志目录, "箱子账.json")
+        self.箱子账 = self._载箱子账()
         # ★ 防抖：反射层刚回到「平静」还不够 —— 要连续安静一小会儿才恢复。
         # 实测教训：一次追逐里会出现"暂停-恢复"每 0.2 秒抖一次，日志刷一屏、
         # 活儿也根本推不动（它一边想干活、一边被反复打断）。
@@ -1452,6 +1455,95 @@ class 任务栈:
             return float(self.m.get(名, 缺省))
         except (TypeError, ValueError):
             return float(缺省)
+
+    # ── B 口径：箱子账（只记手真放/取的增减；不猜箱子内容）──
+    def _载箱子账(self):
+        try:
+            with open(self.箱子账路, encoding="utf-8") as f:
+                原 = json.load(f)
+            if isinstance(原, dict):
+                return {str(k): float(v) for k, v in 原.items()
+                        if isinstance(v, (int, float)) and float(v) > 0}
+        except Exception:
+            pass
+        return {}
+
+    def _存箱子账(self):
+        try:
+            os.makedirs(os.path.dirname(self.箱子账路), exist_ok=True)
+            with open(self.箱子账路, "w", encoding="utf-8") as f:
+                json.dump(self.箱子账, f, ensure_ascii=False, indent=1)
+        except Exception as e:
+            self._记("箱子账写入出错", 原因=repr(e)[:160])
+
+    def _箱账加(self, 名, 数):
+        try:
+            名 = str(名)
+            数 = float(数)
+        except Exception:
+            return
+        if not 名 or abs(数) < 1e-9:
+            return
+        旧 = float(self.箱子账.get(名, 0) or 0)
+        新 = max(0.0, 旧 + 数)
+        if 新 > 1e-9:
+            self.箱子账[名] = 新
+        else:
+            self.箱子账.pop(名, None)
+        self._存箱子账()
+        self._记("箱子账变更", 物品=名, 变化=round(数, 3), 结余=round(新, 3))
+
+    def _记箱账(self, 步, s):
+        """任务栈自己的账：箱子放/取完成后，按背包实际增减记箱子账。
+        只在**这一步完成、准备进下一步**时调用；用 `_箱账已记` 防重复。"""
+        if not isinstance(步, dict) or 步.get("_箱账已记") or 步.get("跳过"):
+            return
+        动 = 步.get("动作")
+        if 动 not in ("往箱子里放", "箱子里取"):
+            return
+        名 = 步.get("物品")
+        if not 名:
+            return
+        现在 = self._物品数量(s, 名)
+        if 动 == "往箱子里放":
+            前 = 步.get("_放前")
+            if 前 is not None:
+                try:
+                    数 = max(0.0, float(前) - 现在)
+                except Exception:
+                    数 = 0.0
+            else:
+                数 = float(步.get("数量") or 0)
+            self._箱账加(名, 数)
+        else:
+            前 = 步.get("_进项前")
+            if 前 is not None:
+                try:
+                    数 = max(0.0, 现在 - float(前))
+                except Exception:
+                    数 = 0.0
+            else:
+                数 = float(步.get("数量") or 0)
+            self._箱账加(名, -数)
+        步["_箱账已记"] = True
+
+    def _目标达标(self, s):
+        """B 口径：背包 + 箱子 >= 目标数量。没有目标字段 = 旧任务，不拦。"""
+        名 = self.任务.get("目标物品") if self.任务 else None
+        要 = self.任务.get("目标数量") if self.任务 else None
+        if not 名 or 要 is None:
+            return True, ""
+        try:
+            要 = float(要)
+        except Exception:
+            return True, ""
+        背 = self._物品数量(s, 名)
+        箱 = float(self.箱子账.get(str(名), 0) or 0)
+        有 = 背 + 箱
+        if 有 + 1e-9 < 要:
+            return False, "背包%s+箱子%s=%s < 目标%s" % (
+                ("%g" % 背), ("%g" % 箱), ("%g" % 有), ("%g" % 要))
+        return True, ""
 
     def 要快(self):
         """任务在跑"动作步"时要 5Hz；**等待步 1Hz 就够**（省电，别为等世界空转）。"""
@@ -1498,7 +1590,7 @@ class 任务栈:
                 pass
 
     # ── 接单 ──
-    def 接(self, 名字, 步骤, s):
+    def 接(self, 名字, 步骤, s, 目标=None, 数量=None):
         print("[接三行] ★ 进 接 了 ✓ 步骤类型=" + type(步骤).__name__ + " len=" + str(len(步骤) if hasattr(步骤, "__len__") else "无") , flush=True)
         if not self.启用():
             return False
@@ -1523,6 +1615,10 @@ class 任务栈:
         for 步 in 步骤:                 # "起点" 是占位符，接单这一刻才换算成真坐标
             if 步.get("p") == "起点":
                 步["p"] = list(起点)
+        try:
+            _目标数 = float(数量) if 数量 is not None else None
+        except Exception:
+            _目标数 = None
         self.任务 = {
             "id": f"任务-{int(time.time())}",
             "名字": str(名字)[:40],
@@ -1537,10 +1633,15 @@ class 任务栈:
             "暂停时刻": None,
             "暂停原因": None,
             "下发过": False,
+            "目标物品": str(目标) if 目标 else None,
+            "目标数量": _目标数,
+            "口径": "owned" if (目标 and _目标数 is not None) else None,
+            "failure_code": None,
         }
         self.上次下发 = 0.0        # 新任务的第一步不许被上一件事的节流挡住
         self._挂探针(步骤, s)
         self._记("接单", 名字=self.任务["名字"], 步数=len(步骤),
+                 目标=self.任务.get("目标物品"), 目标数量=self.任务.get("目标数量"),
                  步骤=[步.get("动作") for 步 in 步骤])
         self._记("步骤开始", 动作=步骤[0].get("动作"), 第几步=0)   # 第一步也要有账
         self.说(f"[{时刻()}] 好，我去了：{self.任务['名字']}"
@@ -1944,10 +2045,12 @@ class 任务栈:
         return self._整任务失败(f"第 {任['第几步'] + 1} 步「{步.get('动作')}」"
                                f"试了 {上限 + 1} 次都不成（{原因}）")
 
-    def _整任务失败(self, 原因):
+    def _整任务失败(self, 原因, failure_code="task_failed"):
         任 = self.任务
         任["状态"] = "败"
-        self._记("任务失败", 原因=原因, 停在=任["第几步"] + 1)
+        任["failure_code"] = str(failure_code or "task_failed")
+        self._记("任务失败", 原因=原因, failure_code=任["failure_code"],
+                 停在=任["第几步"] + 1)
         self.说(f"[{时刻()}] 这活我干不了了：{原因}。", 紧急=True)
         if self.记忆 is not None:
             try:
@@ -1959,9 +2062,15 @@ class 任务栈:
         self._存快照()
         return False
 
-    def _整任务完成(self):
+    def _整任务完成(self, s=None):
         任 = self.任务
         任["状态"] = "完"
+        任["failure_code"] = None
+        _目标 = 任.get("目标物品")
+        if _目标:
+            _背 = self._物品数量(s or {}, _目标)
+            _箱 = float(self.箱子账.get(str(_目标), 0) or 0)
+            任["实际持有"] = {"物品": _目标, "背包": _背, "箱子": _箱, "合计": _背 + _箱}
         self._记("任务完成", 名字=任["名字"], 用了=round(time.time() - 任["开始时刻"], 1))
         self.说(f"[{时刻()}] 干完了：{任['名字']}。", 紧急=True)
         if self.记忆 is not None:
@@ -1974,6 +2083,13 @@ class 任务栈:
 
     def _下一步(self, s):
         任 = self.任务
+        当前步 = None
+        try:
+            当前步 = 任["步骤"][任["第几步"]]
+        except Exception:
+            pass
+        if 当前步 is not None:
+            self._记箱账(当前步, s)
         任["第几步"] += 1
         任["重试"] = 0
         任["重试到"] = 0.0
@@ -1983,7 +2099,12 @@ class 任务栈:
         #（症状：「说」这一步一句话都没说出去就被判失败）。
         self.上次下发 = 0.0
         if 任["第几步"] >= len(任["步骤"]):
-            self._整任务完成()
+            达标, 为什么 = self._目标达标(s)
+            if not 达标:
+                return self._整任务失败(
+                    "收集未完成（incomplete_collection）：%s" % 为什么,
+                    failure_code="incomplete_collection")
+            self._整任务完成(s)
             return False
         步 = 任["步骤"][任["第几步"]]
         self._记("步骤开始", 动作=步.get("动作"), 第几步=任["第几步"])
@@ -2710,7 +2831,8 @@ class 翻译器:
             "  2. 你能做的事只有两种：输出一个**白名单里的单步动作**，或输出一份**任务书**（≤6 步）；",
             "  3. 任务书里**不许出现「打」这一步**；",
             "  4. 看不懂、拿不准、或者现在不该动 —— 就输出 {} （什么都不做也是好答案）；",
-            "  5. 只输出 JSON，不要解释、不要 markdown 代码块。",
+            "  5. 只输出 JSON，不要解释、不要 markdown 代码块；",
+            "  6. 主人给了数量 N 时，任务书里的收集/存放必须覆盖 N；只做 1 个会被判 incomplete_collection。",
         ]
         段 = []
         if self.三觉 is not None:

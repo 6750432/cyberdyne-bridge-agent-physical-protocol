@@ -275,7 +275,7 @@ def 装上(bridge, 日志=None, **kw):
         return {"好": False, "为什么": "任务栈.接 不是函数", "打了": []}
     _原件[id(栈类)] = 原
 
-    def 接(self, 名字, 步骤, s):
+    def 接(self, 名字, 步骤, s, **kw):
         # ★ 入口探针（2026-10-15 定案用 ✓ 只记一笔 ✓ 不改逻辑 ✗）
         try:
             open("logs/包装探针.jsonl", "a", encoding="utf-8").write(
@@ -334,12 +334,12 @@ def 装上(bridge, 日志=None, **kw):
                         pass
                     _拒单探针记(名字, 步骤, False)
                     return False
-            return 原(self, 名字, 改, s)
+            return 原(self, 名字, 改, s, **kw)
         except Exception as ex:
             print(f"[物理体检] 体检时出岔子（不影响主链，按原样接单）：{ex}", flush=True)
             print("[体检钩] ★ 要调原(任务栈.接) 了 ✓", flush=True)
             try:
-                _r = 原(self, 名字, 步骤, s)
+                _r = 原(self, 名字, 步骤, s, **kw)
             except Exception as _eO:
                 print("[体检钩] ✗ 原(任务栈.接) 炸了：" + str(_eO)[:120], flush=True)
                 raise

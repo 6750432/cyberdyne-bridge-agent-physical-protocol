@@ -588,7 +588,9 @@ def 接单(bridge, 叙事者, e):
         except Exception as _eZ2:
             print("[类id] 比不了：" + str(_eZ2)[:80], flush=True)
         try:
-            好 = 栈.接(任.get("名字") or 目标, 任.get("步骤"), 状态)
+            好 = 栈.接(任.get("名字") or 目标, 任.get("步骤"), 状态,
+                       目标=(任.get("目标") if isinstance(任, dict) else None),
+                       数量=(任.get("数量") if isinstance(任, dict) else None))
             print("[栈身份] ★ 栈.接 回来了 ✓ 好=" + str(好)[:40], flush=True)
         except Exception as _eZ:
             print("[栈身份] ✗ 栈.接 炸了：" + type(_eZ).__name__ + " " + str(_eZ)[:120], flush=True)
