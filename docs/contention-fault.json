@@ -1,0 +1,115 @@
+{
+  "ok": true,
+  "steps": [
+    {
+      "name": "both sessions open same device",
+      "ok": true,
+      "detail": {
+        "A": "fd-1",
+        "B": "fd-2"
+      }
+    },
+    {
+      "name": "A gets lease",
+      "ok": true,
+      "detail": {
+        "lease_id": "l-1f64fbe15bf343d9",
+        "expires_at": 1792761735466
+      }
+    },
+    {
+      "name": "B gets E_BUSY while A owns lease",
+      "ok": true,
+      "detail": {
+        "code": "E_BUSY",
+        "message": "device is leased by another writer",
+        "retryable": false
+      }
+    },
+    {
+      "name": "A write under lease",
+      "ok": true,
+      "detail": {
+        "ok": true,
+        "sent": "contention: A owns"
+      }
+    },
+    {
+      "name": "B write blocked (no lease)",
+      "ok": true,
+      "detail": {
+        "code": "E_BUSY",
+        "message": "write requires a lease",
+        "retryable": false
+      }
+    },
+    {
+      "name": "A lease expired (no renewal call)",
+      "ok": true,
+      "detail": "waited past TTL"
+    },
+    {
+      "name": "B acquires after A TTL expiry",
+      "ok": true,
+      "detail": {
+        "lease_id": "l-079cb9d3f00a4241",
+        "expires_at": 1792761765773
+      }
+    },
+    {
+      "name": "B write after handoff",
+      "ok": true,
+      "detail": {
+        "ok": true,
+        "sent": "contention: B owns"
+      }
+    },
+    {
+      "name": "A write blocked after handoff",
+      "ok": true,
+      "detail": {
+        "code": "E_BUSY",
+        "message": "write requires a lease",
+        "retryable": false
+      }
+    },
+    {
+      "name": "pending long move accepted",
+      "ok": true,
+      "detail": {
+        "v": "1.0",
+        "type": "ack",
+        "id": "r-64f8881842024e79",
+        "ts": 1792761735778,
+        "state": "accepted"
+      }
+    },
+    {
+      "name": "killed MCP process",
+      "ok": true,
+      "detail": {
+        "pid": 121785
+      }
+    },
+    {
+      "name": "pending write fails after MCP crash",
+      "ok": true,
+      "detail": {
+        "code": "E_IO",
+        "message": "MCP process ended",
+        "retryable": true
+      }
+    },
+    {
+      "name": "driver reports unhealthy after crash",
+      "ok": true,
+      "detail": {
+        "ok": false,
+        "connected": false,
+        "state_age_ms": 1512,
+        "device_id": "mcp://mc/MCPBody",
+        "backend": "mcp-stdio"
+      }
+    }
+  ]
+}
