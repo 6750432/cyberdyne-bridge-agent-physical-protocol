@@ -1,0 +1,147 @@
+digraph CBAP {
+  graph [
+    rankdir=TB,
+    bgcolor="#0b1012",
+    fontname="Noto Sans CJK SC",
+    fontcolor="#8fb7af",
+    fontsize=13,
+    nodesep=0.35,
+    ranksep=0.45,
+    pad=0.35,
+    splines=true,
+    compound=true
+  ];
+  node [
+    shape=box,
+    style="rounded,filled",
+    fontname="Noto Sans CJK SC",
+    fontsize=11,
+    fontcolor="#dcebe5",
+    color="#31484a",
+    fillcolor="#121e21",
+    penwidth=1.2,
+    margin="0.14,0.08"
+  ];
+  edge [
+    color="#5fa88f",
+    fontname="Noto Sans CJK SC",
+    fontsize=9,
+    fontcolor="#8fb7af",
+    arrowsize=0.6,
+    penwidth=1.1
+  ];
+
+  subgraph cluster_agents {
+    label=<<B>外部规划器 / 智能体</B>   ·   外部决策者>;
+    style="rounded,dashed"; color="#2d5548"; fontcolor="#8fd0ae";
+    margin=12;
+    qwen  [label="Qwen3-4B\n本地规划器", fillcolor="#102b24", color="#3f8f75"];
+    mind  [label="Mindcraft\nMindy · 自带规划器", fillcolor="#102b24", color="#3f8f75"];
+    voy   [label="Voyager\n仅桥接 · 规划器未接入", fillcolor="#102b24", color="#3f8f75"];
+    alice [label="Alice\nForge 模组 · 重构中", style="rounded,filled,dashed", fillcolor="#2a2416", color="#b58b3e"];
+    manual[label="助手 /\n手工探针", fillcolor="#102b24", color="#3f8f75"];
+  }
+
+  subgraph cluster_own {
+    label=<<B>我们自己的旧栈</B>   ·   直连 UDS · 不走 CBAP>;
+    style="rounded,dashed"; color="#8f7338"; fontcolor="#d8c28c";
+    margin=12;
+    ownbrain [label=<<B>控制论大脑</B><BR/><FONT POINT-SIZE="9">bridge.py · 自己的规划器</FONT>>, fillcolor="#2a2416", color="#b58b3e"];
+    ownhand  [label=<<B>自己的手</B><BR/><FONT POINT-SIZE="9">node/server.js · DeepSeek</FONT>>, fillcolor="#181818", color="#b58b3e"];
+    ownbrain -> ownhand [label=" 直连 UDS\n 逐行 JSON", color="#b58b3e", style=dashed, fontcolor="#c9a85e"];
+  }
+
+  subgraph cluster_u {
+    label=<<B>CBAP-U</B>   ·   面向智能体>;
+    style="rounded"; color="#23614f"; fontcolor="#7dd3b0";
+    uds_u [shape=box, style="rounded,filled", fillcolor="#0d1c19", color="#47a980",
+           label=<<B>Unix 套接字</B><BR/>逐行 JSON<BR/><FONT POINT-SIZE="9">打开 · 读 · 写 · 轮询</FONT><BR/><FONT POINT-SIZE="9">租约 · 释放 · 急停 · 状态</FONT>>];
+  }
+
+  kernel [label=<<B>CBAP 内核</B><BR/><FONT POINT-SIZE="9">单 Python 进程 · 仅标准库 · 无消息队列 / 数据库</FONT><BR/><BR/><FONT POINT-SIZE="10">会话 / 文件描述符</FONT><BR/><FONT POINT-SIZE="10">每设备租约 + FIFO 等待</FONT><BR/><FONT POINT-SIZE="10">在途请求 · 幂等 · 取消</FONT><BR/><FONT POINT-SIZE="10">每设备安全模式 · 急停</FONT><BR/><FONT POINT-SIZE="10">状态缓存 · 轮询 · 事实</FONT><BR/><FONT POINT-SIZE="10">审计.jsonl</FONT>>,
+          fillcolor="#103129", color="#48a77f", penwidth=2.2, fontsize=13];
+
+  subgraph cluster_d {
+    label=<<B>CBAP-D</B>   ·   面向设备的适配器>;
+    style="rounded"; color="#24515b"; fontcolor="#83c7d3";
+    mc_drv   [label=<<B>McDriver</B><BR/>行 JSON<BR/><FONT POINT-SIZE="9">旧手 · 最大在途=1</FONT>>, fillcolor="#0f2026", color="#3f7f8a"];
+    mcp_drv  [label=<<B>MCP 驱动</B><BR/>stdio JSON-RPC 2.0<BR/><FONT POINT-SIZE="9">真实 MCP 工具调用</FONT>>, fillcolor="#0f2026", color="#3f7f8a"];
+    mind_drv [label=<<B>Mindcraft 适配器</B><BR/>socket.io → 行 JSON<BR/><FONT POINT-SIZE="9">状态 · 提示 · 停止</FONT>>, fillcolor="#0f2026", color="#3f7f8a"];
+    voy_drv  [label=<<B>Voyager 适配器</B><BR/>HTTP 桥 → 行 JSON<BR/><FONT POINT-SIZE="9">状态 · 执行 · 前进 · 说话</FONT>>, fillcolor="#0f2026", color="#3f7f8a"];
+    alice_drv[label=<<B>Alice CBAP 桥</B><BR/>Forge HTTP<BR/><FONT POINT-SIZE="9">仅源码 · 未构建</FONT>>, style="rounded,filled,dashed", fillcolor="#2a2416", color="#b58b3e"];
+  }
+
+  subgraph cluster_b {
+    label=<<B>身体 / 设备</B>   ·   以服务端事实为准>;
+    style="rounded"; color="#3c3c3c"; fontcolor="#b9b9b9";
+    mcp    [label="MCPBody\nmineflayer-mcp", fillcolor="#181818", color="#555555"];
+    mindy  [label="Mindcraft Mindy\nMindServer", fillcolor="#181818", color="#555555"];
+    vbody  [label="Voyager 桥\nMineflayer 1.19.2", fillcolor="#181818", color="#555555"];
+    aliceb [label="Alice 假人\nForge 1.20.1", style="rounded,filled,dashed", fillcolor="#241f14", color="#b58b3e"];
+  }
+
+  mc [label=<<B>Minecraft 服务端</B><BR/><FONT POINT-SIZE="9">1.21.1 · 1.19.2 · 1.20.1 Forge（各自独立）</FONT>>,
+      shape=cylinder, fillcolor="#14201a", color="#6d8f5d"];
+
+  facts [shape=note, style="filled", fillcolor="#14201a", color="#6d8f5d",
+         fontcolor="#b9d8a8",
+         label=<<B>服务端事实</B><BR/><FONT POINT-SIZE="9">位置 · 背包 · 方块<BR/>任务终态 · 事件</FONT>>];
+
+  subgraph cluster_obs {
+    label=<<B>我们的可观测性</B>   ·   自有工具>;
+    style="rounded,dashed"; color="#3f6f7a"; fontcolor="#9ed8ef";
+    margin=10;
+    audit [shape=note, style="filled", fillcolor="#241f14", color="#8f7338",
+           fontcolor="#d8c28c",
+           label=<<B>审计</B><BR/><FONT POINT-SIZE="9">JSONL 追加</FONT>>];
+    dashboard [shape=box, style="rounded,filled", fillcolor="#10232a", color="#4f8f9d",
+               label=<<B>CBAP 仪表盘</B><BR/><FONT POINT-SIZE="9">tools/mcp_dashboard.py</FONT><BR/><FONT POINT-SIZE="9">我们的可观测性</FONT>>];
+  }
+
+  legend [shape=note, style="filled", fillcolor="#0d1517", color="#3a5557",
+          fontcolor="#9db8b0", fontsize=9,
+          label="图例\n实线 = 动作 / 控制\n青虚线 = 状态 / 事实\n金实线 = 旧直连\n金虚线 = 未构建 / 部分\n\n完成判据 = 事实，不是 result.ok"];
+
+  // agents → UDS
+  qwen -> uds_u [label=" 动作 / 提示"];
+  mind -> uds_u [label=" 状态 / 提示 / 停止"];
+  voy  -> uds_u [label=" 状态 / 执行 / 停止"];
+  manual -> uds_u [label=" 探针 / 规划"];
+  alice -> uds_u [style=dashed, color="#b58b3e", label=" 未来", fontcolor="#c9a85e"];
+
+  // UDS → kernel
+  uds_u -> kernel [label=" CBAP-U 请求\n  （一行 JSON）", color="#5fa88f", penwidth=1.4];
+
+  // kernel → adapters
+  kernel -> mc_drv   [label=" 路由", color="#5fa88f"];
+  kernel -> mcp_drv  [label=" 路由", color="#5fa88f"];
+  kernel -> mind_drv [label=" 路由", color="#5fa88f"];
+  kernel -> voy_drv  [label=" 路由", color="#5fa88f"];
+  kernel -> alice_drv [style=dashed, color="#b58b3e", label=" 未构建", fontcolor="#c9a85e"];
+
+  // adapters → bodies
+  mc_drv -> ownhand  [color="#6b8a83", label=" 包装", fontcolor="#9db8b0"];
+  mcp_drv -> mcp     [color="#6b8a83"];
+  mind_drv -> mindy  [color="#6b8a83"];
+  voy_drv -> vbody   [color="#6b8a83"];
+  alice_drv -> aliceb [style=dashed, color="#b58b3e"];
+
+  // bodies → server
+  ownhand -> mc [color="#b58b3e", label=" 直连"];
+  mcp -> mc    [color="#4c6b4f"];
+  mindy -> mc  [color="#4c6b4f"];
+  vbody -> mc  [color="#4c6b4f"];
+  aliceb -> mc [style=dashed, color="#b58b3e"];
+
+  // facts return (conceptual)
+  mc -> facts [style=dashed, color="#7cc7e8", label=" 观察", constraint=false];
+  facts -> kernel [style=dashed, color="#7cc7e8", label=" 状态 / 结果\n 事实 + 校验", fontcolor="#9ed8ef", constraint=false];
+  kernel -> uds_u [style=dashed, color="#7cc7e8", label=" 读 / 轮询 / 结果", fontcolor="#9ed8ef", constraint=false];
+  uds_u -> qwen [style=dashed, color="#7cc7e8", label=" 观察结果", fontcolor="#9ed8ef", constraint=false];
+
+  { rank=same; mc; facts; legend; }
+
+  kernel -> audit [style=dashed, color="#8f7338", label=" 追加", fontcolor="#d8c28c", constraint=false];
+  kernel -> dashboard [style=dashed, color="#7cc7e8", label=" 状态 / 审计", fontcolor="#9ed8ef", constraint=false];
+
+        }

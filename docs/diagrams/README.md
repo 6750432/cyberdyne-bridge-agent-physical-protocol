@@ -5,12 +5,17 @@ Files:
 - `cbap-structure.dot` — Graphviz source
 - `cbap-structure.png` — rendered 180 dpi
 - `cbap-structure.svg` — vector
+- `cbap-structure-zh.dot` — 中文 Graphviz 源文件
+- `cbap-structure-zh.png` — 中文渲染图
+- `cbap-structure-zh.svg` — 中文矢量图
 
 Render:
 
 ```bash
 dot -Tpng -Gdpi=180 cbap-structure.dot -o cbap-structure.png
 dot -Tsvg cbap-structure.dot -o cbap-structure.svg
+dot -Tpng -Gdpi=180 cbap-structure-zh.dot -o cbap-structure-zh.png
+dot -Tsvg cbap-structure-zh.dot -o cbap-structure-zh.svg
 ```
 
 Reading:
