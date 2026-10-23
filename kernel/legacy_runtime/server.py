@@ -48,6 +48,7 @@ class Fd:
     lease_id: str | None = None
     lease_expires: float = 0.0
     closed: bool = False
+    driver: Any = None
 
 
 @dataclass
@@ -59,6 +60,7 @@ class Pending:
     timer: threading.Timer | None = None
     done: bool = False
     idem_key: tuple | None = None
+    driver: Any = None
 
 
 class Session:
@@ -99,17 +101,24 @@ class Session:
 class KernelServer:
     """CBAP-U server + a small kernel-shaped dispatcher."""
 
-    def __init__(self, driver, socket_path: str | None = None,
+    def __init__(self, driver=None, socket_path: str | None = None,
                  kernel_id: str = "cyberdyne-legacy",
                  token: str | None = None,
                  lease_ttl_ms: int = 30000,
-                 audit_path: str | None = None):
-        self.driver = driver
-        # ★ 驱动注册前先验安全描述符：没有 estop/watchdog 的驱动不许接。
-        dev = driver.describe() if hasattr(driver, "describe") else {}
-        safety = (dev or {}).get("safety") or {}
-        if not safety.get("estop") or not isinstance(safety.get("watchdog_ms"), int):
-            raise ValueError("E_INVAL: driver.safety.estop/watchdog_ms required")
+                 audit_path: str | None = None,
+                 drivers: list | None = None):
+        # 多设备：drivers=[legacy, dataflow...]；旧单驱动参数仍然兼容。
+        if drivers is None:
+            drivers = [driver] if driver is not None else []
+        self.drivers = list(drivers)
+        if not self.drivers:
+            raise ValueError("E_INVAL: at least one driver required")
+        for d in self.drivers:
+            dev = d.describe() if hasattr(d, "describe") else {}
+            safety = (dev or {}).get("safety") or {}
+            if not safety.get("estop") or not isinstance(safety.get("watchdog_ms"), int):
+                raise ValueError("E_INVAL: driver.safety.estop/watchdog_ms required")
+        self.driver = self.drivers[0]  # 兼容旧代码/旧测试
         self.socket_path = os.path.abspath(socket_path or DEFAULT_CBAP_SOCKET)
         self.kernel_id = kernel_id
         self.token = token
@@ -118,9 +127,9 @@ class KernelServer:
 
         self._sessions: set[Session] = set()
         self._fds: dict[str, Fd] = {}
-        self._pending: dict[str, deque[Pending]] = {}
+        self._pending: dict[tuple, deque[Pending]] = {}
         self._idem: dict[tuple, dict] = {}
-        self._lease: dict | None = None
+        self._leases: dict[str, dict] = {}
         self._lock = threading.RLock()
         self._seq = 0
         self._safe = False
@@ -131,11 +140,13 @@ class KernelServer:
         self._ready = threading.Event()
         self._thread: threading.Thread | None = None
 
-        # Wire driver callbacks.
-        self.driver.on_state = self._on_state
-        self.driver.on_result = self._on_result
-        self.driver.on_event = self._on_event
-        self.driver.on_disconnect = self._on_disconnect
+        # Wire each driver's callbacks with its own identity.
+        for d in self.drivers:
+            d.on_state = (lambda msg, drv=d: self._on_state(drv, msg))
+            d.on_result = (lambda cmd, ok, why, extra, drv=d:
+                           self._on_result(drv, cmd, ok, why, extra))
+            d.on_event = (lambda ev, drv=d: self._on_event(drv, ev))
+            d.on_disconnect = (lambda reason, drv=d: self._on_disconnect(drv, reason))
 
     # ── lifecycle ──────────────────────────────────────────────
 
@@ -306,7 +317,14 @@ class KernelServer:
         session.capabilities = {"read", "write", "lease", "estop"}
         with self._lock:
             self._sessions.add(session)
-        dev = self.driver.describe()
+        devices = []
+        for d in self.drivers:
+            dev = d.describe()
+            devices.append({
+                "device_id": dev.get("device_id"),
+                "type": dev.get("type"),
+                "state": "ready" if d.connected else "offline",
+            })
         session.send({
             "v": protocol.PROTOCOL_VERSION,
             "type": "welcome",
@@ -318,11 +336,7 @@ class KernelServer:
             "capabilities": sorted(session.capabilities),
             "limits": {"max_frame": protocol.MAX_FRAME,
                        "max_inflight": 4, "rate_hz": 5},
-            "devices": [{
-                "device_id": dev.get("device_id"),
-                "type": dev.get("type"),
-                "state": "ready" if self.driver.connected else "offline",
-            }],
+            "devices": devices,
         })
         self._audit("hello", agent=agent_id, session=session.session_id)
         return True
@@ -432,11 +446,11 @@ class KernelServer:
 
     def _lease_for_fd(self, fd: Fd) -> dict | None:
         with self._lock:
-            lease = self._lease
+            lease = self._leases.get(fd.device_id)
             if not lease:
                 return None
             if lease["expires_at"] <= time.time():
-                self._lease = None
+                self._leases.pop(fd.device_id, None)
                 return None
             if lease["fd"] != fd.fd:
                 return None
@@ -444,28 +458,29 @@ class KernelServer:
 
     def _acquire_lease(self, session: Session, fd: Fd, ttl_ms: int) -> dict:
         with self._lock:
-            lease = self._lease
+            lease = self._leases.get(fd.device_id)
             now = time.time()
             if lease and lease["expires_at"] > now and lease["fd"] != fd.fd:
-                raise _OpError("E_BUSY", "body is leased by another writer")
+                raise _OpError("E_BUSY", "device is leased by another writer")
             lease_id = lease["lease_id"] if lease and lease["fd"] == fd.fd \
                 else protocol.new_id("l")
-            self._lease = {
+            self._leases[fd.device_id] = {
                 "lease_id": lease_id,
                 "fd": fd.fd,
+                "device_id": fd.device_id,
                 "agent_id": session.agent_id,
                 # CBAP 租约按调用方给的 TTL 生效；50ms 必须真的是 50ms。
-                # 旧版 max(1000, ttl) 把短租约偷偷延长，一致性用例 17 过不了。
                 "expires_at": now + max(1, int(ttl_ms)) / 1000.0,
             }
             fd.lease_id = lease_id
-            fd.lease_expires = self._lease["expires_at"]
-            return dict(self._lease)
+            fd.lease_expires = self._leases[fd.device_id]["expires_at"]
+            return dict(self._leases[fd.device_id])
 
     def _release_lease(self, fd: Fd) -> bool:
         with self._lock:
-            if self._lease and self._lease["fd"] == fd.fd:
-                self._lease = None
+            lease = self._leases.get(fd.device_id)
+            if lease and lease["fd"] == fd.fd:
+                self._leases.pop(fd.device_id, None)
                 fd.lease_id = None
                 fd.lease_expires = 0.0
                 return True
@@ -478,14 +493,18 @@ class KernelServer:
         mode = args.get("mode", "rw")
         if mode not in ("r", "rw", "exclusive"):
             raise _OpError("E_INVAL", "mode must be r/rw/exclusive")
-        dev = self.driver.describe()
-        if device_id != dev.get("device_id"):
+        dev = None
+        for d in self.drivers:
+            if d.describe().get("device_id") == device_id:
+                dev = d
+                break
+        if dev is None:
             raise _OpError("E_NOENT", f"unknown device: {device_id}")
         with self._lock:
             self._fd_counter += 1
             fd_id = f"fd-{self._fd_counter}"
             f = Fd(fd=fd_id, agent_id=session.agent_id or "",
-                   device_id=device_id, mode=mode)
+                   device_id=device_id, mode=mode, driver=dev)
             session.fds[fd_id] = f
             self._fds[fd_id] = f
         if mode == "exclusive":
@@ -505,7 +524,7 @@ class KernelServer:
         f = self._get_fd(session, args)
         held = self._release_lease(f)
         if held:
-            self.driver.estop()
+            f.driver.estop()
         f.closed = True
         with self._lock:
             session.fds.pop(f.fd, None)
@@ -520,7 +539,7 @@ class KernelServer:
         timeout_ms = args.get("timeout_ms", 0)
         if not isinstance(timeout_ms, int) or timeout_ms < 0:
             raise _OpError("E_INVAL", "timeout_ms must be a non-negative int")
-        state = self.driver.wait_state(timeout_ms / 1000.0)
+        state = f.driver.wait_state(timeout_ms / 1000.0)
         if state is None:
             if timeout_ms <= 0:
                 raise _OpError("E_AGAIN", "no state yet")
@@ -546,7 +565,7 @@ class KernelServer:
         if not isinstance(frame, dict):
             raise _OpError("E_INVAL", "frame must be an object")
         try:
-            legacy = self.driver.map_action(frame)
+            legacy = f.driver.map_action(frame)
         except Exception as e:
             raise _OpError(getattr(e, "code", "E_INVAL"),
                            getattr(e, "message", str(e)))
@@ -555,7 +574,7 @@ class KernelServer:
         if not isinstance(deadline_ms, int) or deadline_ms <= 0:
             deadline_ms = 5000
         idem_key = msg.get("idempotency_key")
-        key = (session.agent_id, idem_key) if idem_key else None
+        key = (session.agent_id, f.device_id, idem_key) if idem_key else None
         if key:
             with self._lock:
                 cached = self._idem.get(key)
@@ -574,9 +593,9 @@ class KernelServer:
 
         p = Pending(session=session, request_id=rid, cmd=cmd,
                     deadline=time.monotonic() + deadline_ms / 1000.0,
-                    idem_key=key)
+                    idem_key=key, driver=f.driver)
         with self._lock:
-            self._pending.setdefault(cmd, deque()).append(p)
+            self._pending.setdefault((f.device_id, cmd), deque()).append(p)
             if key:
                 self._idem[key] = {"state": "pending", "id": rid}
         # ack first, then execute
@@ -586,7 +605,7 @@ class KernelServer:
         p.timer = threading.Timer(deadline_ms / 1000.0, self._expire, args=(p,))
         p.timer.daemon = True
         p.timer.start()
-        ok_send = self.driver.send(legacy)
+        ok_send = f.driver.send(legacy)
         if not ok_send:
             self._finish_pending(p, False, None, None,
                                  protocol.error("E_IO", "hand is not connected"))
@@ -618,16 +637,16 @@ class KernelServer:
         else:
             raise _OpError("E_NOTSUP", f"unknown ioctl: {request}")
         p = Pending(session=session, request_id=rid, cmd=cmd,
-                    deadline=time.monotonic() + 5.0)
+                    deadline=time.monotonic() + 5.0, driver=f.driver)
         with self._lock:
-            self._pending.setdefault(cmd, deque()).append(p)
+            self._pending.setdefault((f.device_id, cmd), deque()).append(p)
         session.send({"v": protocol.PROTOCOL_VERSION, "type": "ack",
                       "id": rid, "ts": protocol.now_ms(),
                       "state": "accepted"})
         p.timer = threading.Timer(5.0, self._expire, args=(p,))
         p.timer.daemon = True
         p.timer.start()
-        if not self.driver.send(legacy):
+        if not f.driver.send(legacy):
             self._finish_pending(p, False, None, None,
                                  protocol.error("E_IO", "hand is not connected"))
         _ = f
@@ -637,7 +656,7 @@ class KernelServer:
         if f.mode == "r":
             raise _OpError("E_PERM", "cannot lease a read-only fd")
         try:
-            _h = self.driver.health()
+            _h = f.driver.health()
         except Exception:
             _h = {}
         if isinstance(_h, dict) and _h.get("ok") is False:
@@ -651,26 +670,40 @@ class KernelServer:
 
     def _op_estop(self, session: Session, rid: str, args: dict) -> None:
         self._safe = True
-        with self._lock:
-            self._lease = None
-        ok = self.driver.estop()
-        dev = self.driver.describe()
-        safe_state = (dev.get("safety") or {}).get("safe_state", "idle")
+        f = None
+        if args.get("fd"):
+            f = self._get_fd(session, args)
+            targets = [f.driver]
+            with self._lock:
+                self._leases.pop(f.device_id, None)
+        else:
+            targets = list(self.drivers)
+            with self._lock:
+                self._leases.clear()
+        oks = []
+        safe_state = "idle"
+        for d in targets:
+            try:
+                oks.append(bool(d.estop()))
+            except Exception:
+                oks.append(False)
+            safe_state = ((d.describe().get("safety") or {}).get("safe_state")
+                          or safe_state)
         self._result(session, rid, True, payload={
             "safe_state": safe_state,
-            "driver_ok": bool(ok),
+            "driver_ok": all(oks) if oks else False,
         })
         self._audit("estop", agent=session.agent_id, id=rid,
-                    reason=args.get("reason"), driver_ok=bool(ok))
+                    reason=args.get("reason"), driver_ok=all(oks) if oks else False)
 
     def _op_stat(self, session: Session, rid: str, args: dict) -> None:
         f = self._get_fd(session, args)
         with self._lock:
-            lease = dict(self._lease) if self._lease else None
+            lease = dict(self._leases.get(f.device_id) or {}) or None
             pending = sum(len(q) for q in self._pending.values())
         self._result(session, rid, True, payload={
-            "device": self.driver.describe(),
-            "health": self.driver.health(),
+            "device": f.driver.describe(),
+            "health": f.driver.health(),
             "lease": lease,
             "safe": self._safe,
             "pending": pending,
@@ -678,12 +711,15 @@ class KernelServer:
         })
 
     def _op_device_list(self, session: Session, rid: str) -> None:
-        dev = self.driver.describe()
-        self._result(session, rid, True, payload={"devices": [{
-            "device_id": dev.get("device_id"),
-            "type": dev.get("type"),
-            "state": "ready" if self.driver.connected else "offline",
-        }]})
+        devices = []
+        for d in self.drivers:
+            dev = d.describe()
+            devices.append({
+                "device_id": dev.get("device_id"),
+                "type": dev.get("type"),
+                "state": "ready" if d.connected else "offline",
+            })
+        self._result(session, rid, True, payload={"devices": devices})
 
     def _op_resume(self, session: Session, rid: str, args: dict) -> None:
         # v0: only the local operator may resume; no admin auth yet.
@@ -736,14 +772,16 @@ class KernelServer:
             if p.done:
                 return
             p.done = True
-            q = self._pending.get(p.cmd)
+            dev_id = p.driver.describe().get("device_id") if p.driver else None
+            key = (dev_id, p.cmd)
+            q = self._pending.get(key)
             if q:
                 try:
                     q.remove(p)
                 except ValueError:
                     pass
                 if not q:
-                    self._pending.pop(p.cmd, None)
+                    self._pending.pop(key, None)
             if p.idem_key:
                 self._idem[p.idem_key] = {
                     "state": "done", "ok": ok, "payload": payload,
@@ -758,13 +796,15 @@ class KernelServer:
                              protocol.error("E_TIMEOUT", "deadline exceeded",
                                             retryable=True))
 
-    def _on_result(self, cmd: str, ok: bool, why: str | None,
+    def _on_result(self, driver, cmd: str, ok: bool, why: str | None,
                    extra: dict) -> None:
+        dev_id = driver.describe().get("device_id") if driver else None
+        key = (dev_id, cmd)
         with self._lock:
-            q = self._pending.get(cmd)
+            q = self._pending.get(key)
             p = q.popleft() if q else None
             if q is not None and not q:
-                self._pending.pop(cmd, None)
+                self._pending.pop(key, None)
         if p is None:
             return
         if p.done:
@@ -778,35 +818,44 @@ class KernelServer:
                 protocol.error("E_IO", why or "device rejected the command",
                                retryable=True))
 
-    def _on_state(self, state_msg: dict) -> None:
+    def _on_state(self, driver, state_msg: dict) -> None:
         payload = _state_payload(state_msg)
+        dev_id = driver.describe().get("device_id") if driver else None
         with self._lock:
             self._seq += 1
             seq = self._seq
             sessions = [s for s in self._sessions
-                        if s.agent_id and s.fds and not s.closed]
+                        if s.agent_id and not s.closed
+                        and any(f.device_id == dev_id for f in s.fds.values())]
         if not sessions:
             return
-        msg = protocol.state(seq, self.driver.describe().get("device_id"),
-                             payload, t_mono=protocol.monotonic_ms())
+        msg = protocol.state(seq, dev_id, payload, t_mono=protocol.monotonic_ms())
         for s in sessions:
             s.send(msg)
 
-    def _on_event(self, ev: dict) -> None:
+    def _on_event(self, driver, ev: dict) -> None:
         kind = str(ev.get("kind") or "event")
         payload = {k: v for k, v in ev.items()
                    if k not in ("type", "kind", "t", "bot")}
+        payload.setdefault("device_id",
+                           driver.describe().get("device_id") if driver else None)
         msg = protocol.event(kind, payload)
         with self._lock:
             sessions = [s for s in self._sessions if s.agent_id and not s.closed]
         for s in sessions:
             s.push_event({"kind": kind, "payload": payload, "ts": msg["ts"]})
 
-    def _on_disconnect(self, reason: str) -> None:
-        self._on_event({"type": "event", "kind": "device_offline",
-                        "why": str(reason)[:200]})
+    def _on_disconnect(self, driver, reason: str) -> None:
+        self._on_event(driver, {"type": "event", "kind": "device_offline",
+                                "why": str(reason)[:200]})
         with self._lock:
-            pend = [p for q in self._pending.values() for p in q]
+            pend = [p for q in self._pending.values() for p in q
+                    if p.driver is driver]
+            # 驱动崩了/断线：该设备的租约立刻释放，不让新 Agent 等到 TTL。
+            for _dev, _lease in list(self._leases.items()):
+                _f = self._fds.get(_lease.get("fd"))
+                if _f is not None and _f.driver is driver:
+                    self._leases.pop(_dev, None)
         for p in pend:
             self._finish_pending(
                 p, False, None, None,
@@ -833,7 +882,7 @@ class KernelServer:
                     self._pending.pop(cmd, None)
         for f in fds:
             if self._release_lease(f):
-                self.driver.estop()
+                f.driver.estop()
         for p in pend:
             p.done = True
             if p.timer:

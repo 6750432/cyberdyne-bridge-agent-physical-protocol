@@ -1,0 +1,19 @@
+{
+  "device_id": "mcflow://agent/demo",
+  "type": "minecraft-agent-dataflow",
+  "cbap": "1.0",
+  "display_name": "External data-flow MC agent (CBAP-D peripheral)",
+  "channels": {
+    "body": {"direction": "rw", "read": ["pose", "hp", "food", "held"],
+             "write": ["move", "jump", "sneak", "swimdown", "eat", "attack", "goto", "stop"]},
+    "world": {"direction": "rw", "read": ["scan", "blocks", "chest"],
+              "write": ["dig", "place", "use", "collect", "chest_take", "chest_put", "chest_audit", "furnace_put", "furnace_take", "give"],
+              "ioctl": ["scan", "watch", "watch_items", "furnace_watch"]},
+    "inventory": {"direction": "rw", "read": ["items"], "write": ["craft"]},
+    "chat": {"direction": "rw", "read": ["chat"], "write": ["say"]}
+  },
+  "capabilities": ["locomotion", "manipulation", "vision", "inventory", "chat", "crafting", "combat", "container", "smelting", "collection"],
+  "limits": {"max_frame": 65536, "max_inflight": 4, "rate_hz": 5, "max_command_ms": 120000},
+  "safety": {"estop": "stop+idle", "watchdog_ms": 5000, "safe_state": "idle"},
+  "metadata": {"transport": "unix", "driver": "drivers/dataflow/driver.py", "note": "external agent owns the device; driver only translates CBAP-D to the agent's data-flow protocol."}
+}

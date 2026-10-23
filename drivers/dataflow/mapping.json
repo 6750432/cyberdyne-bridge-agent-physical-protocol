@@ -1,0 +1,26 @@
+{
+  "cbap": "1.0",
+  "device_id": "mcflow://agent/demo",
+  "ops": {
+    "move": {"channel": "body", "op": "move", "args": {"dir": "vec2", "ms": "int"}},
+    "jump": {"channel": "body", "op": "jump", "args": {"?count": "int"}},
+    "sneak": {"channel": "body", "op": "sneak", "args": {"?ms": "int"}},
+    "swimdown": {"channel": "body", "op": "swimdown", "args": {"?ms": "int"}},
+    "eat": {"channel": "body", "op": "eat", "args": {}},
+    "attack": {"channel": "body", "op": "attack", "args": {"target": "entity", "?ms": "int"}},
+    "goto": {"channel": "body", "op": "goto", "args": {"p": "vec3"}},
+    "stop": {"channel": "body", "op": "stop", "args": {}},
+    "dig": {"channel": "world", "op": "dig", "args": {"p": "vec3"}},
+    "place": {"channel": "world", "op": "place", "args": {"p": "vec3", "?item": "string"}},
+    "use": {"channel": "world", "op": "use", "args": {"p": "vec3"}},
+    "collect": {"channel": "world", "op": "collect", "args": {"item": "string", "block": "string", "count": "int"}},
+    "chest_take": {"channel": "world", "op": "chest_take", "args": {"p": "vec3", "item": "string", "count": "int"}},
+    "chest_put": {"channel": "world", "op": "chest_put", "args": {"p": "vec3", "item": "string", "count": "int", "?keep": "int"}},
+    "chest_audit": {"channel": "world", "op": "chest_audit", "args": {"p": "vec3"}},
+    "furnace_put": {"channel": "world", "op": "furnace_put", "args": {"p": "vec3", "input": "object", "fuel": "object"}},
+    "furnace_take": {"channel": "world", "op": "furnace_take", "args": {"p": "vec3", "item": "string", "count": "int"}},
+    "give": {"channel": "world", "op": "give", "args": {"item": "string", "count": "int", "?to": "string"}},
+    "craft": {"channel": "inventory", "op": "craft", "args": {"item": "string", "?count": "int"}},
+    "say": {"channel": "chat", "op": "say", "args": {"text": "string"}}
+  }
+}

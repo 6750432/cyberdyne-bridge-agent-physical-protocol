@@ -17,9 +17,11 @@
 - 3 个 Schema 通过 JSON Schema Draft 2020-12 元校验；
 - `examples/*.json` 与 `examples/session.ndjson` 全部通过对应 Schema（2026-10-23，`uv run --with jsonschema`）；
 - `drivers/mc/device.json` / `mapping.json` 已覆盖真实 legacy hand 的完整命令面（21 个 op，含 collect / chest / furnace / give）；
+- `drivers/dataflow/`：外部 MC Agent 的通用数据流驱动；一个 Kernel 可同时挂 legacy hand + dataflow Agent（`KernelServer(drivers=[...])`）；
+- `tests/cbap/test_multi_device.py`：同一 Kernel 下两个设备并存、独立租约、独立读写；
 - `tests/cbap/test_data.py`：设备通道、映射、参数类型、legacy 字段名 5 条数据契约测试通过；
 - `tests/cbap/test_conformance.py`：20 条一致性用例 + D1/D4/D5 驱动安全用例通过；
-- 网关/驱动/适配器/数据合计 41 条：`python3 tools/cbap_conformance.py --target fake`。
+- 网关/驱动/适配器/数据合计 47 条：`python3 tools/cbap_conformance.py --target fake`。
 
 ## 还没做
 

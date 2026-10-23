@@ -26,6 +26,7 @@ MODULES = [
     "tests.cbap.test_gateway",
     "tests.cbap.test_brain_adapter",
     "tests.cbap.test_conformance",
+    "tests.cbap.test_multi_device",
 ]
 
 

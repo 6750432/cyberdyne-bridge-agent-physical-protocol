@@ -50,7 +50,7 @@ c.close()
 python3 tools/cbap_conformance.py --target fake
 ```
 
-当前 41 条用例（网关/驱动/适配器/数据/20 条一致性 + D1/D4/D5）：
+当前 47 条用例（网关/驱动/适配器/数据/20 条一致性 + D1/D4/D5）：
 
 - hello/welcome、device_list
 - open/read
@@ -66,8 +66,8 @@ python3 tools/cbap_conformance.py --target fake
 
 ## v0 已知限制（照实写）
 
-1. **单身体/单设备**：只包一只 MC 手，不做多设备路由。
-2. **全局租约**：同一时间只允许一个 writer；读可以共享。
+1. **多设备但单 Kernel**：v0 已支持一个 Kernel 挂多个驱动（legacy MC hand + dataflow Agent），但不做跨 Kernel/跨机器路由。
+2. **每设备单 writer**：租约按 `device_id` 隔离；同一设备同一时间只允许一个 writer，读可以共享。
 3. **回执 FIFO**：legacy `cmdResult` 没有请求 ID，设备描述把 `max_inflight` 诚实写成 1；同一动词并发仍可能错配，等 legacy hand 加 `id` 后再消掉这条。
 4. **cancel 不保证停手**：CBAP 请求会回 `E_CANCELED`，但已经发给 legacy hand 的动作可能继续跑完；真正的取消要等手侧支持。
 5. **estop 是锁存的**：`estop` 后网关进入 `safe`，`write` 回 `E_SAFETY`；v0 没有 `resume` 权限模型，恢复要 close/open 或重启网关。

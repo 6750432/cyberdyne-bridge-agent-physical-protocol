@@ -9,10 +9,13 @@ import os
 import unittest
 
 from drivers.mc.driver import McDriver
+from drivers.dataflow.driver import DataFlowDriver
 
 ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 DEVICE = os.path.join(ROOT, "drivers", "mc", "device.json")
 MAPPING = os.path.join(ROOT, "drivers", "mc", "mapping.json")
+FLOW_DEVICE = os.path.join(ROOT, "drivers", "dataflow", "device.json")
+FLOW_MAPPING = os.path.join(ROOT, "drivers", "dataflow", "mapping.json")
 
 EXPECTED_OPS = {
     "move", "jump", "jumpattack", "sneak", "swimdown", "eat",
@@ -89,6 +92,31 @@ class DataContractTest(unittest.TestCase):
 
     def test_legacy_hand_concurrency_is_honest(self) -> None:
         self.assertEqual(self.device["limits"]["max_inflight"], 1)
+
+    def test_dataflow_mapping_matches_channels(self) -> None:
+        with open(FLOW_DEVICE, encoding="utf-8") as f:
+            dev = json.load(f)
+        with open(FLOW_MAPPING, encoding="utf-8") as f:
+            mp = json.load(f)
+        self.assertEqual(dev["device_id"], mp["device_id"])
+        for op, spec in mp["ops"].items():
+            with self.subTest(op=op):
+                ch = spec["channel"]
+                self.assertIn(ch, dev["channels"])
+                self.assertIn(op, dev["channels"][ch].get("write") or [])
+        self.assertEqual(set(mp["ops"]), EXPECTED_OPS - {"jumpattack"})
+
+    def test_dataflow_driver_maps_generic_args(self) -> None:
+        d = DataFlowDriver("/tmp/does-not-exist.sock",
+                           device_path=FLOW_DEVICE,
+                           mapping_path=FLOW_MAPPING,
+                           device_id="mcflow://agent/test")
+        got = d.map_action({"channel": "world", "op": "collect",
+                            "args": {"item": "oak_log", "block": "oak_log",
+                                     "count": 3}})
+        self.assertEqual(got["cmd"], "collect")
+        self.assertEqual(got["args"], {"item": "oak_log", "block": "oak_log",
+                                      "count": 3})
 
 
 if __name__ == "__main__":
