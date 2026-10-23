@@ -27,7 +27,7 @@ try { Vec3 = require('vec3').Vec3; } catch (e) { Vec3 = null; }
 
 const 能力表 = ['sneak', 'jump', 'jumpattack', 'swimdown',
                 'dig', 'place', 'craft', 'use', 'furnace_put', 'furnace_take',
-                'chest_take', 'chest_put', '递'];
+                'chest_take', 'chest_put', 'chest_audit', '递'];
 
 /* 绝对坐标 → Vec3。优先用 vec3，取不到就用一个相对偏移凑一个出来
  * （bot.entity.position 本身就是 Vec3，offset 出来的也是） */
@@ -971,7 +971,7 @@ const 表 = {
   sneak: 潜行, jump: 跳跃, jumpattack: 跳劈, swimdown: 下潜,
   dig: 挖, place: 放, craft: 合成, use: 使用,
   furnace_put: 熔炉放料, furnace_take: 熔炉取成品,
-  chest_take: 箱子里取, chest_put: 往箱子里放,
+  chest_take: 箱子里取, chest_put: 往箱子里放, chest_audit: 箱内清点,
   递: 递东西,
 };
 
@@ -1063,6 +1063,38 @@ function 找箱子(bot, p) {
   } catch (e) { return { 错: e.message }; }
 }
 
+// ★ 2026-10-23 B 口径：只读箱内清点。最近一次打开的箱子内容进状态帧；
+//   任务栈/自我模型用真实箱内数，不再只靠“放/取流水账”。
+let 最近箱内 = null;
+
+function 记箱内(箱, p, bot) {
+  try {
+    const 物 = {};
+    for (const it of 箱.containerItems()) {
+      物[it.name] = (物[it.name] || 0) + it.count;
+    }
+    最近箱内 = { p: [Number(p[0]), Number(p[1]), Number(p[2])], items: 物, t: Date.now(), bot };
+    return 物;
+  } catch (e) {
+    return null;
+  }
+}
+
+async function 箱内清点(bot, a) {
+  if (!Array.isArray(a.p) || a.p.length < 3) return { ok: false, why: '要给我箱子坐标 p:[x,y,z]' };
+  const 找 = 找箱子(bot, a.p);
+  if (找.错) return { ok: false, why: 找.错 };
+  let 箱 = null;
+  try {
+    箱 = await bot.openBlock(找.块);
+    const 物 = 记箱内(箱, a.p, bot);
+    if (物 === null) return { ok: false, why: '箱子打开了，可读不到容器内容' };
+    return { ok: true, p: [Number(a.p[0]), Number(a.p[1]), Number(a.p[2])], 箱内: 物, 只读: true };
+  } catch (e) {
+    return { ok: false, why: e.message };
+  } finally { try { if (箱 && typeof 箱.close === 'function') 箱.close(); } catch (e) {} }
+}
+
 async function 箱子里取(bot, a) {
   if (!Array.isArray(a.p) || a.p.length < 3) return { ok: false, why: '要给我箱子坐标 p:[x,y,z]' };
   const 名 = a.物品 || a.item;
@@ -1074,10 +1106,14 @@ async function 箱子里取(bot, a) {
   try {
     箱 = await bot.openBlock(找.块);
     const 有 = 箱.containerItems().filter((i) => i.name === 名);
-    if (!有.length) return { ok: false, why: `箱子里没有「${名}」` };
+    if (!有.length) {
+      记箱内(箱, a.p, bot);
+      return { ok: false, why: `箱子里没有「${名}」` };
+    }
     const 总数 = 有.reduce((s, i) => s + i.count, 0);
     const 要 = Math.min(Math.max(Number(a.数量) || 1, 1), 总数);
     await 箱.withdraw(有[0].type, null, 要);
+    记箱内(箱, a.p, bot);
     return { ok: true, 拿到: 名, 数量: 要 };
   } catch (e) {
     return { ok: false, why: e.message };
@@ -1095,12 +1131,16 @@ async function 往箱子里放(bot, a) {
   try {
     箱 = await bot.openBlock(找.块);
     const 有 = bot.inventory.items().filter((i) => i.name === 名);
-    if (!有.length) return { ok: false, why: `背包里没有「${名}」` };
+    if (!有.length) {
+      记箱内(箱, a.p, bot);
+      return { ok: false, why: `背包里没有「${名}」` };
+    }
     const 总数 = 有.reduce((s, i) => s + i.count, 0);
     const 保留 = Math.max(0, Number(a.保留) || 0);
     const 该放 = Math.min(Math.max(Number(a.数量) || 总数, 1), Math.max(总数 - 保留, 0));
     if (该放 <= 0) return { ok: false, why: `要保留 ${保留} 个，那就不用放了` };
     await 箱.deposit(有[0].type, null, 该放);
+    记箱内(箱, a.p, bot);
     return { ok: true, 放了: 名, 数量: 该放, 背包还剩: 总数 - 该放 };
   } catch (e) {
     return { ok: false, why: e.message };
@@ -1139,4 +1179,8 @@ module.exports = {
    *   用的就是同一个函数；谁也别再抄一遍（抄了就会两边不一致 ✗）。 */
   看遮挡,
   是实心,
+  箱内(bot) {
+    if (!最近箱内 || 最近箱内.bot !== bot) return null;
+    return { p: 最近箱内.p.slice(), items: Object.assign({}, 最近箱内.items), t: 最近箱内.t };
+  },
 };

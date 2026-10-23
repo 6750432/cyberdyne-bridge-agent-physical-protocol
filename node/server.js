@@ -961,6 +961,8 @@ function snapshot() {
     // ── M4c·事实通道（没人盯就是 null，快照不白胖）──
     blocks: 方块快照(),
     items: 物品快照(),
+    // ★ 2026-10-23 B 口径：最近一次真实打开的箱子内容（只读；没开过就是 null）
+    chest: (身体插件 && typeof 身体插件.箱内 === 'function') ? 身体插件.箱内(bot) : null,
     furnace: 熔炉读数,
     // ── M4b·绕路要用 ──
     stuck_count: 卡住次数,                                   // 只增不减

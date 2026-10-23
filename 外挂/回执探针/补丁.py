@@ -49,7 +49,8 @@ _代 = {"n": 0}      # 看门狗的"代"号，见 装上() 里的说明
 动作到命令 = {
     "走到": "goto", "挖": "dig", "放": "place", "合成": "craft",
     "打": "attack", "熔炉放料": "furnace_put", "熔炉取成品": "furnace_take",
-    "箱子里取": "chest_take", "往箱子里放": "chest_put", "给": "递",
+    "箱子里取": "chest_take", "往箱子里放": "chest_put",
+    "箱子清点": "chest_audit", "给": "递",
 }
 回执超时秒 = 8.0
 

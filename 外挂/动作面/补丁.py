@@ -44,7 +44,7 @@
 import inspect
 import time       # ★ 老祖课第五课：退避判据要用单调钟（跟主链的戳配对 ✓）
 
-扩展动作 = frozenset({"合成", "箱子里取", "往箱子里放"})
+扩展动作 = frozenset({"合成", "箱子里取", "往箱子里放", "箱子清点"})
 
 # 卸下时用来还原（只在装上那一刻填）
 _原 = {}
@@ -165,7 +165,7 @@ def 装上(bridge, 数=None, 开关=False):
                 有数 = isinstance(n, (int, float)) and n >= 1
                 if not 有数 and 步.get("保留") is None:
                     缺的.append("往箱子里放：既没给「数量」也没给「保留」")
-            if 动 in ("箱子里取", "往箱子里放") and _三个数(步.get("p")) is None:
+            if 动 in ("箱子里取", "往箱子里放", "箱子清点") and _三个数(步.get("p")) is None:
                 缺的.append(f"{动}：坐标不是三个数（{步.get('p')!r}）")
             if 动 == "合成" and not 步.get("物品"):
                 缺的.append("合成：没说要合成什么")
@@ -228,6 +228,22 @@ def 装上(bridge, 数=None, 开关=False):
         动 = 步.get("动作")
         if 动 not in 扩展动作:
             return _原["_看完成了没"](self, 步, s, 任)
+        if 动 == "箱子清点":
+            # ★ 必须先立起点，再允许完成；否则状态里上一次清点的旧 chest.t
+            #   会让这一步在**第一次下发之前**就秒判完成（实机刚抓到）。
+            if not 步.get("_清点起点"):
+                步["_清点起点"] = time.time() * 1000.0
+                return False, None
+            _盒 = (s or {}).get("chest") or {}
+            try:
+                _t = float(_盒.get("t") or 0) if isinstance(_盒, dict) else 0
+            except Exception:
+                _t = 0
+            try:
+                _起 = float(步.get("_清点起点") or 0)
+            except Exception:
+                _起 = 0
+            return bool(_t and _t >= _起), None
         数量 = float(步.get("数量") or 1)
         if 动 in ("合成", "箱子里取"):
             # 进项：比开工那一刻**多出**至少 数量 个
@@ -278,6 +294,10 @@ def 装上(bridge, 数=None, 开关=False):
             self.发({"cmd": "craft", "item": 步.get("物品"),
                      "count": int(max(1, min(float(步.get("数量") or 1), 64))),
                      "按产物": True})
+        elif 动 == "箱子清点":
+            if 步.get("_清点起点") is None:
+                步["_清点起点"] = time.time() * 1000.0
+            self.发({"cmd": "chest_audit", "p": _三个数(步.get("p"))})
         elif 动 == "箱子里取":
             self.发({"cmd": "chest_take", "p": _三个数(步.get("p")),
                      "物品": 步.get("物品"),
@@ -360,6 +380,7 @@ def 装上(bridge, 数=None, 开关=False):
 
 取箱词 = ("从箱子", "从箱里", "箱子里拿", "箱子里取", "从仓库")
 存箱词 = ("放进箱子", "放进箱里", "存进箱子", "收到箱子里", "放箱子")
+清点箱词 = ("清点箱子", "看箱子", "箱子里有什么")
 合成词 = ("合成", "做一个", "做个", "造一个", "做几个", "造几个")
 
 
@@ -394,6 +415,15 @@ def _口令(self, 原, 表):
         return {"act": "task", "名字": f"把 {n} 个 {名} 放进箱子",
                 "步骤": [{"动作": "走到", "p": 坐标们[0], "到点": 2.5},
                         {"动作": "往箱子里放", "p": 坐标们[0], "物品": 名, "数量": n}]}
+
+    # 「清点箱子 21 78 -21」—— 只读，不取不放
+    if any(w in 原 for w in 清点箱词):
+        坐标们 = 两三个数(原)
+        if not 坐标们:
+            return {"act": "task", "名字": "清点箱子（缺坐标）", "步骤": []}
+        return {"act": "task", "名字": "清点箱子",
+                "步骤": [{"动作": "走到", "p": 坐标们[0], "到点": 2.5},
+                        {"动作": "箱子清点", "p": 坐标们[0]}]}
 
     # 「合成 3 个火把」—— 没带数字的老写法（「合成 火把」）**故意不接**，
     #   留给主链的单步合成（那是 M3 就有的行为，不许被我们改掉）。

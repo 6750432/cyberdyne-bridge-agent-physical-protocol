@@ -125,7 +125,7 @@ def 主():
         shutil.rmtree(临时, ignore_errors=True)
 
     主链没问题 = _查主链()
-    过("Z1 主链 sha256 还是 d6d4151072bbe4c2（2026-10-23 B 口径改动后基线）") \
+    过("Z1 主链 sha256 还是 658c947ec7f33d37（2026-10-23 B 口径改动后基线）") \
         if 主链没问题 else 挂("Z1 主链指纹", "**主链被改了！**")
 
     if json输出:
@@ -147,7 +147,7 @@ def _查主链():
     import hashlib
     try:
         with open(os.path.join(ROOT, "bridge.py"), "rb") as f:
-            return hashlib.sha256(f.read()).hexdigest().startswith("d6d4151072bbe4c2")
+            return hashlib.sha256(f.read()).hexdigest().startswith("658c947ec7f33d37")
     except OSError:
         return False
 
@@ -547,8 +547,8 @@ def _跑(临时, json输出):
     试("I2 ★★ 热挂之后，**已经存在的**那个翻译器实例被同步了",
        "合成" in 译.合法步骤,
        f"它还是旧的那 10 个：{sorted(译.合法步骤)} —— 这就是「你以为开了，其实没有」")
-    试("I3 同步后正好 13 个",
-       len(译.合法步骤) == 13, f"实际 {len(译.合法步骤)}：{sorted(译.合法步骤)}")
+    试("I3 同步后正好 14 个（新增只读箱子清点）",
+       len(译.合法步骤) == 14, f"实际 {len(译.合法步骤)}：{sorted(译.合法步骤)}")
 
     I.摘("动作面")
     试("I4 ★ 热摘之后，活实例也跟着收回来了",

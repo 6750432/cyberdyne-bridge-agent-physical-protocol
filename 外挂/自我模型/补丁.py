@@ -271,6 +271,20 @@ def _读箱子账():
     return {}
 
 
+def _状态箱内(s, 名):
+    """状态帧里的真实箱内清点（没清点过返回 None，调用方退回账本）。"""
+    _盒 = (s or {}).get("chest")
+    if not isinstance(_盒, dict):
+        return None
+    _物 = _盒.get("items")
+    if not isinstance(_物, dict):
+        return None
+    try:
+        return float(_物.get(str(名), 0) or 0)
+    except Exception:
+        return 0.0
+
+
 def _回执增量():
     """从上次偏移读新回执，累计 goto/dig 噪声。只读文件。"""
     with _回执锁:
@@ -473,7 +487,13 @@ def _记录任务开始(任, s, 来源):
     except Exception:
         _目标数量 = None
     _背 = _物品数(s, _目标物品) if _目标物品 else 0.0
-    _箱 = float(_读箱子账().get(str(_目标物品), 0) or 0) if _目标物品 else 0.0
+    _箱live = _状态箱内(s, _目标物品) if _目标物品 else None
+    if _箱live is not None:
+        _箱 = _箱live
+        _箱源 = "live"
+    else:
+        _箱 = float(_读箱子账().get(str(_目标物品), 0) or 0) if _目标物品 else 0.0
+        _箱源 = "ledger"
     _有 = _背 + _箱
     with _记录锁:
         if tid in _任务:
@@ -489,7 +509,7 @@ def _记录任务开始(任, s, 来源):
                       "pred_after_revision": 预测,
                       "predicted_duration_after_revision": 预测.get("predicted_duration_sec"),
                       "target_item": _目标物品, "requested_target": _目标数量,
-                      "delivered_qty": 0.0,
+                      "delivered_qty": 0.0, "chest_source": _箱源,
                       "inventory_start": _背, "chest_start": _箱, "owned_start": _有}
     _回执累计.update({"goto_sent": 0, "dig_sent": 0, "goto_interrupted": 0,
                       "goto_path_timeout": 0, "dig_failed": 0})
@@ -500,6 +520,7 @@ def _记录任务开始(任, s, 来源):
            "target_item": _目标物品, "requested_target": _目标数量,
            "inventory_qty": round(_背, 3), "chest_qty": round(_箱, 3),
            "owned_qty": round(_有, 3), "delivered_qty": 0.0,
+           "chest_source": _箱源,
            "order_satisfied": (bool(_有 + 1e-9 >= _目标数量) if _目标数量 is not None else None),
            "source": 来源})
     _记录步骤开始(任, 0, 来源, s)
@@ -663,7 +684,13 @@ def _记录任务结束(任, 状态, 来源, preempted_by=None):
     except Exception:
         _目标数量 = 数据.get("requested_target")
     _背 = _物品数(_状态, _目标物品) if _目标物品 else 0.0
-    _箱 = float(_读箱子账().get(str(_目标物品), 0) or 0) if _目标物品 else 0.0
+    _箱live = _状态箱内(_状态, _目标物品) if _目标物品 else None
+    if _箱live is not None:
+        _箱 = _箱live
+        _箱源 = "live"
+    else:
+        _箱 = float(_读箱子账().get(str(_目标物品), 0) or 0) if _目标物品 else 0.0
+        _箱源 = "ledger"
     _有 = _背 + _箱
     _交付 = float(数据.get("delivered_qty") or 0)
     _满足 = (bool(_有 + 1e-9 >= float(_目标数量)) if _目标数量 is not None else None)
@@ -679,6 +706,7 @@ def _记录任务结束(任, 状态, 来源, preempted_by=None):
                                       "requested_target": _目标数量,
                                       "inventory_qty": round(_背, 3),
                                       "chest_qty": round(_箱, 3),
+                                      "chest_source": _箱源,
                                       "owned_qty": round(_有, 3),
                                       "delivered_qty": round(_交付, 3),
                                       "order_satisfied": _满足},
@@ -705,6 +733,7 @@ def _记录任务结束(任, 状态, 来源, preempted_by=None):
            "predicted_after_revision": 预测后,
            "target_item": _目标物品, "requested_target": _目标数量,
            "inventory_qty": round(_背, 3), "chest_qty": round(_箱, 3),
+           "chest_source": _箱源,
            "owned_qty": round(_有, 3), "delivered_qty": round(_交付, 3),
            "order_satisfied": _满足,
            "failure_code": 失败码, "preempted_by": preempted_by,

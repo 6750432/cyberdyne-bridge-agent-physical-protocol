@@ -1527,6 +1527,20 @@ class 任务栈:
             self._箱账加(名, -数)
         步["_箱账已记"] = True
 
+    def _箱内数(self, s, 名):
+        """状态帧里最近一次**真实箱内清点**的该物品数量。
+        没清点过 → None（调用方才退回箱子账，不许把“没读数”当成 0 ✗）。"""
+        _盒 = (s or {}).get("chest")
+        if not isinstance(_盒, dict):
+            return None
+        _物 = _盒.get("items")
+        if not isinstance(_物, dict):
+            return None
+        try:
+            return float(_物.get(str(名), 0) or 0)
+        except Exception:
+            return 0.0
+
     def _目标达标(self, s):
         """B 口径：背包 + 箱子 >= 目标数量。没有目标字段 = 旧任务，不拦。"""
         名 = self.任务.get("目标物品") if self.任务 else None
@@ -1538,11 +1552,17 @@ class 任务栈:
         except Exception:
             return True, ""
         背 = self._物品数量(s, 名)
-        箱 = float(self.箱子账.get(str(名), 0) or 0)
+        _live = self._箱内数(s, 名)
+        if _live is not None:
+            箱 = _live
+            _源 = "live"
+        else:
+            箱 = float(self.箱子账.get(str(名), 0) or 0)
+            _源 = "ledger"
         有 = 背 + 箱
         if 有 + 1e-9 < 要:
-            return False, "背包%s+箱子%s=%s < 目标%s" % (
-                ("%g" % 背), ("%g" % 箱), ("%g" % 有), ("%g" % 要))
+            return False, "背包%s+箱子%s(%s)=%s < 目标%s" % (
+                ("%g" % 背), ("%g" % 箱), _源, ("%g" % 有), ("%g" % 要))
         return True, ""
 
     def 要快(self):
@@ -2069,8 +2089,15 @@ class 任务栈:
         _目标 = 任.get("目标物品")
         if _目标:
             _背 = self._物品数量(s or {}, _目标)
-            _箱 = float(self.箱子账.get(str(_目标), 0) or 0)
-            任["实际持有"] = {"物品": _目标, "背包": _背, "箱子": _箱, "合计": _背 + _箱}
+            _live = self._箱内数(s or {}, _目标)
+            if _live is not None:
+                _箱 = _live
+                _源 = "live"
+            else:
+                _箱 = float(self.箱子账.get(str(_目标), 0) or 0)
+                _源 = "ledger"
+            任["实际持有"] = {"物品": _目标, "背包": _背, "箱子": _箱,
+                             "箱子来源": _源, "合计": _背 + _箱}
         self._记("任务完成", 名字=任["名字"], 用了=round(time.time() - 任["开始时刻"], 1))
         self.说(f"[{时刻()}] 干完了：{任['名字']}。", 紧急=True)
         if self.记忆 is not None:

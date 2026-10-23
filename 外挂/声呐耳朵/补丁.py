@@ -330,6 +330,25 @@ def 接单(bridge, 叙事者, e):
         except Exception: pass
         _接单支路(329, 'None')
         return None
+    # ★★★ 2026-10-23：箱子只读清点不是「要物品」的意图，认口令会直接空返回。
+    #   这里先走一条明确的箱子口令：清点箱子 x y z → 走到 + 箱子清点（只读）。
+    if any(w in 原话 for w in ("清点箱子", "看箱子", "箱子里有什么")):
+        try:
+            import re as _reC
+            _数C = [int(x) for x in _reC.findall(r"-?\d+", 原话)]
+            _栈C = _活实例(bridge, "任务栈")
+            _态C = getattr(叙事者, "最后状态", None)
+            if len(_数C) < 3 or _栈C is None or not isinstance(_态C, dict):
+                return "清点箱子：缺坐标、缺任务栈或缺当前状态帧"
+            _pC = _数C[:3]
+            _好C = _栈C.接("清点箱子", [
+                {"动作": "走到", "p": _pC, "到点": 2.5},
+                {"动作": "箱子清点", "p": _pC},
+            ], _态C)
+            return ("清点箱子：接了 ✓" if _好C else "清点箱子：任务栈没接 ✗")
+        except Exception as _eC:
+            print("[耳朵] 清点箱子口令出错：%s" % _eC, flush=True)
+            return "清点箱子口令出错：%s" % _eC
     常 = _找认口令模块()
     if 常 is None:
         try:
@@ -383,7 +402,8 @@ def 接单(bridge, 叙事者, e):
                 '{"t": ' + str(time.time()) + ', "点": "出口", "行号": 294}\n')
         except Exception: pass
         _接单支路(360, 'None                      # 不是口令，正常聊天，不管 ✓')
-        return "[认口令没认出] 目标为空 ⇒ 这次不算口令（原话=%s）" % str(_上次原话.get("原话") or "")[:40]   # ★ 2026-10-17 不再回 None ✓ 让账本说实话 ✓
+        _原话账 = getattr(常, "_上次原话", {}) or {}
+        return "[认口令没认出] 目标为空 ⇒ 这次不算口令（原话=%s）" % str(_原话账.get("原话") or "")[:40]   # ★ 2026-10-17 不再回 None ✓ 让账本说实话 ✓
     # ② 当前扫描帧（叙事者每拍都存着）
     状态 = getattr(叙事者, "最后状态", None)
     try:
@@ -588,9 +608,16 @@ def 接单(bridge, 叙事者, e):
         except Exception as _eZ2:
             print("[类id] 比不了：" + str(_eZ2)[:80], flush=True)
         try:
-            好 = 栈.接(任.get("名字") or 目标, 任.get("步骤"), 状态,
-                       目标=(任.get("目标") if isinstance(任, dict) else None),
-                       数量=(任.get("数量") if isinstance(任, dict) else None))
+            try:
+                好 = 栈.接(任.get("名字") or 目标, 任.get("步骤"), 状态,
+                           目标=(任.get("目标") if isinstance(任, dict) else None),
+                           数量=(任.get("数量") if isinstance(任, dict) else None))
+            except TypeError as _eT:
+                _mT = str(_eT)
+                if "目标" not in _mT and "数量" not in _mT:
+                    raise
+                # 兼容老假栈/老包装：只接三参时退回三参，不让目标元数据把接单打断
+                好 = 栈.接(任.get("名字") or 目标, 任.get("步骤"), 状态)
             print("[栈身份] ★ 栈.接 回来了 ✓ 好=" + str(好)[:40], flush=True)
         except Exception as _eZ:
             print("[栈身份] ✗ 栈.接 炸了：" + type(_eZ).__name__ + " " + str(_eZ)[:120], flush=True)
