@@ -1,0 +1,87 @@
+{
+  "cbap": "1.0",
+  "device_id": "mc://bot/DeepSeek",
+  "ops": {
+    "move": {
+      "channel": "body",
+      "op": "move",
+      "args": { "dir": "vec2", "ms": "int", "sprint": "bool" }
+    },
+    "look": {
+      "channel": "body",
+      "op": "look",
+      "args": { "yaw": "float", "pitch": "float" }
+    },
+    "dig": {
+      "channel": "world",
+      "op": "dig",
+      "args": { "p": "vec3" }
+    },
+    "place": {
+      "channel": "world",
+      "op": "place",
+      "args": { "p": "vec3", "item": "string" }
+    },
+    "craft": {
+      "channel": "inventory",
+      "op": "craft",
+      "args": { "item": "string", "count": "int" }
+    },
+    "say": {
+      "channel": "chat",
+      "op": "say",
+      "args": { "text": "string" }
+    }
+  },
+  "verify": {
+    "dig": {
+      "type": "block",
+      "p": "$args.p",
+      "equals": "air"
+    },
+    "place": {
+      "type": "block",
+      "p": "$args.p",
+      "equals": "$args.item"
+    },
+    "move": {
+      "type": "custom",
+      "expr": "distance(pos, $args.p) <= $args.near"
+    }
+  },
+  "skills": [
+    {
+      "name": "break_block",
+      "requires": ["manipulation", "vision"],
+      "args_schema": { "p": "vec3" },
+      "preconditions": [
+        { "type": "block_exists", "p": "$args.p" }
+      ],
+      "effects": [
+        { "type": "block_gone", "p": "$args.p" }
+      ],
+      "verify": {
+        "type": "block",
+        "p": "$args.p",
+        "equals": "air"
+      },
+      "cost": { "time_ms": 1000, "energy": 0.1 }
+    },
+    {
+      "name": "move_to",
+      "requires": ["locomotion"],
+      "args_schema": { "p": "vec3", "near": "float" },
+      "preconditions": [
+        { "type": "position_known" }
+      ],
+      "effects": [
+        { "type": "position", "p": "$args.p" }
+      ],
+      "verify": {
+        "type": "custom",
+        "expr": "distance(pos, $args.p) <= $args.near"
+      },
+      "cost": { "time_ms": 2000, "energy": 0.2 }
+    }
+  ]
+}

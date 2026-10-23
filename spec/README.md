@@ -1,0 +1,35 @@
+# CBAP v1 规范包
+
+- **状态**：Draft
+- **日期**：2026-10-23
+
+## 读的顺序
+
+1. [`cbap-v1.md`](cbap-v1.md) —— 规范正文：角色、传输、消息、系统调用、驱动 ABI、错误、安全、版本。
+2. [`schema/message.schema.json`](schema/message.schema.json) —— CBAP-U 消息的 JSON Schema。
+3. [`schema/device.schema.json`](schema/device.schema.json) —— 驱动描述符 `device.json` 的 Schema。
+4. [`schema/mapping.schema.json`](schema/mapping.schema.json) —— 动作映射 `mapping.json` 的 Schema。
+5. [`examples/`](examples/) —— MC / 机械臂描述符、MC 映射、一次完整会话。
+6. [`conformance-v1.md`](conformance-v1.md) —— 20 条一致性用例。
+
+## 已验证
+
+- 3 个 Schema 通过 JSON Schema Draft 2020-12 元校验；
+- `examples/*.json` 与 `examples/session.ndjson` 全部通过对应 Schema（2026-10-23，`uv run --with jsonschema`）；
+- `drivers/mc/device.json` / `mapping.json` 已覆盖真实 legacy hand 的完整命令面（21 个 op，含 collect / chest / furnace / give）；
+- `tests/cbap/test_data.py`：设备通道、映射、参数类型、legacy 字段名 5 条数据契约测试通过；
+- `tests/cbap/test_conformance.py`：20 条一致性用例 + D1/D4/D5 驱动安全用例通过；
+- 网关/驱动/适配器/数据合计 41 条：`python3 tools/cbap_conformance.py --target fake`。
+
+## 还没做
+
+- 让 `bridge.py` 真正通过 `CBAPClient` 调手（现在网关是新 Agent 的入口，`bridge.py` 还走旧 `接线口`）；
+- `cbap-pkg` 包管理器规范/实现；
+- legacy `cmdResult` 加 `id`，消掉网关的 FIFO 配对限制；
+- D2（estop 回 ok 但设备仍动）/ D3（驱动 watchdog）的驱动侧强制用例；当前 D1/D4/D5 已接入一致性执行器。
+
+## 命名约定
+
+- 线上字段/`op`/错误码 **MUST** 用 ASCII；人类可读文本可本地化。
+- 设备 ID 用 `scheme://path`：`mc://bot/DeepSeek`、`robot://arm0`、`robot://dog0`。
+- 版本：`v` / `cbap` 用 `MAJOR.MINOR`，v1 为 `"1.0"`。

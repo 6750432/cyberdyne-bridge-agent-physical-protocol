@@ -1,0 +1,91 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://cyberdyne-bridge.com/schema/cbap-v1/mapping.schema.json",
+  "title": "CBAP v1 action mapping",
+  "description": "Declarative mapping from generic ops/skills to a device's dialect.",
+  "type": "object",
+  "required": ["cbap", "device_id", "ops"],
+  "properties": {
+    "cbap": { "type": "string", "pattern": "^1\\.[0-9]+$" },
+    "device_id": { "type": "string", "minLength": 3 },
+    "ops": {
+      "type": "object",
+      "minProperties": 1,
+      "additionalProperties": { "$ref": "#/$defs/op_map" }
+    },
+    "verify": {
+      "type": "object",
+      "additionalProperties": { "$ref": "#/$defs/verify" }
+    },
+    "skills": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/skill" }
+    }
+  },
+  "additionalProperties": true,
+  "$defs": {
+    "op_map": {
+      "type": "object",
+      "required": ["channel", "op", "args"],
+      "properties": {
+        "channel": { "type": "string", "minLength": 1 },
+        "op": { "type": "string", "minLength": 1 },
+        "args": {
+          "type": "object",
+          "description": "arg name -> type expression (vec2, vec3, int, float, string, bool, inventory_item, block)",
+          "additionalProperties": { "type": "string" }
+        }
+      },
+      "additionalProperties": true
+    },
+    "verify": {
+      "type": "object",
+      "required": ["type"],
+      "properties": {
+        "type": {
+          "type": "string",
+          "enum": [
+            "block",
+            "block_gone",
+            "inventory_delta",
+            "position",
+            "entity_gone",
+            "custom"
+          ]
+        },
+        "p": {},
+        "equals": {},
+        "item": { "type": "string" },
+        "delta": { "type": "number" },
+        "near": { "type": "number" },
+        "radius": { "type": "number" },
+        "expr": { "type": "string" }
+      },
+      "additionalProperties": true
+    },
+    "skill": {
+      "type": "object",
+      "required": ["name", "requires", "verify"],
+      "properties": {
+        "name": { "type": "string", "minLength": 1 },
+        "requires": {
+          "type": "array",
+          "items": { "type": "string" },
+          "uniqueItems": true
+        },
+        "args_schema": { "type": "object" },
+        "preconditions": {
+          "type": "array",
+          "items": { "type": "object" }
+        },
+        "effects": {
+          "type": "array",
+          "items": { "type": "object" }
+        },
+        "verify": { "$ref": "#/$defs/verify" },
+        "cost": { "type": "object" }
+      },
+      "additionalProperties": true
+    }
+  }
+}

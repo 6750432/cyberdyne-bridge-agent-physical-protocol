@@ -1,0 +1,108 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://cyberdyne-bridge.com/schema/cbap-v1/device.schema.json",
+  "title": "CBAP v1 device descriptor",
+  "description": "A driver's self-description. Kernel uses it for capability discovery and safety validation.",
+  "type": "object",
+  "required": [
+    "device_id",
+    "type",
+    "cbap",
+    "channels",
+    "capabilities",
+    "limits",
+    "safety"
+  ],
+  "properties": {
+    "device_id": {
+      "type": "string",
+      "pattern": "^[a-z][a-z0-9+.-]*://[A-Za-z0-9._/-]+$",
+      "examples": ["mc://bot/DeepSeek", "robot://arm0", "robot://dog0"]
+    },
+    "type": {
+      "type": "string",
+      "minLength": 1,
+      "examples": ["minecraft-java", "robot-arm", "quadruped"]
+    },
+    "cbap": {
+      "type": "string",
+      "pattern": "^1\\.[0-9]+$",
+      "examples": ["1.0"]
+    },
+    "display_name": { "type": "string" },
+    "channels": {
+      "type": "object",
+      "minProperties": 1,
+      "additionalProperties": { "$ref": "#/$defs/channel" }
+    },
+    "capabilities": {
+      "type": "array",
+      "items": { "type": "string", "minLength": 1 },
+      "uniqueItems": true,
+      "examples": [
+        ["locomotion", "manipulation", "vision", "inventory", "chat", "crafting"]
+      ]
+    },
+    "limits": {
+      "type": "object",
+      "properties": {
+        "max_frame": { "type": "integer", "minimum": 1024 },
+        "max_inflight": { "type": "integer", "minimum": 1 },
+        "rate_hz": { "type": "number", "exclusiveMinimum": 0 }
+      },
+      "additionalProperties": true
+    },
+    "safety": {
+      "type": "object",
+      "required": ["estop", "watchdog_ms"],
+      "properties": {
+        "estop": {
+          "type": "string",
+          "minLength": 1,
+          "description": "What the driver does on estop, e.g. stop+quit / brake+torque_off / stand+damp."
+        },
+        "watchdog_ms": { "type": "integer", "minimum": 1 },
+        "safe_state": { "type": "string" }
+      },
+      "additionalProperties": true
+    },
+    "schemas": {
+      "type": "object",
+      "description": "channel/op -> schema URI or inline schema id",
+      "additionalProperties": { "type": "string" }
+    },
+    "metadata": {
+      "type": "object",
+      "additionalProperties": true
+    }
+  },
+  "additionalProperties": true,
+  "$defs": {
+    "channel": {
+      "type": "object",
+      "required": ["direction"],
+      "properties": {
+        "direction": {
+          "type": "string",
+          "enum": ["r", "w", "rw"]
+        },
+        "read": {
+          "type": "array",
+          "items": { "type": "string" },
+          "uniqueItems": true
+        },
+        "write": {
+          "type": "array",
+          "items": { "type": "string" },
+          "uniqueItems": true
+        },
+        "ioctl": {
+          "type": "array",
+          "items": { "type": "string" },
+          "uniqueItems": true
+        }
+      },
+      "additionalProperties": true
+    }
+  }
+}

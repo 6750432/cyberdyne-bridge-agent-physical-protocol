@@ -1,0 +1,54 @@
+{
+  "device_id": "robot://arm0",
+  "type": "robot-arm",
+  "cbap": "1.0",
+  "display_name": "6-DOF arm with parallel gripper",
+  "channels": {
+    "joints": {
+      "direction": "rw",
+      "read": ["q", "dq", "tau"],
+      "write": ["trajectory", "servo"]
+    },
+    "gripper": {
+      "direction": "rw",
+      "read": ["width", "force", "holding"],
+      "write": ["grip", "release"],
+      "ioctl": ["calibrate"]
+    },
+    "camera": {
+      "direction": "r",
+      "read": ["rgb", "depth"]
+    },
+    "force": {
+      "direction": "r",
+      "read": ["wrench"]
+    }
+  },
+  "capabilities": [
+    "manipulation",
+    "vision",
+    "force"
+  ],
+  "limits": {
+    "max_frame": 65536,
+    "max_inflight": 2,
+    "rate_hz": 100,
+    "max_velocity": 0.5,
+    "max_force": 40,
+    "workspace": [[-0.8, 0.8], [-0.8, 0.8], [0.0, 1.2]]
+  },
+  "safety": {
+    "estop": "brake+torque_off",
+    "watchdog_ms": 100,
+    "safe_state": "braked"
+  },
+  "schemas": {
+    "joints.state": "schema://robot-arm/joints-state/1",
+    "trajectory": "schema://robot-arm/trajectory/1"
+  },
+  "metadata": {
+    "dof": 6,
+    "gripper": "parallel",
+    "realtime": "control loop runs in driver, not in JSON control plane"
+  }
+}

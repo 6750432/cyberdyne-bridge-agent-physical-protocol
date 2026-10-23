@@ -1,0 +1,208 @@
+{
+  "cbap": "1.0",
+  "device_id": "mc://bot/DeepSeek",
+  "ops": {
+    "move": {
+      "channel": "body",
+      "op": "move",
+      "args": {
+        "dir": "vec2",
+        "ms": "int",
+        "?sprint": "bool",
+        "?delay_ms": "int"
+      }
+    },
+    "jump": {
+      "channel": "body",
+      "op": "jump",
+      "args": {
+        "?count": "int"
+      }
+    },
+    "jumpattack": {
+      "channel": "body",
+      "op": "jumpattack",
+      "args": {
+        "target": "entity"
+      }
+    },
+    "sneak": {
+      "channel": "body",
+      "op": "sneak",
+      "args": {
+        "?ms": "int"
+      }
+    },
+    "swimdown": {
+      "channel": "body",
+      "op": "swimdown",
+      "args": {
+        "?ms": "int"
+      }
+    },
+    "eat": {
+      "channel": "body",
+      "op": "eat",
+      "args": {}
+    },
+    "attack": {
+      "channel": "body",
+      "op": "attack",
+      "args": {
+        "target": "entity",
+        "?ms": "int"
+      }
+    },
+    "goto": {
+      "channel": "body",
+      "op": "goto",
+      "args": {
+        "p": "vec3"
+      }
+    },
+    "stop": {
+      "channel": "body",
+      "op": "stop",
+      "args": {}
+    },
+    "dig": {
+      "channel": "world",
+      "op": "dig",
+      "args": {
+        "p": "vec3",
+        "?delay_ms": "int"
+      }
+    },
+    "place": {
+      "channel": "world",
+      "op": "place",
+      "args": {
+        "p": "vec3",
+        "?item": "string"
+      }
+    },
+    "use": {
+      "channel": "world",
+      "op": "use",
+      "args": {
+        "p": "vec3"
+      }
+    },
+    "collect": {
+      "channel": "world",
+      "op": "collect",
+      "args": {
+        "item": "string",
+        "block": "string",
+        "count": "int"
+      },
+      "legacy_args": {
+        "item": "物品",
+        "block": "方块",
+        "count": "数量"
+      }
+    },
+    "chest_take": {
+      "channel": "world",
+      "op": "chest_take",
+      "args": {
+        "p": "vec3",
+        "item": "string",
+        "count": "int"
+      },
+      "legacy_args": {
+        "item": "物品",
+        "count": "数量"
+      }
+    },
+    "chest_put": {
+      "channel": "world",
+      "op": "chest_put",
+      "args": {
+        "p": "vec3",
+        "item": "string",
+        "count": "int",
+        "?keep": "int"
+      },
+      "legacy_args": {
+        "item": "物品",
+        "count": "数量",
+        "keep": "保留"
+      }
+    },
+    "chest_audit": {
+      "channel": "world",
+      "op": "chest_audit",
+      "args": {
+        "p": "vec3"
+      }
+    },
+    "furnace_put": {
+      "channel": "world",
+      "op": "furnace_put",
+      "args": {
+        "p": "vec3",
+        "input": "object",
+        "fuel": "object"
+      },
+      "legacy_args": {
+        "input": "输入",
+        "fuel": "燃料"
+      }
+    },
+    "furnace_take": {
+      "channel": "world",
+      "op": "furnace_take",
+      "args": {
+        "p": "vec3",
+        "item": "string",
+        "count": "int"
+      },
+      "legacy_args": {
+        "item": "物品",
+        "count": "数量"
+      }
+    },
+    "give": {
+      "channel": "world",
+      "op": "递",
+      "args": {
+        "item": "string",
+        "count": "int",
+        "?to": "string"
+      },
+      "legacy_args": {
+        "item": "物品",
+        "count": "数量",
+        "to": "谁"
+      }
+    },
+    "craft": {
+      "channel": "inventory",
+      "op": "craft",
+      "args": {
+        "item": "string",
+        "?count": "int"
+      }
+    },
+    "say": {
+      "channel": "chat",
+      "op": "say",
+      "args": {
+        "text": "string"
+      }
+    }
+  },
+  "verify": {
+    "dig": {
+      "type": "block",
+      "p": "$args.p",
+      "equals": "air"
+    },
+    "place": {
+      "type": "block",
+      "p": "$args.p",
+      "equals": "$args.item"
+    }
+  }
+}

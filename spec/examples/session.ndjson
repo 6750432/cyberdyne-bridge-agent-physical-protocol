@@ -1,0 +1,16 @@
+{"v":"1.0","type":"hello","id":"h-1","ts":1700000000000,"agent_id":"mindcraft-1","role":"agent","capabilities":["read","write","lease","estop"],"limits":{"max_inflight":4}}
+{"v":"1.0","type":"welcome","id":"h-1","ts":1700000000001,"kernel_id":"cyberdyne-main","protocol":"1.0","session_id":"s-1","capabilities":["read","write","lease","estop"],"limits":{"max_frame":65536,"max_inflight":4,"rate_hz":5},"devices":[{"device_id":"mc://bot/DeepSeek","type":"minecraft-java","state":"ready"}]}
+{"v":"1.0","type":"request","id":"r-1","ts":1700000000100,"op":"open","args":{"device_id":"mc://bot/DeepSeek","mode":"rw"}}
+{"v":"1.0","type":"result","id":"r-1","ts":1700000000101,"ok":true,"payload":{"fd":"fd-7","device_id":"mc://bot/DeepSeek"}}
+{"v":"1.0","type":"request","id":"r-2","ts":1700000000200,"op":"read","args":{"fd":"fd-7","channel":"body","timeout_ms":1000}}
+{"v":"1.0","type":"result","id":"r-2","ts":1700000000201,"ok":true,"payload":{"frame":{"pos":[0,64,0],"hp":20,"food":20}}}
+{"v":"1.0","type":"request","id":"r-3","ts":1700000000300,"op":"write","args":{"fd":"fd-7","frame":{"channel":"body","op":"move","args":{"dir":[1,0],"ms":500}}},"deadline_ms":2000,"idempotency_key":"move:1"}
+{"v":"1.0","type":"ack","id":"r-3","ts":1700000000301,"state":"accepted"}
+{"v":"1.0","type":"result","id":"r-3","ts":1700000000802,"ok":true,"payload":{"moved":0.8},"facts":{"pos":[0.8,64,0]}}
+{"v":"1.0","type":"event","seq":1,"ts":1700000000900,"kind":"chat","payload":{"from":"mintstar","text":"come here"}}
+{"v":"1.0","type":"request","id":"r-4","ts":1700000001000,"op":"estop","args":{"fd":"fd-7","reason":"operator"}}
+{"v":"1.0","type":"result","id":"r-4","ts":1700000001001,"ok":true,"payload":{"safe_state":"idle"}}
+{"v":"1.0","type":"cancel","id":"c-1","ts":1700000001100,"target":"r-9","reason":"user_abort"}
+{"v":"1.0","type":"error","id":"r-9","ts":1700000001101,"error":{"code":"E_CANCELED","message":"canceled by user","retryable":false}}
+{"v":"1.0","type":"request","id":"r-5","ts":1700000001200,"op":"close","args":{"fd":"fd-7"}}
+{"v":"1.0","type":"result","id":"r-5","ts":1700000001201,"ok":true,"payload":{"closed":true}}

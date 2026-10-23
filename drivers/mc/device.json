@@ -1,0 +1,111 @@
+{
+  "device_id": "mc://bot/DeepSeek",
+  "type": "minecraft-java",
+  "cbap": "1.0",
+  "display_name": "Minecraft Java hand (legacy node/server.js; full command surface)",
+  "channels": {
+    "body": {
+      "direction": "rw",
+      "read": [
+        "pose",
+        "hp",
+        "food",
+        "on_ground",
+        "held",
+        "durability"
+      ],
+      "write": [
+        "move",
+        "jump",
+        "jumpattack",
+        "sneak",
+        "swimdown",
+        "eat",
+        "attack",
+        "goto",
+        "stop"
+      ]
+    },
+    "world": {
+      "direction": "rw",
+      "read": [
+        "scan",
+        "blocks",
+        "chest"
+      ],
+      "write": [
+        "dig",
+        "place",
+        "use",
+        "collect",
+        "chest_take",
+        "chest_put",
+        "chest_audit",
+        "furnace_put",
+        "furnace_take",
+        "give"
+      ],
+      "ioctl": [
+        "scan",
+        "watch",
+        "watch_items",
+        "furnace_watch"
+      ]
+    },
+    "inventory": {
+      "direction": "rw",
+      "read": [
+        "items",
+        "durability"
+      ],
+      "write": [
+        "craft"
+      ]
+    },
+    "chat": {
+      "direction": "rw",
+      "read": [
+        "chat"
+      ],
+      "write": [
+        "say"
+      ]
+    }
+  },
+  "capabilities": [
+    "locomotion",
+    "manipulation",
+    "vision",
+    "inventory",
+    "chat",
+    "crafting",
+    "combat",
+    "container",
+    "smelting",
+    "collection"
+  ],
+  "limits": {
+    "max_frame": 65536,
+    "max_inflight": 1,
+    "rate_hz": 5,
+    "max_command_ms": 120000
+  },
+  "safety": {
+    "estop": "stop+idle",
+    "watchdog_ms": 5000,
+    "safe_state": "idle"
+  },
+  "schemas": {
+    "body.state": "schema://mc/body-state/1",
+    "body.action": "schema://mc/body-action/1",
+    "world.scan": "schema://mc/world-scan/1",
+    "inventory.state": "schema://mc/inventory-state/1"
+  },
+  "metadata": {
+    "mc_version": "1.21.1",
+    "auth": "offline",
+    "transport": "unix",
+    "driver": "drivers/mc/driver.py",
+    "note": "legacy hand; full command surface from node/server.js + plugins/能力 collect + body chest/furnace. max_inflight=1 because legacy cmdResult has no request id."
+  }
+}

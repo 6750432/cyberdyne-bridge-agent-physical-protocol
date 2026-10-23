@@ -1,0 +1,62 @@
+{
+  "device_id": "mc://bot/DeepSeek",
+  "type": "minecraft-java",
+  "cbap": "1.0",
+  "display_name": "DeepSeek on Minecraft Java 1.21.1",
+  "channels": {
+    "body": {
+      "direction": "rw",
+      "read": ["pose", "hp", "food", "on_ground", "held", "durability"],
+      "write": ["move", "look", "jump", "sneak", "swimdown"]
+    },
+    "world": {
+      "direction": "rw",
+      "read": ["scan", "blocks"],
+      "write": ["dig", "place"],
+      "ioctl": ["scan", "watch"]
+    },
+    "inventory": {
+      "direction": "rw",
+      "read": ["items", "durability"],
+      "write": ["craft", "equip", "drop", "chest_take", "chest_put", "furnace_put", "furnace_take"]
+    },
+    "chat": {
+      "direction": "rw",
+      "read": ["chat"],
+      "write": ["say"]
+    }
+  },
+  "capabilities": [
+    "locomotion",
+    "manipulation",
+    "vision",
+    "inventory",
+    "chat",
+    "crafting",
+    "container",
+    "combat"
+  ],
+  "limits": {
+    "max_frame": 65536,
+    "max_inflight": 4,
+    "rate_hz": 5,
+    "max_command_ms": 5000
+  },
+  "safety": {
+    "estop": "stop+quit",
+    "watchdog_ms": 5000,
+    "safe_state": "idle"
+  },
+  "schemas": {
+    "body.state": "schema://mc/body-state/1",
+    "body.action": "schema://mc/body-action/1",
+    "world.scan": "schema://mc/world-scan/1",
+    "inventory.state": "schema://mc/inventory-state/1"
+  },
+  "metadata": {
+    "mc_version": "1.21.1",
+    "auth": "offline",
+    "transport": "unix",
+    "note": "combat capability is exposed by the driver; kernel policy may still deny it to LLM agents."
+  }
+}
