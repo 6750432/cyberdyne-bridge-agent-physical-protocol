@@ -26,7 +26,8 @@
 - 网关/驱动/适配器/数据合计 54 条：`python3 tools/cbap_conformance.py --target fake`；
 - 真实 MCP 外设 demo：`python3 tools/mcp_dashboard.py --server-path ...`，截图 `docs/screenshots/cbap-mcp-live.png`；
 - 本 Agent 直接当 LLM 的真实任务：`docs/CBAP-真实MCP-LLM任务.md`，截图 `docs/screenshots/cbap-mcp-llm-task.png`（采集 3 个 spruce_log）；
-- 完整木镐链路：`docs/CBAP-真实MCP-木镐任务.md`，截图 `docs/screenshots/cbap-mcp-pickaxe.png`（原木 → 木板 → 工作台 → 木棍 → 木镐 → 装备）。
+- 完整木镐链路：`docs/CBAP-真实MCP-木镐任务.md`，截图 `docs/screenshots/cbap-mcp-pickaxe.png`（原木 → 木板 → 工作台 → 木棍 → 木镐 → 装备）；
+- 石镐/熔炉链路：`docs/CBAP-真实MCP-石镐熔炉任务.md`，截图 `docs/screenshots/cbap-mcp-stone-pickaxe.png`（木镐挖石 → 石镐 → 熔炉；熔炉放置未确认，保留在背包）。
 
 ## 还没做
 

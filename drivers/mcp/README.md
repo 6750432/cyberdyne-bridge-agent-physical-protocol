@@ -105,6 +105,11 @@ collect / chest / furnace：当前 MCP server 没有对应工具。
 工作台链路已经实测：`craft spruce_planks → craft crafting_table →
 equip crafting_table → place → craft stick → craft wooden_pickaxe`。
 记录见 `docs/CBAP-真实MCP-木镐任务.md`。
+
+石镐/熔炉链路：木镐挖 cobblestone → `craft stone_pickaxe` →
+`craft furnace` → `equip stone_pickaxe`。熔炉放置需要服务端确认，
+当前 MCP `place` 在本世界两次未确认，因此熔炉保留在背包。
+记录见 `docs/CBAP-真实MCP-石镐熔炉任务.md`。
 ```
 
 ## 集成测试
