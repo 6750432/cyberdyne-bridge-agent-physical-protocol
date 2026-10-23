@@ -18,8 +18,14 @@ Reading:
 ```text
 solid lines        action / control
 cyan dashed        state / facts / result
+gold solid         own legacy direct path
 gold dashed        unbuilt or partial
 ```
+
+Our own legacy brain (`bridge.py`) and hand (`node/server.js`) are shown as a
+direct UDS pair on the right, explicitly not through CBAP. `McDriver` can wrap
+the same hand when the CBAP path is used. The dashboard and audit are our own
+observability tools.
 
 The dashed Alice path is source-only; the Forge build did not complete.
 The Voyager node is the bridge, not Voyager's autonomous Python agent.

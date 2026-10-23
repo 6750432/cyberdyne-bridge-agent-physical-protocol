@@ -42,6 +42,15 @@ digraph CBAP {
     manual[label="Assistant /\nmanual probe", fillcolor="#102b24", color="#3f8f75"];
   }
 
+  subgraph cluster_own {
+    label=<<B>OUR OWN LEGACY STACK</B>   ·   direct UDS · NOT CBAP>;
+    style="rounded,dashed"; color="#8f7338"; fontcolor="#d8c28c";
+    margin=12;
+    ownbrain [label=<<B>Cyberdyne Brain</B><BR/><FONT POINT-SIZE="9">bridge.py · own planner</FONT>>, fillcolor="#2a2416", color="#b58b3e"];
+    ownhand  [label=<<B>Own hand</B><BR/><FONT POINT-SIZE="9">node/server.js · DeepSeek</FONT>>, fillcolor="#181818", color="#b58b3e"];
+    ownbrain -> ownhand [label=" direct UDS\n line JSON", color="#b58b3e", style=dashed, fontcolor="#c9a85e"];
+  }
+
   subgraph cluster_u {
     label=<<B>CBAP-U</B>   ·   agent-facing>;
     style="rounded"; color="#23614f"; fontcolor="#7dd3b0";
@@ -65,7 +74,6 @@ digraph CBAP {
   subgraph cluster_b {
     label=<<B>BODIES / DEVICES</B>   ·   server-authoritative>;
     style="rounded"; color="#3c3c3c"; fontcolor="#b9b9b9";
-    legacy [label="legacy node/server.js\nDeepSeek", fillcolor="#181818", color="#555555"];
     mcp    [label="MCPBody\nmineflayer-mcp", fillcolor="#181818", color="#555555"];
     mindy  [label="Mindcraft Mindy\nMindServer", fillcolor="#181818", color="#555555"];
     vbody  [label="Voyager bridge\nMineflayer 1.19.2", fillcolor="#181818", color="#555555"];
@@ -79,13 +87,20 @@ digraph CBAP {
          fontcolor="#b9d8a8",
          label=<<B>SERVER FACTS</B><BR/><FONT POINT-SIZE="9">pos · inventory · blocks<BR/>task terminal · events</FONT>>];
 
-  audit [shape=note, style="filled", fillcolor="#241f14", color="#8f7338",
-         fontcolor="#d8c28c",
-         label=<<B>AUDIT</B><BR/><FONT POINT-SIZE="9">JSONL append</FONT>>];
+  subgraph cluster_obs {
+    label=<<B>OUR OBSERVABILITY</B>   ·   own tooling>;
+    style="rounded,dashed"; color="#3f6f7a"; fontcolor="#9ed8ef";
+    margin=10;
+    audit [shape=note, style="filled", fillcolor="#241f14", color="#8f7338",
+           fontcolor="#d8c28c",
+           label=<<B>AUDIT</B><BR/><FONT POINT-SIZE="9">JSONL append</FONT>>];
+    dashboard [shape=box, style="rounded,filled", fillcolor="#10232a", color="#4f8f9d",
+               label=<<B>CBAP Dashboard</B><BR/><FONT POINT-SIZE="9">tools/mcp_dashboard.py</FONT><BR/><FONT POINT-SIZE="9">our observability</FONT>>];
+  }
 
   legend [shape=note, style="filled", fillcolor="#0d1517", color="#3a5557",
           fontcolor="#9db8b0", fontsize=9,
-          label=<<B>LEGEND</B><BR/>solid = action / control<BR/>cyan dashed = state / facts / result<BR/>gold dashed = unbuilt / partial<BR/><BR/><B>write path</B> 1 open/lease → 2 write → 3 route → 4 execute<BR/><B>completion</B> 5 state/fact → 6 verify; never trust result.ok>];
+          label=<<B>LEGEND</B><BR/>solid = action / control<BR/>cyan dashed = state / facts / result<BR/>gold solid = own legacy direct<BR/>gold dashed = unbuilt / partial<BR/><BR/><B>write path</B> 1 open/lease → 2 write → 3 route → 4 execute<BR/><B>completion</B> 5 state/fact → 6 verify; never trust result.ok>];
 
   // agents → UDS
   qwen -> uds_u [label=" actions / prompts"];
@@ -105,14 +120,14 @@ digraph CBAP {
   kernel -> alice_drv [style=dashed, color="#b58b3e", label=" unbuilt", fontcolor="#c9a85e"];
 
   // adapters → bodies
-  mc_drv -> legacy   [color="#6b8a83"];
+  mc_drv -> ownhand  [color="#6b8a83", label=" wrap", fontcolor="#9db8b0"];
   mcp_drv -> mcp     [color="#6b8a83"];
   mind_drv -> mindy  [color="#6b8a83"];
   voy_drv -> vbody   [color="#6b8a83"];
   alice_drv -> aliceb [style=dashed, color="#b58b3e"];
 
   // bodies → server
-  legacy -> mc [color="#4c6b4f"];
+  ownhand -> mc [color="#b58b3e", label=" direct"];
   mcp -> mc    [color="#4c6b4f"];
   mindy -> mc  [color="#4c6b4f"];
   vbody -> mc  [color="#4c6b4f"];
@@ -124,8 +139,9 @@ digraph CBAP {
   kernel -> uds_u [style=dashed, color="#7cc7e8", label=" read / poll / result", fontcolor="#9ed8ef", constraint=false];
   uds_u -> qwen [style=dashed, color="#7cc7e8", label=" observations", fontcolor="#9ed8ef", constraint=false];
 
-  { rank=same; mc; facts; audit; legend; }
+  { rank=same; mc; facts; legend; }
 
   kernel -> audit [style=dashed, color="#8f7338", label=" append", fontcolor="#d8c28c", constraint=false];
+  kernel -> dashboard [style=dashed, color="#7cc7e8", label=" state / audit", fontcolor="#9ed8ef", constraint=false];
 
         }
