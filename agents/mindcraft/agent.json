@@ -1,0 +1,22 @@
+{
+  "schema": "cbap-agent/1",
+  "id": "mindcraft",
+  "display_name": "Mindcraft Mindy",
+  "status": "active",
+  "ownership": "external",
+  "kind": "autonomous-agent",
+  "summary": "Real autonomous Mindcraft agent exposed as state/prompt/stop.",
+  "runtime": {
+    "upstream": "external/mindcraft",
+    "adapter": "drivers/mindcraft/adapter.mjs",
+    "driver": "drivers/mindcraft",
+    "headless_patch": "drivers/mindcraft/patches/mindcraft-headless.patch"
+  },
+  "cbap": {
+    "driver_module": "drivers.mc.driver",
+    "driver_factory": "McDriver",
+    "device_id": "mc://mind/Mindy",
+    "transport": "socket.io -> line-json",
+    "control_surface": "state / prompt / stop"
+  }
+}

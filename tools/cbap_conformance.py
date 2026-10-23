@@ -28,6 +28,7 @@ MODULES = [
     "tests.cbap.test_conformance",
     "tests.cbap.test_multi_device",
     "tests.cbap.test_mcp_driver",
+    "tests.cbap.test_plugins",
 ]
 
 

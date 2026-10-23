@@ -38,6 +38,23 @@
 
 ---
 
+## 仓库边界（迁移中）
+
+主仓只负责 CBAP 协议、Kernel、租约、安全、审计、conformance 和通用 driver API。
+
+四个活跃 Agent 子仓的契约在 `agents/`：
+
+```text
+agents/cyberdyne/       我们自己的 MC Agent：bridge.py + node/server.js
+agents/mcp-mineflayer/  MCP body + adapter
+agents/mindcraft/       Mindcraft state / prompt / stop adapter
+agents/voyager/         Voyager bridge + adapter
+```
+
+Alice 未构建，放在 `archive/alice/`，不算活跃子仓。
+
+当前只完成分类、manifest 和 driver API；物理代码搬迁要等插件边界和兼容 shim 测试通过后再做。详见 `docs/REPO_LAYOUT.md`。
+
 ## 这是什么
 
 一句话：**这是一份「Agent ↔ 物理世界」通用协议的参考实现；Minecraft 只是它的低成本物理沙盒。**

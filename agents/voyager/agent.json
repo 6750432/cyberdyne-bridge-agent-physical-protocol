@@ -1,0 +1,22 @@
+{
+  "schema": "cbap-agent/1",
+  "id": "voyager",
+  "display_name": "Voyager Bridge",
+  "status": "active",
+  "ownership": "external",
+  "kind": "bridge-only",
+  "summary": "Voyager Mineflayer HTTP bridge exposed through a line-JSON adapter. Voyager's autonomous agent is not wired.",
+  "runtime": {
+    "upstream": "external/Voyager",
+    "adapter": "drivers/voyager/adapter.mjs",
+    "driver": "drivers/voyager",
+    "state_patch": "drivers/voyager/patches/voyager-state.patch"
+  },
+  "cbap": {
+    "driver_module": "drivers.mc.driver",
+    "driver_factory": "McDriver",
+    "device_id": "mc://voyager/bot",
+    "transport": "HTTP bridge -> line-json",
+    "control_surface": "state / exec / forward / say / stop"
+  }
+}

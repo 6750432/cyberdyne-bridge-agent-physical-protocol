@@ -1,0 +1,20 @@
+{
+  "schema": "cbap-agent/1",
+  "id": "mcp-mineflayer",
+  "display_name": "MCP Mineflayer Body",
+  "status": "active",
+  "ownership": "external",
+  "kind": "mcp-body",
+  "summary": "Real external Mineflayer MCP server wrapped by MCPDriver.",
+  "runtime": {
+    "upstream": "external/mineflayer-mcp",
+    "driver": "drivers/mcp",
+    "patch": "drivers/mcp/patches/mineflayer-mcp-place.patch"
+  },
+  "cbap": {
+    "driver_module": "drivers.mcp.driver",
+    "driver_factory": "MCPDriver",
+    "device_id": "mcp://mc/MCPBody",
+    "transport": "mcp-stdio"
+  }
+}

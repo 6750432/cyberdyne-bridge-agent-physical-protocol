@@ -1,0 +1,21 @@
+{
+  "schema": "cbap-agent/1",
+  "id": "cyberdyne",
+  "display_name": "Cyberdyne MC Agent",
+  "status": "active",
+  "ownership": "ours",
+  "kind": "legacy-direct-agent",
+  "summary": "Our original brain + hand. Direct UDS is legacy and is not the CBAP path.",
+  "runtime": {
+    "brain": "bridge.py",
+    "hand": "node/server.js",
+    "plugins": "外挂/"
+  },
+  "cbap": {
+    "driver_module": "drivers.mc.driver",
+    "driver_factory": "McDriver",
+    "device_id": "mc://bot/DeepSeek",
+    "transport": "line-json",
+    "note": "The hand can be wrapped by McDriver; the brain is still legacy-direct."
+  }
+}
