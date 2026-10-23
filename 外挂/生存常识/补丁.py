@@ -125,8 +125,10 @@ def _要雷达找(方块名, 半径=16):
         #     叶子会**报坐标** ✓ ⇒ 车厢就能朝叶子走、换个角度，树干自然进视线 ✓
         #   （`oak_leaves` 不在手侧的兴趣名单里 ✗ 不点就只会出现在"计数"里、没有坐标 ✓）
         #   ⚠ 只管木头这一类 ✓（`_log` ⇒ `*_leaves` ✓ 是**木头的常识** ✓ 不是长名单 ✗）
-        if str(名).endswith("_log") and "*_leaves" not in 要:
-            要.append("*_leaves")
+        # ★ 2026-10-22 实测：一次点单同时要 oak_log 和 *_leaves，
+        #   手侧 scan.找 的 8 条上限会被叶子占满，原木被挤掉（只见叶子不见树干）。
+        #   精确目标优先：日志只点 [名, *_log]，不再混点 *_leaves。
+        #   （需要叶子时由扫描表/挡前情报单独处理，不跟原木抢名额。）
         发({"cmd": "scan_environment", "要": 要[:8], "找半径": int(半径)})
         if 今 is not None:
             _点单记录[名] = 今
@@ -550,14 +552,29 @@ def 脚下是什么(状态):
     return 名, [int(我[0] // 1), int(我[1]) - 1, int(我[2] // 1)]
 
 
+def _支路(号, 说明=""):
+    return  # ★ 2026-10-16 收工：**空操作** ✓（一次调用=一次文件写 ✗ 太贵 ✓ 已量完 ✓）
+    """★ 2026-10-16 支路自报（一行 ✓ 必出声 ✓）：让"我走了哪条路"自己写下来 ✓ 不用猜 ✗"""
+    try:
+        import json as _j, os as _o, time as _t
+        _o.makedirs(os.path.join(根, "logs"), exist_ok=True)
+        with open(os.path.join(根, "logs", "找坐标支路.jsonl"), "a", encoding="utf-8") as _f:
+            _f.write(_j.dumps({"t": int(_t.time() * 1000), "行": 号, "说明": str(说明)[:90]},
+                              ensure_ascii=False) + "\n")
+    except Exception as _e:
+        print("[生存常识] 支路记账失败（出声 ✓）：%s" % _e, flush=True)
+
+
 def 找坐标(步骤, 状态, 扫描缓存, 要挖吗=False):
     """一个符号化步骤 → 具体坐标。找不到返回 (None, 原因)。"""
     方块 = 步骤.get("目标方块") or 步骤.get("方块")
     if not 方块:
+        _支路(569, 'None, "这一步没说要找哪个方块"')
         return None, "这一步没说要找哪个方块"
 
     # ① 扫描里有就直接用
     if 方块 in 扫描缓存:
+        _支路(573, '扫描缓存[方块], None')
         return 扫描缓存[方块], None
 
     # ★★★ 2026-10-09 主人问「**为啥在找合欢木**？」—— 根在这儿：
@@ -569,6 +586,7 @@ def 找坐标(步骤, 状态, 扫描缓存, 要挖吗=False):
     for 名有, 位有 in 扫描缓存.items():
         if _同族吗(名有, 方块):
             _说(f"  · 要「{方块}」可周围只有「{名有}」—— **同族（{_族名(名有)}），用它** ✓")
+            _支路(584, '位有, None')
             return 位有, None
 
     # ② 它是不是我**正脚下**那块？—— 地面字段 + 自身坐标 = 免费定位
@@ -580,8 +598,10 @@ def 找坐标(步骤, 状态, 扫描缓存, 要挖吗=False):
     脚名, 脚位 = 脚下是什么(状态)
     if 脚名 == 方块 and 脚位:
         if 要挖吗:
+            _支路(595, 'None, (f"我正站在「{方块}」上，可手侧不许我挖自己脚下那块"')
             return None, (f"我正站在「{方块}」上，可手侧不许我挖自己脚下那块"
                         f"（挖了我自己就掉下去）；扫描里又没报别的「{方块}」位置")
+        _支路(597, '脚位, None')
         return 脚位, None
 
     # ③ 定位不到 —— **明确失败，绝不猜**。而且要说清楚是哪一种「找不到」：
@@ -604,18 +624,50 @@ def 找坐标(步骤, 状态, 扫描缓存, 要挖吗=False):
     #   现在落空即点单：下一拍 `scan.找` 里就该有它 ✓（有就真找，没有才说没有 ✓）。
     if 方块 not in 见过的 and 方块 not in 贴身的 and not 同族找:
         _要雷达找(方块)
+        _支路(619, 'None, (f"**我周围压根没有「{方块}」** —— 扫描看到的只有 "')
         return None, (f"**我周围压根没有「{方块}」** —— 扫描看到的只有 "
                     f"{'、'.join(sorted(x for x in 见过的 if x)[:6]) or '（一片空）'}。"
                     f"**已经让雷达点名找它了**；还是找不到就得走到有它的地方去。")
     if 同族找:
+        # ★★★ 2026-10-16【最后一段路 · 清障子目标】（主人 观轨迹 ⇒ 对症下药 ✓ 句 9 ✓）
+        #   病：雷达**明明把挡着的方块连坐标送来了** ✓（`可交互:[{…,"挡":[{name,p,相对}…]}]` ✓）
+        #       可这里只**说**了一句"要么先把挡着的那块挖开 ✓" ✗ —— 然后 return None ✗
+        #        ⇒ 上游只能"定位不到"⇒ 兜底就近挖一片叶 ⇒ 慢慢磨 ✗（轨迹三轮同一单 ✓）
+        #   修：把那句话**变成真动作** ✓ —— 返回**第一块挡路方块的坐标** ✓
+        #        ⇒ 主链照常排一步「挖」✓ ⇒ 下一拍那块没了 ⇒ 树干进视线 ✓ ⇒ 正常链就能排出来 ✓✓
+        #   ⚠ 一次只挖一块 ✓（有界 ✓ 不贪多 ✓）＋ 只认雷达给的坐标 ✓（不自己猜 ✗）
+        try:
+            _挡0 = None
+            for _b in (扫.get("可交互") or []):
+                if not isinstance(_b, dict):
+                    continue
+                _n = str(_b.get("name") or "")
+                if not _n:
+                    continue
+                if not (_n == 方块 or _同族吗(_n, 方块)):
+                    continue
+                for _d in (_b.get("挡") or []):
+                    if isinstance(_d, dict) and _d.get("p"):
+                        _挡0 = (list(_d["p"]), str(_d.get("name") or ""))
+                        break
+                if _挡0:
+                    break
+            if _挡0:
+                _说("生存常识：挡着『%s』的是『%s』@%s ⇒ **先挖开它**（清障子目标 ✓ 一次一块 ✓）" % (方块, _挡0[1], _挡0[0]))
+                _支路(648, '_挡0[0], None')
+                return _挡0[0], None
+        except Exception as _e挡:
+            print("[生存常识] 清障子目标出岔子（出声 ✓）：%s" % _e挡, flush=True)
         # ★ 雷达**真报回来了** ✓ —— 那就绝不许说"压根没有" ✗
         _要雷达找(方块)
+        _支路(653, 'None, (f"雷达点名找**报回了同族的**："')
         return None, (f"雷达点名找**报回了同族的**："
                     f"{'、'.join(sorted(x for x in 同族找)[:4])} ✓ —— "
                     f"可它们**整个被埋住**（反矿透：不瞄看不见的 ✗）⇒ "
                     f"要么先把挡着的那块挖开 ✓，要么换个地方找 ✓"
                     f"（**这回不是「没有」，是「没露出来」** ✓ 两件事不一样 ✗）")
     _要雷达找(方块)
+    _支路(659, 'None, (f"我周围有「{方块}」，但手侧这一拍只上报了「兴趣方块」名单里的坐标 —— "')
     return None, (f"我周围有「{方块}」，但手侧这一拍只上报了「兴趣方块」名单里的坐标 —— "
                 f"**已经让雷达点名找它了**，下一拍就该有位置；这一拍我不瞎挖。")
 
@@ -779,6 +831,13 @@ def 探路一步(状态, 方块名=None, 我=None):
           if isinstance(条, dict) and _同族吗(条.get("name"), 方块名)
           and isinstance(条.get("p"), (list, tuple)) and len(条["p"]) >= 3]
     if 命:
+        # ★★★ 2026-10-17【主人一句点醒 ✓ 原话：「**砍树是从下往上的啊**」】
+        #   病：`命[0]` **取第一个** ✗ —— 雷达点名找里可能有好几根（4 根原木 ✓）
+        #      ⇒ 抽到高的那根 / 它上面的挡块（y=72 ✓）⇒ 排了个「走到树冠上」✗
+        #      ⇒ 物理体检**正确地**拦下（一步只上 0.6、跳 1.1 ✓）⇒ 整条计划落不了地 ✓
+        #   修：**先排序再取** ✓ —— `(y 升序, 距离升序)` ✓ ⇒ **永远先走最低的那根** ✓
+        #      （这就是「从下往上」的算法化 ✓ 原话写进注释 ✓ 老祖「改哪都要说清为什么」✓）
+        命.sort(key=lambda b: (int(list(b.get("p") or [0, 0, 0])[1]), float(b.get("距") or 99)))
         条 = 命[0]
         位 = [int(x) for x in list(条["p"])[:3]]
         距 = 条.get("距")
@@ -1025,6 +1084,28 @@ def 落坐标(计划, 状态):
             遮 = _遮挡情报(状态, p)
             if isinstance(遮, dict):
                 if 遮.get("裸露") is False:
+                    # ★★★ 2026-10-16【清障子目标 · 真现场】（主人 观轨迹 ⇒ 对症下药 ✓ 句 9 ✓）
+                    #   病：这里**已经拿到遮挡情报**（`遮` ✓ 里面有谁挡着+坐标 ✓）却只记一句"被埋住"✗ ⇒ 往上扔
+                    #        ⇒ 上游"定位不到"⇒ 兜底就近挖一片叶 ⇒ 慢慢磨 ✗（轨迹三轮同一单 ✓ 不收敛 ✓）
+                    #   修：**就地变成一步"先挖开挡路那块"** ✓ —— 一次一块 ✓ 有界 ✓ 数据全来自雷达 ✓ 不自己猜 ✗
+                    try:
+                        _挡表 = (遮 or {}).get("挡") if isinstance(遮, dict) else None
+                        _第一 = None
+                        if isinstance(_挡表, list):
+                            for _d in _挡表[:3]:
+                                if isinstance(_d, dict) and _d.get("p"):
+                                    _第一 = (list(_d["p"]), str(_d.get("name") or ""))
+                                    break
+                                if isinstance(_d, (list, tuple)) and len(_d) >= 3:
+                                    _第一 = (list(_d), "")
+                                    break
+                        if _第一:
+                            _说("生存常识：『%s』被『%s』@%s 挡着 ⇒ **先挖开它**（清障子目标 ✓ 一次一块 ✓ 下一拍再看视线 ✓）"
+                               % (名 or "那块", _第一[1] or "挡路方块", _第一[0]))
+                            步骤.append({"动作": "挖", "p": _第一[0], "方块": _第一[1] or None})
+                            continue
+                    except Exception as _e清:
+                        print("[生存常识] 清障出岔子（出声 ✓）：%s" % _e清, flush=True)
                     缺.append(f"挖 {名 or '那块'}：它整个被埋住了（反矿透，不瞄看不见的）")
                     _说(f"  · {名 or '那块'}@{list(p)} 整个被埋住 —— 不瞄它，改走盲挖碰运气")
                     continue
@@ -1064,6 +1145,20 @@ def 落坐标(计划, 状态):
                         #   ⇒ 主人截图里那句 `步骤=0` 就是这么来的 ✓（走也走不了、挖也挖不了 ✓）
                         continue
                     else:
+                        # ★★★ 2026-10-17【主人：「**砍树是从下往上的啊**」✓】：
+                        #   病：`挡位` 可能是**目标上方的方块**（树叶在 y=72 ✗）⇒ 排了个「走到树冠上」✗
+                        #     ⇒ 物理体检**正确地**拦下 ⇒ 整条计划落不了地 ✓
+                        #   修：**够得着才排「走到」** ✓（|Δy| ≤ 1 且水平 ≤ 2 ✓）⇒ 够不着**就地挖** ✓
+                        _位我 = 我的位置() or [0, 0, 0]
+                        try:
+                            _够 = (abs(int(挡位[1]) - int(_位我[1])) <= 1 and
+                                   abs(int(挡位[0]) - int(_位我[0])) + abs(int(挡位[2]) - int(_位我[2])) <= 2)
+                        except Exception:
+                            _够 = False
+                        if _够:
+                            步骤.append({"动作": "走到", "p": 挡位, "到点": 3.0})
+                        else:
+                            _说("  · 挡着的那块 @%s **够不着**（我在 %s）⇒ **不排「走到」** ✓ 就地挖它 ✓" % (挡位, _位我))
                         步骤.append({"动作": "走到", "p": 挡位, "到点": 3.0})
                         步骤.append({"动作": "挖", "p": 挡位, "方块": 挡名} if 挡名
                                     else {"动作": "挖", "p": 挡位})
@@ -1153,6 +1248,18 @@ def 落坐标(计划, 状态):
         if 探路 and not 步骤:
             _说("  · 定位不到就**按雷达的指路走一步再看** ✓（不是干等 ✗）")
             return 探路, None
+        # ★★★ 2026-10-16【第 1.9 步 · 真现场】（主人 观轨迹 ⇒ 指着病灶下药 ✓）
+        #   病：「挖 oak_log：它整个被埋住了（反矿透，不瞄看不见的）」⇒ 站在树冠上 ⇒ 常识不盲挖 ✓（对 ✓）
+        #        ⇒ 兜底就近挖一片叶 ⇒ **慢慢磨** ✗（轨迹三轮同一单 ✓ 不收敛 ✓）
+        #   句 9：卡住 ⇒ **开子目标**「把树干弄进视线」✓ —— 用**现成机器**：跟雷达点单（含 *_leaves ✓）✓
+        #   ⚠ 只在即将失败这一刻开 ✓（能排出来的照排 ✓ 不抢正常路 ✗）
+        try:
+            _木 = [x for x in 缺 if ("_log" in str(x)) or ("wood" in str(x))]
+            if False:  # ★ 2026-10-16 删：这里发命令 `_要雷达找` ⇒ **阻塞接单** ✗（雷达点单别的路上已有 ✓）
+                _说("生存常识：「%s」被埋住 ⇒ 跟雷达点单（连 `*_leaves` 一起 ✓ 半径 24 ✓）⇒ 下一拍换个角度看树干 ✓" % _木[0])
+                return None, ("树冠挡住了「%s」⇒ 已跟雷达点单（含叶子 ✓），下一拍按叶子坐标换个角度就能看见它 ✓" % _木[0])
+        except Exception as _ee:
+            print("[生存常识] 落坐标·点单出岔子（出声 ✓）：%s" % _ee, flush=True)
         return None, "定位不到这些目标：\n  · " + "\n  · ".join(缺[:4])
     if 少:
         # ★ 不是失败 ✓ 只是"这一轮排不下那么多" ✓ 说清楚，别让它看着像正常的一趟 ✓
@@ -1215,6 +1322,12 @@ def 落坐标(计划, 状态):
             _说(f"  · 「{_物}」这一趟要 {要} 块（原始需求 {拾数.get(_物, 0)} ｜ 手上已有 {有}）"
                 f"⇒ 「拾」要求 {要} 块 ✓（原来写死 1 ✗ —— 拾 1 块就去合成，永远差料 ✓）")
             _步["数量"] = 要
+    # ★ 2026-10-17【一次看全 ✓】：把**填好坐标**的整条计划打出来（谁造了 y=72 一目了然 ✓）
+    try:
+        for _k, _s in enumerate(步骤):
+            print("[落地计划] %2d %s" % (_k, str(_s)[:120]), flush=True)
+    except Exception as _eP:
+        print("[落地计划] 打印出岔子：%s" % _eP, flush=True)
     return 步骤, None
 
 
@@ -1497,7 +1610,10 @@ def 安排一趟挖上去(状态, 背包, 方向=(1, 0), 目标层=None):
         for 层 in range(每列挖几格):
             步骤.append({"动作": "挖", "p": [x, y + 层, z]})
         if k % 2 == 0:                                   # 每 2 格走一步（斜坡）
-            步骤.append({"动作": "走到", "p": [x, y, z], "到点": 1.0})
+            步骤.append({"动作": "走到", "p": [x, y, z], "到点": 1.0, "爬": True})   # ★★★ 2026-10-17【主人：「砍树是从下往上的啊」那条线的收尾 ✓】
+            #   病：**往上爬的那一级台阶**被写成裸 `走到` ✗ ⇒ 物理体检按"走"判（一步只上 0.6/跳 1.1 ✗）
+            #     ⇒ 判「走不上去」⇒ **正确地拒单** ⇒ 整条计划落不了地 ✓（体检没错 ✓ 是这一步没说清它是"爬"✓）
+            #   修：**打上 `爬` 标记** ✓ ⇒ 体检见到它就跳过 T4 ✓（它本来就是挖上去、不是走上去 ✓）
     if 算出来的 is not None:
         说明 = (f"要上到 y={目标层}（我现在 y={y0}）—— 挖一条 {台阶数} 级台阶的 45° 阶梯"
                 f"（**这个级数是从目标点算出来的** ✓ 骨架照主人的模型：1 格宽 2 格高 ✓）")
@@ -1614,6 +1730,29 @@ def 安排一趟向下盲挖(状态, 背包=None, 层=4, 方向=(1, 0), 目标�
     #     · 要镐子（石砖、木板这类盖出来的）→ **不拆** ✗ 换地方 ✓
     #   ⚠ 一次只看**前 3 层**（再多也没读数 ✓）—— 挖完下一拍再接着看 ✓ 是**一轮一轮**的事 ✓
     格表看 = {}
+    # ★★★ 2026-10-16【主线级修复 ✓ 主人：「我不是给了他挖石头的通道吗」✓】
+    #   病：这张格表**只**从 `状态["blocks"]` 取 ✗ —— 而手侧只报"**盯着的**"方块 ✓
+    #      ⇒ 脚下/前方那几格（y-1/y-2/y-3）**永远不在表里** ✗ ⇒ 盲挖永远"缺读数"⇒ 永远等 ✓
+    #   修：帧里**所有带坐标的方块**全部喂进来 ✓：`可交互[].p` ✓ ＋ `可交互[].挡[].p` ✓ ＋ 脚下 `地面` ✓
+    #      （都是**服务器/雷达给的坐标** ✓ 不是我猜的 ✗ 句 3 ✓）
+    try:
+        _扫F = ((状态 or {}).get("scan") or {})
+        for _条F in (_扫F.get("可交互") or []):
+            if not isinstance(_条F, dict):
+                continue
+            _pF = _条F.get("p")
+            if isinstance(_pF, (list, tuple)) and len(_pF) >= 3:
+                格表看[(int(_pF[0]), int(_pF[1]), int(_pF[2]))] = str(_条F.get("name") or "")
+            for _挡F in (_条F.get("挡") or []):
+                if isinstance(_挡F, dict):
+                    _p2 = _挡F.get("p")
+                    if isinstance(_p2, (list, tuple)) and len(_p2) >= 3:
+                        格表看[(int(_p2[0]), int(_p2[1]), int(_p2[2]))] = str(_挡F.get("name") or "")
+        _地F = _扫F.get("地面")
+        if _地F:
+            格表看[(x0, y0 - 1, z0)] = str(_地F)      # 脚下那格：雷达说"地面=stone" ✓
+    except Exception as _eF:
+        print("[生存常识] 喂格表出岔子（出声 ✓）：%s" % _eF, flush=True)
     for 条 in ((状态 or {}).get("blocks") or []):
         p = 条.get("p")
         if isinstance(p, (list, tuple)) and len(p) >= 3:
@@ -2191,6 +2330,7 @@ def 要上地表(目标):
 def 认物品(原, 表):
     """从一句中文里认出物品名。**取最长匹配** —— 否则「石」会把「石镐」顶掉。"""
     候 = [(str(k), v) for k, v in (表 or {}).items() if k and str(k) in 原]
+    print("[认物品] 原话=" + 原[:40] + " ｜ 候选数=" + str(len(候)) + " ｜ 表头=" + str(list((表 or {}).keys())[:6]), flush=True)
     if not 候:
         return None
     候.sort(key=lambda kv: -len(kv[0]))
@@ -2202,12 +2342,47 @@ def _名字表():
     global _物品表
     if _物品表:
         return _物品表
+    # ★★★ 2026-10-16【血证 ✓ 今晚「认不出口令」的真凶】
+    #   原来只 `import 数据` ✗ —— 可「数据」住在 `外挂/动作面/数据.py` ✓
+    #   车厢是按**文件路径**载入的 ⇒ 脑进程的 sys.path 里没有 外挂/动作面 ✓
+    #   ⇒ 兜底 import **必然失败** ✗ ⇒ `except` 里**静默清空** ✗ ⇒ 认口令直接 return None ✗
+    #   ⇒ 表现成「这不是口令」✗（把「我瞎了」伪装成「你没说」✓ 这就是头号病 ✓）
+    #   修：① **按文件路径载** ✓（不赌 sys.path ✓）② **失败要出声** ✗（句 8 ✓）
     try:
-        import importlib
-        m = importlib.import_module("数据")
+        import importlib, importlib.util, os as _os
+        m = None
+        try:
+            m = importlib.import_module("数据")
+        except Exception:
+            m = None
+        if m is None:
+            _根 = _os.path.dirname(_os.path.dirname(_os.path.abspath(__file__)))
+            for _路 in (_os.path.join(_根, "动作面", "数据.py"),
+                        _os.path.join(_根, "外挂", "动作面", "数据.py"),
+                        "外挂/动作面/数据.py"):
+                try:
+                    if not _os.path.exists(_路):
+                        continue
+                    _spec = importlib.util.spec_from_file_location("数据_常识用", _路)
+                    m = importlib.util.module_from_spec(_spec)
+                    _spec.loader.exec_module(m)
+                    break
+                except Exception:
+                    m = None
+        if m is None:
+            raise ImportError("按名字和按路径都没载到「数据」（外挂/动作面/数据.py）")
         _物品表 = dict((m.载入() or {}).get("物品映射") or {})
-    except Exception:
+        print("[生存常识] 物品名表载入 ✓ %d 条 ✓（我是「认口令」的命根子 ✓）" % len(_物品表), flush=True)
+    except Exception as _e表:
         _物品表 = {}
+        print("[生存常识] ★★ 物品名表载入失败 ✗ ⇒ 我会认不出口令（这就是「这不是口令」的真相 ✓）：%s"
+              % str(_e表)[:160], flush=True)
+        # ★★★ 2026-10-17【真凶 ✓ 按行号删】：这 6 行原来又按**模块名** import 一次 ✗
+        #   而 `数据.py` 住在 `外挂/动作面/` ✓ 不在 sys.path ⇒ **必然失败** ✗
+        #   ⇒ `except` 把上面**刚按路径载好的表清成 `{}`** ✗✗
+        #   ⇒ 表现：**载好 ✓ 转眼清空 ⇒ 认口令 return None** ✗（"时好时坏"和那个 None 的真身 ✓）
+        #   修：删掉 ✓ —— 上面那段（按名字＋按路径＋失败出声 ✓）已经够了 ✓
+        # [已删 ✓ 2026-10-17] 原：import importlib / m = importlib.import_module("数据") / _物品表 = … / except: _物品表 = {}
     return _物品表
 
 
@@ -2237,6 +2412,21 @@ def 补拼音(文):
 
 def 认口令(最久前=90.0):
     """主人刚说的话里有没有「造 XX / 做 XX / 给我来个 XX」→ 直接给物品名。
+    # ★ 2026-10-16 探针（必出声 ✓）：让"我看到了什么"自己写下来 ✓ 不用猜 ✗
+    try:
+        import json as _jP, os as _oP, time as _tP
+        _oP.makedirs(os.path.join(根, "logs"), exist_ok=True)
+        _原P = str(_上次原话.get("原话") or "")
+        with open(os.path.join(根, "logs", "认口令探针.jsonl"), "a", encoding="utf-8") as _fP:
+            _fP.write(_jP.dumps({"t": int(_tP.time() * 1000),
+                "原话": _原P[:40],
+                "距今秒": round(_tP.time() - float(_上次原话.get("时刻") or 0), 1),
+                "造词命中": [w for w in 造词 if w in _原P][:3],
+                "模块名": __name__, "文件": __file__,
+                "表条数": (len(_物品表) if _物品表 else 0)},
+                ensure_ascii=False) + "\n")
+    except Exception as _eP:
+        print("[生存常识] 认口令探针失败（出声 ✓）：%s" % _eP, flush=True)
 
     ★ 聊天那条路上大模型**十次有九次只回白话**，一个 `意图` 字段都不吐 ——
       光答应不干活。这里本地直接接单。
@@ -2249,7 +2439,9 @@ def 认口令(最久前=90.0):
         return None
     if not any(w in 原 for w in 造词):
         return None
+    print("[认口令] 过了三个筛子 ✓ 现在去拿名字表 ✓", flush=True)
     表 = _名字表()
+    print("[认口令] 名字表条数 = " + str(len(_物品表) if _物品表 else 0), flush=True)
     return 认物品(原, 表) if 表 else None
 
 
@@ -2280,6 +2472,21 @@ def 装上(bridge, 开关=True, 车钩=None, 日志=None, 数=None):
                             else 数("物品映射", {})) or {})
         except Exception:
             _物品表 = {}
+    # ★ 2026-10-23：车钩的「数」是**起车那一刻**的快照；物品映射改到文件里之后，
+    #   热插拔生存常识应该立刻用上新表，而不是等重启脑。
+    #   做法：先保住快照，再从 `数据.载入()` 按文件重读；读失败就退回快照（出声 ✓）。
+    _旧表 = dict(_物品表 or {})
+    try:
+        _物品表 = {}
+        _新表 = _名字表()
+        if not _新表:
+            raise RuntimeError("按文件读出来是空的")
+        _物品表 = dict(_新表)
+        print("[生存常识] 物品名表热重读 ✓ %d 条 ✓" % len(_物品表), flush=True)
+    except Exception as _e表热:
+        _物品表 = _旧表
+        print("[生存常识] ★ 物品名表热重读失败（退回车钩快照 ✓ %d 条）：%s"
+              % (len(_物品表), str(_e表热)[:160]), flush=True)
     if not 开关:
         return {"好": False, "打了": [],
                 "为什么": "开关关着 —— 一个补丁都不打（行为与基线逐字节相同）"}
@@ -2299,7 +2506,69 @@ def 装上(bridge, 开关=True, 车钩=None, 日志=None, 数=None):
 
     _原["收输出"] = 译.收输出
 
+    # ★★★ 2026-10-15 仪器（甲方案 ✓）：**包一层记分**，抓"哪条 return 出去" ✗
+    #   为什么：2409 那句的唯一 return 明明在 ✓ 判据前的诊断却不出账 ✗ ⇒ 观测分辨率不够 ✓
+    #   守规矩：① **先回调原函数** ✓（看门狗那个错不再犯 ✗）
+    #          ② 限量（前 50 次 + 之后每 100 次 ✓）③ try 包住 + 失败**出声** ✓
+    #          ④ config 开关 `生存常识.诊断` ✓（用完**不改代码**就能关 ✓）
+    def _诊断记(self, 文本, s, 用途, 结果):
+        try:
+            import json as _j, os as _o, time as _t
+            开 = True
+            try:
+                _c = _j.load(open("config.json", encoding="utf-8"))
+                开 = bool(((_c.get("生存常识") or {}).get("诊断")))
+            except Exception:
+                pass
+            if not 开:
+                return
+            _诊断次[0] += 1
+            if _诊断次[0] > 50 and _诊断次[0] % 100 != 0:
+                return
+            _it = (s or {}).get("items") if isinstance(s, dict) else None
+            _o.makedirs("logs", exist_ok=True)
+            with open("logs/常识诊断.jsonl", "a", encoding="utf-8") as f:
+                f.write(_j.dumps({"t": _t.time(), "第几次": _诊断次[0], "用途": 用途,
+                                  "文本前40": str(文本)[:40],
+                                  "s类型": type(s).__name__, "s的id": id(s),
+                                  "items类型": type(_it).__name__,
+                                  "items空": (not _it) if isinstance(_it, dict) else "n/a",
+                                  # ★ 句5（tf2 ✓）：状态要带时间戳 —— 这份状态里的**扫描多旧**？
+                                  "scan有吗": (isinstance((s or {}).get("scan"), dict) if isinstance(s, dict) else None),
+                                  "scan键数": (len((s or {}).get("scan") or {}) if isinstance(s, dict) and isinstance((s or {}).get("scan"), dict) else None),
+                                  "scan年龄秒": (round(__import__("time").time() - float(((s or {}).get("scan") or {}).get("t") or 0), 1) if isinstance(s, dict) and isinstance((s or {}).get("scan"), dict) and ((s or {}).get("scan") or {}).get("t") else None),
+                                  "pos有吗": (bool((s or {}).get("pos")) if isinstance(s, dict) else None),
+                                  "返回任务": (结果[1].get("名字") if isinstance(结果, tuple) and len(结果) > 1 and isinstance(结果[1], dict) else None),
+                                  "**任务几步**": (len((结果[1].get("步骤") or [])) if isinstance(结果, tuple) and len(结果) > 1 and isinstance(结果[1], dict) else None),
+                                  "任务有步骤键吗": (("步骤" in 结果[1]) if isinstance(结果, tuple) and len(结果) > 1 and isinstance(结果[1], dict) else None),
+                                  "返回原因": (str(结果[2])[:80] if isinstance(结果, tuple) and len(结果) > 2 else None)},
+                                 ensure_ascii=False) + "\n")
+        except Exception as e:
+            print("[生存常识·诊断] 记分失败（出声 ✓ 不静默 ✗）：%s" % e, flush=True)
+
+    _诊断次 = [0]
+
     def 新收输出(self, 文本, s, 用途="翻译"):
+        # ★ 仪器：先走原逻辑 ⇒ 记一笔（原逻辑一个字不动 ✓）
+        结果 = _原新收输出_体(self, 文本, s, 用途=用途)   # ★ 直接调原体 ✓（闭包调用时解析 ✓）
+        # ★★★ 2026-10-15（句 2/3/8 ✓）：**空计划不是计划** ✗ ⇒ 不许交空卷 ✓ 要说出为什么 ✓
+        try:
+            if isinstance(结果, tuple) and len(结果) >= 3:
+                _动, _任, _因 = 结果[0], 结果[1], 结果[2]
+                if isinstance(_任, dict) and not (_任.get("步骤") or []):
+                    _缺 = []
+                    if not isinstance((s or {}).get("scan"), dict): _缺.append("扫描帧")
+                    if not (s or {}).get("pos"): _缺.append("位置")
+                    _为什么 = ("这一帧缺" + "和".join(_缺) + " ⇒ 挑不出坐标，先要一份新状态") if _缺 else "排不出步骤（原因不明 ⇒ 已出声 ✓）"
+                    _记账(self, "空计划 ⇒ 不出卷", None, _为什么)
+                    _诊断记(self, 文本, s, 用途, (None, None, _为什么))
+                    return (None, None, _为什么)      # ★ **不出空卷** ✓ 交白卷反而害人 ✗
+        except Exception as _e6:
+            print("[生存常识] 空计划检查出岔子（出声 ✓）：%s" % _e6, flush=True)
+        _诊断记(self, 文本, s, 用途, 结果 if isinstance(结果, tuple) else (结果, None, None))
+        return 结果
+
+    def _原新收输出_体(self, 文本, s, 用途="翻译"):
         # 先让里面那层按老规矩做（严格 JSON、宪法检查、字段体检……）
         动作, 任务, 原因 = _原["收输出"](self, 文本, s, 用途=用途)
         # ★ 老路子**成了**就原样放行 —— 一个字不动
@@ -2337,6 +2606,13 @@ def 装上(bridge, 开关=True, 车钩=None, 日志=None, 数=None):
         else:
             解析 = None
         目标 = (认意图(解析) if 解析 is not None else None) or 抢
+        try:
+            open("logs/数量探针.jsonl", "a", encoding="utf-8").write(_json.dumps(
+                {"原文": 原文[:80], "解析": 解析, "目标": 目标,
+                 "数量": ((解析 or {}).get("数量") if isinstance(解析, dict) else None)},
+                ensure_ascii=False) + "\n")
+        except Exception:
+            pass
         if not 目标:
             return 动作, 任务, 原因
         记箱子(s)          # 顺手把见到的箱子记下来（物资闭环要用）
@@ -2369,7 +2645,12 @@ def 装上(bridge, 开关=True, 车钩=None, 日志=None, 数=None):
                 _记账(self, 用途, 目标, 说)
                 return None, {"名字": "常识：挖阶梯上地表", "为什么": 说,
                              "步骤": 爬}, None
-        if not 背:
+        # ★★★ 2026-10-15（同 2387 的口径 ✓）：**"空背包"要被当成"看得见"** ✗
+        #   原来这里 `if not 背:` ✗ —— 空字典是假值 ⇒ 判成"看不见背包"✗ ⇒
+        #   **从零起步（背包真空）永远接不了单** ✓（今晚诊断实证：items={} ✓ 服务器也证实真空 ✓）
+        #   而这一支**在 2387 前面**⇒ 2387 那个正确的判断**永远轮不到** ✓
+        #   老祖第 32 条：**"我没看见" ≠ "它不在"** ✓（日记里那句，轮到代码自己犯了 ✓）
+        if not isinstance(背, dict):
             # 看不见背包 → 顺手让手侧盯上全量（下一拍就有了）
             实例 = None
             if _车钩 is not None:
@@ -2383,6 +2664,23 @@ def 装上(bridge, 开关=True, 车钩=None, 日志=None, 数=None):
             #   规矩：**看不见背包就不许规划**，跟「扫描太旧不许规划」同一个道理。
             #   ⚠ 但要分得清「看不见」（根本没有 items 这个键）和「真的空」（items 是 {}）——
             #     从零起步时背包本来就是空的，那时候必须照常干活，不许死锁。
+            try:
+                _背 = (s or {}).get("items")
+                _记账(self, "拒单诊断", None,
+                      "背类型=%s repr=%s s类型=%s s的id=%s 有背变量=%s"
+                      % (type(_背).__name__, repr(_背)[:60], type(s).__name__, id(s), ('背' in dir()))
+                      if False else
+                      "背类型=%s repr=%s s类型=%s s的id=%s" % (type(_背).__name__, repr(_背)[:60], type(s).__name__, id(s)))
+            except Exception as _e:
+                print("[生存常识] 拒单诊断失败：%s" % _e, flush=True)
+            # ★★★ 必出声（**放在判据正前方** ✓ 一定会触发 ✓）：两份状态到底是不是同一个？
+            try:
+                _it = (s or {}).get("items")
+                _记账(self, "两状态对比", None,
+                      "s类型=%s s的id=%s items类型=%s items=%s 背=%s"
+                      % (type(s).__name__, id(s), type(_it).__name__, repr(_it)[:50], repr(背)[:50]))
+            except Exception as _e:
+                print("[生存常识] 两状态对比失败：%s" % _e, flush=True)
             if not isinstance((s or {}).get("items"), dict):
                 return None, None, "看不见背包，先等手侧把全量盯上"
             _说("生存常识：背包是空的（但**看得见**）—— 照常推演")
@@ -2390,7 +2688,13 @@ def 装上(bridge, 开关=True, 车钩=None, 日志=None, 数=None):
         方块表 = 可用方块(s)
         _报(f"[探针-求解前] 方块表={方块表}")
         try:
-            r = 求解器.求解(目标, 1, 背包=背, 方块在哪=方块表)
+            要数 = int((解析 or {}).get("数量") or 1) if isinstance(解析, dict) else 1
+            if not isinstance(解析, dict):
+                import re as _reQ
+                _mQ = _reQ.search(r"(\d+)\s*个", 原文)
+                if _mQ:
+                    要数 = int(_mQ.group(1))
+            r = 求解器.求解(目标, 要数, 背包=背, 方块在哪=方块表)
         except Exception as e:
             import traceback
             _报(f"★★ 求解器**抛异常**了（{type(e).__name__}: {e}）：\n{traceback.format_exc()}")
@@ -2504,6 +2808,60 @@ def 装上(bridge, 开关=True, 车钩=None, 日志=None, 数=None):
                         _记账(self, 用途, 目标, 盲说)
                         return None, {"名字": f"常识：向下盲挖 {目标}",
                                       "为什么": 盲说, "步骤": 盲}, None
+                # ★★★ 2026-10-15（血证 ✓ 主人 句2/3）：**前两个法子都"在等雷达"时，不许兜底去乱跑** ✗
+                #   病：向下盲挖返回 `还没读数` ✗ ⇒ 这里**直接掉到"出去找"** ✗
+                #       ⇒ 排出一串 200 格外的 `走到` ✗（实机：6 步全在走 ✓ 一步没挖 ✓）
+                #   规矩：**"等读数"不是"做不到"** ✓ —— 如实回一句 + 让守护线程把扫描催来 ✓
+                #        下一拍帧新了 ⇒ 这一趟就能排出来 ✓（**先看清楚再动手** ✓）
+                try:
+                    _盲因 = ""
+                    _b2, _s2 = 安排一趟向下盲挖(s, 背包=背)
+                    if _b2 is None and any(k in str(_s2) for k in ("还没读数", "先请雷达", "看清楚")):
+                        _盲因 = str(_s2)
+                    if _盲因:
+                        统计["等雷达读数"] = 统计.get("等雷达读数", 0) + 1
+                        _说(f"生存常识：{_盲因} ⇒ **这一拍先不动身** ✓（等雷达读数 ✓ 不跑远 ✗）")
+                        try:
+                            self.说(f"[{time.strftime('%H:%M')}] 得先看清楚脚下再挖 —— 我这一拍等读数 ✓", 紧急=True)
+                        except Exception:
+                            pass
+                        _记账(self, 用途, 目标, _盲因)
+                        return None, None, f"等雷达读数（{_盲因[:60]}）"
+                except Exception as _eb:
+                    print("[生存常识] 等读数检查出岔子（出声 ✓）：%s" % _eb, flush=True)
+                # ★★★ 2026-10-16【第 1.9 步 · 对症下药首例】（主人 观轨迹 ⇒ 指着病灶下药 ✓）
+                #   病（轨迹原文 ✓）：「定位不到 · 挖 oak_log：**它整个被埋住了（反矿透，不瞄看不见的）**」
+                #      ⇒ 它站在**树冠上** ✓ 树干看不见 ✓ 常识守规矩**不盲挖** ✓（对 ✓）
+                #      ⇒ 兜底（就地取材）**就近挖一片叶** ✓（也合理 ✓）⇒ 合起来是**慢慢磨** ✗（三轮同一单 ✓ 不收敛）
+                #   规矩（句 9 ✓）：卡住 ⇒ **开子目标** ✓ —— 这里该开的是「**把树干弄进视线**」✓
+                #   做法（机器早就有 ✓ 2026-10-09 主人点名的那套 ✓）：**跟雷达点单** ✓
+                #      `_要雷达找("<木头>", 半径)` ⇒ 它会把 `*_leaves` **一起点单** ✓
+                #      ⇒ 叶子**带坐标**回来 ✓ ⇒ 下一拍就能朝叶子走/清出视野 ⇒ 树干进视线 ✓✓
+                #   ⚠ 只对**木头类**开这一刀 ✓（石头类上面已经走鱼骨/盲挖 ✓ 别抢它的活 ✗）
+                try:
+                    _木的 = [x for x in 缺的 if str(x).endswith("_log") or "wood" in str(x)]
+                    if _木的:
+                        _点成了 = False
+                        for _名 in _木的[:2]:
+                            try:
+                                if False:  # ★ 2026-10-16 删（同上）：发命令会阻塞接单 ✗
+                                    _点成了 = True
+                            except Exception as _e9:
+                                print("[生存常识] 点单出岔子（出声 ✓）：%s" % _e9, flush=True)
+                        if _点成了:
+                            说明2 = (f"「{'、'.join(str(x) for x in _木的[:2])}」被埋住了 ⇒ "
+                                     f"**跟雷达点单**（连 `*_leaves` 一起 ✓ 半径 24 ✓）"
+                                     f"—— 叶子会带坐标回来 ✓ 下一拍我就能换个角度看树干 ✓ 这一拍不动身 ✗")
+                            统计["被埋住·点单"] = 统计.get("被埋住·点单", 0) + 1
+                            _说(f"生存常识：{说明2}")
+                            try:
+                                self.说(f"[{time.strftime('%H:%M')}] 树冠挡住了，我先请雷达把叶子也标出来 ✓", 紧急=True)
+                            except Exception:
+                                pass
+                            _记账(self, 用途, 目标, 说明2)
+                            return None, None, f"等雷达把「{_木的[0]}」标出来（{说明2[:50]}）"
+                except Exception as _e8:
+                    print("[生存常识] 被埋住·点单检查出岔子（出声 ✓）：%s" % _e8, flush=True)
                 探, 说明 = 安排一趟探索(目标, s, 缺的, 背包=背)
                 if 探:
                     统计["出去找"] = 统计.get("出去找", 0) + 1

@@ -112,6 +112,27 @@ def 装上(bridge, 日志=None, **kw):
     def _看完成了没(self, 步, s, 任=None):
         try:
             动 = (步 or {}).get("动作")
+            # ★★★ 2026-10-15【甲·collect 也要查】（实机 ✓）：收集车厢把「挖+拾」折成 collect ✗
+            #   而主链那条"没有镐子挖不了"的硬规则只认 `挖` ✗ ⇒ **collect 整个绕过了它** ✓
+            #   ⇒ 于是徒手挖石头 ⇒ 不掉落 ⇒ 判定永远不过 ⇒ 每秒重发 ✗（烧了一晚 ✓）
+            if 动 == "collect":
+                _物 = str((步 or {}).get("物品") or "")
+                try:
+                    _要 = 要镐子吗(_物)
+                except Exception:
+                    _要 = None
+                if _要 is True:
+                    _有 = False
+                    try:
+                        _有 = bool(self._有工具(s, "pickaxe"))
+                    except Exception:
+                        _有 = False
+                    if not _有:
+                        try:
+                            _说(f"[工具查表] collect「{_物}」要镐子，我手里没有 ⇒ **判死** ✗（交回计划 ✓）")
+                        except Exception:
+                            pass
+                        return False, f"没有镐子，挖不了「{_物}」（collect ✓）"
             if 动 == "挖":
                 p = (步 or {}).get("p") or [0, 0, 0]
                 名 = self._方块名(s, p)
@@ -144,6 +165,24 @@ def 装上(bridge, 日志=None, **kw):
                 if str(名) in 空气名:
                     return True, None
                 要 = 要镐子吗(名)
+                # ★★★ 2026-10-15【甲·收紧那一半】（老祖 STRIPS/PDT 的前置条件 ✓）：
+                #   表**明确说要镐子** ✗ 而我手里**没有** ⇒ **这一步根本干不成** ✗
+                #   病（实机 ✓）：徒手挖石头 ⇒ 方块碎但**什么都不掉** ⇒ 手侧还回 ok:true
+                #     ⇒ 判定永远不过 ⇒ **每秒重发 collect，烧一整晚** ✗（`挖掘矩阵.py` 开头就写着这个坑 ✓）
+                #   规矩（句 2/9 ✓）：**不许硬做"前置不成立"的动作** ✗ ⇒ 当场判死 ✓
+                #     ⇒ 主链自带的"每步重试上限 2 + 大声报"会接管 ✓ ⇒ 计划才有机会改排子目标 ✓
+                if 要 is True:
+                    有镐 = False
+                    try:
+                        有镐 = bool(self._有工具(s, "pickaxe"))
+                    except Exception:
+                        有镐 = False          # ★ 查不出来 ⇒ 当"没有"✓（fail-closed ✓ 不许 fail-open ✗）
+                    if not 有镐:
+                        try:
+                            _说(f"[工具查表] 「{名}」要镐子，我手里没有 ⇒ **这一步判死** ✗（交回计划改排 ✓）")
+                        except Exception:
+                            pass
+                        return False, f"没有镐子，挖不了「{名}」（表说要镐子 ✓）"
                 # ★ 只有"表**明确说不要镐子**"时才接管 ✓（None = 不知道 → 不碰 ✓）
                 if 要 is False:
                     有镐 = False

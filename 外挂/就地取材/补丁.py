@@ -179,7 +179,7 @@ def 挑块(状态, 想要=None, 我=None):
     try:
         扫 = (状态 or {}).get("scan") or {}
         组 = []
-        for k in ("可交互", "石头"):
+        for k in ("可交互", "石头", "找"):
             v = 扫.get(k)
             组.extend(v if isinstance(v, list) else ([v] if isinstance(v, dict) else []))
         for 条 in 组:
@@ -205,7 +205,7 @@ def 挑块(状态, 想要=None, 我=None):
     有坐标 = set()
     try:
         扫2 = (状态 or {}).get("scan") or {}
-        for k in ("可交互", "石头"):
+        for k in ("可交互", "石头", "找"):
             v = 扫2.get(k)
             for 条 in (v if isinstance(v, list) else ([v] if isinstance(v, dict) else [])):
                 if isinstance(条, dict) and isinstance(条.get("p"), (list, tuple)):
@@ -248,7 +248,12 @@ def 挑块(状态, 想要=None, 我=None):
         return None
     # 排序：先看层级（越近的级越好），再看危险度（危险降权），最后看距离
     级次 = {"手边": 0, "本区块": 1, "隔壁区块": 2}
-    候.sort(key=lambda x: (级次.get(x["层级"], 9), x.get("危险", 0), x["到"]))
+    候.sort(key=lambda x: (级次.get(x["层级"], 9), int(list(x["p"])[1]), x.get("危险", 0), x["到"]))   # ★★★ 2026-10-17【主人：「**砍树是从下往上的啊**」✓ 根治】
+    #   病：原来只比 层级→危险→距离 ✗ —— **完全不看高度** ⇒ 抽到树冠上那根（y=72 ✗）
+    #     ⇒ 计划里排出「走到树冠上」⇒ 物理体检**正确地**拒单 ⇒ 任务一辈子落不了地 ✓✓
+    #     （今晚为这一格查了三小时：两份计划 ✗ 两份耳朵 ✗ 两次填坐标 ✗ 全指向这一行 ✓）
+    #   修：**层级之后立刻比 y** ✓ ⇒ 永远先挑**最低**的那根 ✓（同样高再比危险/距离 ✓）
+    #     —— 这就是主人那句「从下往上」的算法化 ✓
     出 = dict(候[0])
     出["为什么"] = (f"{出['层级']}：{出['名']}@{list(出['p'])}，{出['到']:.1f} 格"
                   + ("（危险区，已降权）" if 出.get("危险") else ""))
@@ -325,7 +330,7 @@ def 扫到过(状态):
     有 = set()
     try:
         扫 = (状态 or {}).get("scan") or {}
-        for k in ("可交互", "石头"):
+        for k in ("可交互", "石头", "找"):
             v = 扫.get(k)
             for 条 in (v if isinstance(v, list) else ([v] if isinstance(v, dict) else [])):
                 if isinstance(条, dict) and 条.get("name") and isinstance(条.get("p"), (list, tuple)):

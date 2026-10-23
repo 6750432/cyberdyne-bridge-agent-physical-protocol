@@ -23,7 +23,7 @@ the hand side runs through mineflayer-collectblock (MIT).
 ============================
   ① 只在**同一方块连着 ≥2 组**时才收 ✓（挖一下就走的，收了反而多绕路 ✗）
   ② 收起来的必须**是连着的** ✓ 中间夹了别的动作就断开 ✗
-  ③ 数量按**组数**算 ✓ 不许拍 ✗
+  ③ 数量按**拾步带下来的总需求**算 ✓（不是组数 ✗ —— 2026-10-17 语义对齐）
   ④ 「拾」的东西必须**正好是那一挖的掉落物** ✓
      （查 `常识库/物理引擎规则.json` 的「挖了掉什么」✓ 一处实现 ✓ 不是猜 ✗）
   ⑤ 拿不准就**原样不动** ✓（宁可少收一条，不许收错一条 ✗）
@@ -97,6 +97,7 @@ def 收(步骤):
             continue
         # ── 往后面数：能有几组「挖 X → 拾 Y」──
         组 = 0
+        要 = 0          # ★ 2026-10-17：**总需求**（拾步带下来的 ✓ 不是组数 ✗）
         j = i
         while j + 1 < len(步表):
             甲, 乙 = 步表[j], 步表[j + 1]
@@ -108,16 +109,47 @@ def 收(步骤):
                 break
             # ★ 两个「挖」必须挖的是**同一处**才叫"重复挖"✗ —— 换了地方就是两件事 ✓
             #   （原来我只看名字 ✓ 会把两棵不同的树的活儿并成一条 ✗ 那是收错了 ✓）
-            if 组 > 0 and not _坐标(甲.get("p"), 步.get("p")):
+            if 组 > 0 and 步.get("p") and not _坐标(甲.get("p"), 步.get("p")):
+            # ★ 2026-10-14 真机血证：计划里的「拾」步**压根不带坐标 p** ✗（任务快照实证：4/4 都没有 ✓）
+            #   ⇒ 老条件要求坐标相同 ⇒ **永远折不成 collect** ✗ ⇒ 没人去捡 ⇒ 背包永远 0 ✓
+            #   放宽：拾步**没有 p** 时不再要求坐标相同 ✓（手侧 collect 自带找/走/挖/捡 ✓ 不需要坐标 ✓）
                 break
             组 += 1
+            # ★ 2026-10-17：**数量 = 拾步带下来的总需求** ✓（不是组数 ✗）
+            #   实机 17:24：落坐标给 `拾 birch_log` 写 3（总需求 3），
+            #   这里原来写 `数量=组`（2 对）⇒ 计划变成 collect ×2 ⇒ 以为 2 根就够 ✓
+            #   修：取这一组里**最大的拾数量** ✓（同一个总需求会重复写在各拾步上 ✓）
+            try:
+                要 = max(要, int(float(乙.get("数量") or 0)))
+            except Exception as _e:
+                _说(f"[收集] 拾数量读不出来（{type(_e).__name__}: {_e}）⇒ 退回组数 {组} ✓")
             j += 2
-        # ★ 规矩 ①：一组不值得收 ✗（收了反而多绕路 ✓）
-        if False:      # 反向验证
+        # ★ 2026-10-17【三件事一起收口 ✓】
+        #   ① 一组**且拾数量=1** 才不值得收 ✗ —— 如果这一组带的是**总需求 3**
+        #      （落坐标写的），收成 collect 3 才对 ✓（手侧 collect 会自己找 3 块 ✓）
+        #      实机新计划：3 个单对、每个拾3；旧 `组<2` 把它们留成 挖/拾
+        #      ⇒ 每步拾3 永远等不到 3 块 ⇒ 任务卡在第 2 步 ✓
+        #   ② 组 == 0 的死循环根治 ✓（`i = j` 不前进 ⇒ 占死 GIL ✓）
+        #      `i += 1` 保证线性前进 ✓
+        if 组 < 2 and 要 <= 1:
             出.append(步)
+            # ★ 2026-10-17（STRIPS 效果闭合）：**挖了没拾** ⇒ 自动补一步拾 ✓
+            #   实机 27 步计划里就有裸「挖 oak_log」后面直接「合成」✗
+            #   挖出来了可背包没多 ⇒ 合成报缺料 ⇒ 补料只插探路 ⇒ 空转 ✓
+            #   只在**后面不是拾/collect 同掉落物**时补 ✓（别的步骤一个字不动 ✗）
+            if 组 == 0 and 掉:
+                后面 = 步表[i + 1] if i + 1 < len(步表) else None
+                已接 = (isinstance(后面, dict) and 后面.get("动作") in ("拾", "collect")
+                        and str(后面.get("物品") or "") == str(掉))
+                if not 已接:
+                    出.append({"动作": "拾", "物品": str(掉), "数量": 1})
+                    说明.append(f"「挖 {块名}」后面没拾 ⇒ 补一步「拾 {掉}」✓（效果闭合 ✓）")
+                    _统计["补拾"] = _统计.get("补拾", 0) + 1
             i += 1
             continue
-        出.append({"动作": "collect", "物品": str(掉), "数量": 组,
+        if 要 <= 0:
+            要 = 组          # 拾步没带数量 ⇒ 退回老规矩（兼容 ✓）
+        出.append({"动作": "collect", "物品": str(掉), "数量": 要, "方块": 块名,
                   "_收自": f"挖「{块名}」×{组}（原来要 {组 * 2} 步）"})
         说明.append(f"把「挖 {块名} → 拾 {掉}」×{组} 收成一条 collect ✓"
                    f"（{组 * 2} 步 → 1 步 ✓ 手侧一个动作干到底 ✓）")
@@ -145,6 +177,11 @@ def 装上(bridge, 日志=None, 数=None, **kw):
     栈类.允许动作 = frozenset(旧动作 | {"collect"})
 
     def 接(self, 名字, 步骤, s):
+        # ★ 入口探针（2026-10-15 定案用 ✓ 只记一笔 ✓ 不改逻辑 ✗）
+        try:
+            open("logs/包装探针.jsonl", "a", encoding="utf-8").write(
+                '{"t": ' + str(time.time()) + ', "车厢": "收集", "进": true}\n')
+        except Exception: pass
         try:
             _统计["看过"] += 1
             新步骤, 说明 = 收(步骤)
@@ -166,9 +203,24 @@ def 装上(bridge, 日志=None, 数=None, **kw):
         def _下发(self, 步, 任, 现在, s):
             if (步 or {}).get("动作") == "collect":
                 # ← 这一步就是**接线**：脑的 collect → 手的 `{cmd:"collect"}` ✓
+                # ★★★ 2026-10-17【实机铁证 ✓ 这一刀的第二处】
+                #   病：这里**每拍都发**（~800ms 一条）✗；而手侧 collectblock 的 collect()
+                #     默认 append:false ⇒ 每条新命令先 cancelTask() ⇒ 上一单被停
+                #     ⇒ 实机：8 发 7 发 GoalChanged / Digging aborted ✓ 只有最后一发成 ✓
+                #   修：跟「挖/放」同一条闸（动手重下毫秒 ✓ 默认 5 秒）✓
+                #     重下 = 打断 ✗ 老祖句 4：同一输入同一结果 ✓
+                #     卡住才提前重下 ✓（跟主链 _下发 的写法一模一样 ✓）
+                重下 = self._数("动手重下毫秒", 5000) / 1000.0
+                卡住 = isinstance(s.get("stuck_ms"), (int, float)) and s["stuck_ms"] < 1500
+                if 现在 - self.上次下发 < 重下 and not 卡住:
+                    return False
+                # ★ 2026-10-17 P0-2：`方块`（前置）和 `物品`（掉落物/判据）一起带 ✓
                 self.发({"cmd": "collect",
                         "物品": str(步.get("物品") or ""),
+                        "方块": str(步.get("方块") or 步.get("物品") or ""),
                         "数量": int(步.get("数量") or 1)})
+                self.上次下发 = 现在
+                任["下发过"] = True
                 return True
             return 原下发(self, 步, 任, 现在, s)
 
@@ -178,17 +230,11 @@ def 装上(bridge, 日志=None, 数=None, **kw):
         _原2[("看完成", id(栈类))] = 原看完成
 
         def _看完成了没(self, 步, s, 任=None):
-            if (步 or {}).get("动作") == "collect":
-                # 判据跟「拾」一模一样 ✓：背包里够了就算成 ✓
-                try:
-                    计 = (s or {}).get("items")
-                    if not isinstance(计, dict):
-                        return False, None
-                    有 = 计.get(str(步.get("物品") or ""))
-                    有 = float(有) if isinstance(有, (int, float)) else 0.0
-                    return 有 >= float(步.get("数量") or 1), None
-                except Exception:
-                    return False, None
+            # ★★★ 2026-10-17【拆掉第二个真相源 ✓ 老祖句 6/7】
+            #   主链判定表已经收了 collect（bridge.py:1707 ✓ 而且带「挖前数量」真增长判据 ✓）
+            #   这一层原来自己又判一遍「有 >= 数量」✗ ⇒ ① 背包本来有货就秒判成 ✗
+            #     ② except 里引用不存在的 `名字/步骤` ⇒ NameError 被吞 ✗（静默 ✓）
+            #   规矩：包装 ≠ 替换 ✓ 一律回调原函数 ✓
             return 原看完成(self, 步, s, 任)
 
         栈类._看完成了没 = _看完成了没
@@ -237,3 +283,22 @@ def 同步实例(bridge, 日志=None, 车钩=None):
     except Exception:
         pass
     return {"好": True, "为什么": "无状态，随便拔", "打了": []}
+
+# ══════ ★ 拒单探针（2026-10-14 ✓ 只记录，不改行为 ✗）══════
+#   现象：声呐耳朵喊「栈.接 返回 False」✗ 而主链三条理由全被排除 ✓ ⇒ 凶手在这几个包装里 ✓
+#   本探针只做一件事：**谁返回了 False、当时那单长什么样**，写进 logs/拒单探针.jsonl ✓
+def _拒单探针记(名字, 步骤, 结果):
+    try:
+        import json as _j, os as _o, time as _t
+        根 = _o.path.dirname(_o.path.dirname(_o.path.dirname(_o.path.abspath(__file__))))
+        if 结果:
+            return
+        路 = _o.path.join(根, "logs", "拒单探针.jsonl")
+        _o.makedirs(_o.path.dirname(路), exist_ok=True)
+        with open(路, "a", encoding="utf-8") as f:
+            f.write(_j.dumps({"t": _t.time(), "车厢": '收集', "任务": str(名字)[:40],
+                              "步数": len(步骤 or []),
+                              "动作": sorted({str((x or {}).get("动作")) for x in (步骤 or [])})[:12],
+                              "结果": 结果}, ensure_ascii=False) + "\n")
+    except Exception:
+        pass

@@ -51,10 +51,11 @@ module.exports = {
 
     const 移动 = new Movements(bot);
     // M2 只要求"走过去"，不要求"改造世界"：
+      // ★★ 2026-10-14 主人当场改规矩：**能挖就暴力开路 ✓ 一格坎直接跳 ✓**（见下）
     // 不许挖、不许搭柱、不许跑酷，最多允许从 4 格高的地方跳下去。
-    移动.canDig = false;
-    移动.allow1by1towers = false;
-    移动.allowParkour = false;
+    移动.canDig = true;             // ★ 2026-10-14 主人原话：「只要挡我路挖了它，只要我能挖我就直接暴力开路」✓
+    移动.allow1by1towers = false;   // 暂不开：主人说的是"挖"✓ 搭柱是"造"✗ 一次只改一处 ✓
+    移动.allowParkour = true;       // ★ 一格坎直接跳 ✓（人就这么走 ✓）
     移动.allowSprinting = true;
     移动.maxDropDown = 4;
     bot.pathfinder.setMovements(移动);

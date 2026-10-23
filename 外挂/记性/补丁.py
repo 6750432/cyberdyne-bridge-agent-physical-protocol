@@ -46,8 +46,10 @@ ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)
 
 _原 = {}
 _最近状态 = [None]
+_上次好状态 = [{}]      # ★ 2026-10-14：最近一帧**非空**的状态（空状态退单那件事的解药 ✓）
 _待接手 = [None]        # (品, 计划) —— 空状态不交 ✗ 等一帧真状态到手再交 ✓      # ★ 最近一帧真状态 ✓ 接手任务**必须**用它 ✗（空状态接不住 ✓）
 _原下发 = {}
+_原回执 = {}            # 叙事者类 -> 原看回执（P0-3：手确认放下才记账 ✓）
 # ★ 甲/乙 用的小本子（2026-10-09）：拾/goto 的节流 + 上次发过的坐标 ✓
 _拾过 = {}
 # ★★★ 2026-10-09：**任务栈自己发的那一镐 craft 要放行** ✓
@@ -345,6 +347,21 @@ def _那格是什么(状态, 位):
         except Exception:
             continue
     return None
+
+
+def _账上工作台能用(状态, 位):
+    """账上那个工作台**现在还在不在**（只认读数 ✓ 没读数不算 ✓ 2026-10-17 P0-3）
+
+    返回 (能用?, 原因)。原因 == "没读数" 时**不要忘账**（下一拍可能就有读数 ✓）。
+    """
+    if not (isinstance(位, (list, tuple)) and len(位) >= 3):
+        return False, "坐标形状不对"
+    名 = _那格是什么(状态, 位)
+    if 名 is None:
+        return False, "没读数"
+    if 名 != "crafting_table":
+        return False, f"那一格现在是「{名}」"
+    return True, ""
 
 
 def _找生存常识():
@@ -665,6 +682,13 @@ def 改计划(步骤, 名字="", 状态=None):
             continue
         if 步.get("动作") == "合成" and str(步.get("物品") or "") == "crafting_table":
             位 = 想起("crafting_table")
+            # ★ 2026-10-17 P0-3：账上有不算 ✓ 这一帧读到那格真是工作台才算 ✓
+            能用, 因 = (False, "账上没记")
+            if 位 is not None:
+                能用, 因 = _账上工作台能用(状态, 位)
+                if not 能用 and 因 != "没读数":
+                    忘记("crafting_table")
+                    说明.append(f"账上那个工作台 {位} 不能用（{因}）⇒ 错账已忘 ✓ 该做还是得做 ✓")
             我 = (状态 or {}).get("pos") if isinstance(状态, dict) else None
             落差 = None
             if 位 is not None and 我 and len(我) >= 3:
@@ -692,13 +716,21 @@ def 改计划(步骤, 名字="", 状态=None):
                     (f"账上那个工作台在 {位}，可我离家太远了 ✗（超过 200 格 ✓）"
                      f"⇒ **记忆有体力上限** ✓ **就地重做一个** ✓（4 块木板的事 ✓）"))
                 _用了几次["太深没去"] = _用了几次.get("太深没去", 0) + 1
-            if 位 is not None and not 太深:
+            if 位 is not None and 能用 and not 太深:
                 # 后面紧跟的「放 crafting_table」也一起跳掉 ✓（不用重做 ✗）
                 跳 = 1
                 if i + 1 < len(步表) and isinstance(步表[i + 1], dict) \
                         and 步表[i + 1].get("动作") == "放" \
                         and str(步表[i + 1].get("方块") or "") == "crafting_table":
                     跳 = 2
+                # ★ 2026-10-17 P0-3：**孤儿木板批** —— 只给工作台合的那 4 块板要一起删 ✓
+                #   实机：删了「合成/放工作台」却留下「合成木板×4」⇒ 第 12 步永远合不出 ✓
+                孤儿 = False
+                if 出 and isinstance(出[-1], dict) and 出[-1].get("动作") == "合成" \
+                        and str(出[-1].get("物品") or "").endswith("_planks"):
+                    出.pop()
+                    孤儿 = True
+                    说明.append("顺手把只给工作台用的那批木板合成也删了 ✓（不然它合不出来 ✗）")
                 出.append({"动作": "走到", "p": list(位), "到点": 3.0})
                 说明.append(f"账上记得工作台在 {位} ✓ —— 这一步不重做了，走过去用它 ✓")
                 _用了几次["用"] += 1
@@ -725,8 +757,15 @@ def 改计划(步骤, 名字="", 状态=None):
                     i += 1
                     continue
                 else:
-                    说明.append(f"要去 {list(步['p'])}：{为啥}")
-                    _用了几次["铺路向下"] = _用了几次.get("铺路向下", 0) + 1
+                    # ★★★ 2026-10-15 **血证（今晚一整晚的谜底 ✓）**：
+                    #   原来这里**只记一句说明就 continue** ✗ ⇒ **这一步被静默丢掉** ✗✗
+                    #   ⇒ 6 个「走到」全被丢 ⇒ 新计划**空** ⇒ 主链 `bridge.py:1505 if not 步骤: return False`
+                    #   ⇒ 耳朵回「栈.接 返回 False」✗ 而**两处都不写账** ✓ ⇒ 我们读了一晚旧行 ✓
+                    #   规矩（句 2/8）：**铺不了路 ≠ 这步不做** ✗ —— 照原样留着 ✓
+                    #   让**物理体检/复核**去按规矩拦（它们拦得对 ✓ 而且它们**会出声** ✓）
+                    说明.append(f"要去 {list(步['p'])}：{为啥} ⇒ **这一步照原样留着** ✓（不许静默摘掉 ✗）")
+                    _用了几次["铺路未成·留原步"] = _用了几次.get("铺路未成·留原步", 0) + 1
+                    出.append(步)          # ★ **留步** ✓
                     i += 1
                     continue
         出.append(步)
@@ -735,7 +774,13 @@ def 改计划(步骤, 名字="", 状态=None):
 
 
 def 记计划(步骤):
-    """① 记：计划里凡有「放 X @p」→ 记下来 ✓（位置是它自己写的 ✓）"""
+    """① 计划里凡有「放 X @p」→ **只列出来**（等手确认 ✓ 不再当事实记账 ✗）
+
+    ★ 2026-10-17 P0-3：计划坐标 ≠ 世界事实。原来这里直接 `记(名, p)`
+      ⇒ 账上记的是"打算放哪儿" ⇒ 手一扫根本没有 ⇒ **幽灵工作台** ✓
+      实机：17:24:09 接单就记下 @[513,66,-117]；17:24:17 又拿它把「合成/放」换掉 ✓
+      ⇒ 那格其实是空的 ✗ 计划里却多出一条合不出的木板批 ✓
+    """
     记了 = []
     for 步 in (步骤 or []):
         if not isinstance(步, dict):
@@ -743,7 +788,6 @@ def 记计划(步骤):
         if 步.get("动作") == "放":
             名 = str(步.get("方块") or "")
             if 名 and _坐标(步.get("p")):
-                记(名, 步.get("p"))
                 记了.append((名, _坐标(步.get("p"))))
     return 记了
 
@@ -811,6 +855,12 @@ def 装上(bridge, 日志=None, **kw):
                         了 = 栈.接(f"常识：{品}", list(计["计划"]), 真状态)
                         _说(f"[记性·接线闸] 接手结果：{了} ✓（用的是最近一帧真状态 ✓）")
                         return False
+                    if 栈 is not None and not 真状态 and (_上次好状态[0] or {}):
+                        # ★ 2026-10-14 真机血证：说话那一拍状态常是空的 ✗ ⇒ 老代码直接退单 ✗
+                        #   ⇒ 声呐耳朵看到「栈.接 返回 False」✗ ⇒ 石镐这种单永远接不进来 ✓
+                        #   解药：**退回用上一帧好状态** ✓（记性自己本来就有这层缓存的意思 ✓）
+                        真状态 = _上次好状态[0]
+                        _说("[记性·接线闸] 这一拍状态是空的 ✗ ⇒ **改用上一帧好状态** ✓（坐标/背包都从那儿来 ✓）")
                     if 栈 is not None and not 真状态:
                         _待接手[0] = (品, list(计["计划"]))
                         _说("[记性·接线闸] 手上还没有**真状态**（雷达没进来 ✓）⇒ **先不交** ✗"
@@ -899,6 +949,8 @@ def 装上(bridge, 日志=None, **kw):
             try:
                 if isinstance(s, dict) and s:
                     _最近状态[0] = s
+                    if isinstance(_最近状态[0], dict) and (_最近状态[0].get("pos") or _最近状态[0].get("items")):
+                        _上次好状态[0] = _最近状态[0]
                     预热(s)          # ★ 要求③：开机预热（拿真记录 ✓ 不空白开局 ✓）
                     if _待接手[0] is not None and s.get("pos"):
                         品, 计划 = _待接手[0]
@@ -914,6 +966,14 @@ def 装上(bridge, 日志=None, **kw):
                     if int(我[1]) <= int((步.get("p") or [0, 0, 0])[1]):
                         return True, None        # ★ **到层了** = 这一步完 ✓（目标点导向 ✓）
                     return False, None
+                # ★ 2026-10-17 P0-7：放 = 手确认过那个坐标，才算完 ✓
+                #   客户端 chunk 可能还是旧 air（SlotComponent/更新丢失）
+                #   ⇒ 手说放下了、账上也记了那个坐标，就认 ✓
+                if isinstance(步, dict) and 步.get("动作") == "放":
+                    名7 = str(步.get("方块") or "")
+                    位7 = _坐标(步.get("p"))
+                    if 名7 and 位7 and 想起(名7) == list(位7):
+                        return True, None
                 # ══════ ★★★ 拾：**背包里没到货就不算完** ✗ ══════
                 #   2026-10-09 主人：「又挖了一个白桦木又发呆了」那一晚的第三个病 ✓
                 #   现场：`挖 stone` 那一镐**挖上来的是 dirt** ✗
@@ -979,6 +1039,8 @@ def 装上(bridge, 日志=None, **kw):
             try:
                 if isinstance(s, dict) and s:
                     _最近状态[0] = s
+                    if isinstance(_最近状态[0], dict) and (_最近状态[0].get("pos") or _最近状态[0].get("items")):
+                        _上次好状态[0] = _最近状态[0]
                     预热(s)          # ★ 要求③：两条路都预热 ✓（谁先来都行 ✓）
                 # ══════ ★★★ 换树种：计划要挖的和那一格**实际**的，同族就换 ══════
                 #   2026-10-10 半夜（主人：「让他接着跑」之后我盯到的现场）：
@@ -1035,6 +1097,26 @@ def 装上(bridge, 日志=None, **kw):
                                             _后["料"][换] = _后["料"].pop(旧物)
                                     except Exception:
                                         continue
+                                # ★ 2026-10-17：**源头也同步** ✓
+                                #   病：合成从 birch_planks 换成 oak_planks，
+                                #       可前面「挖 birch_log / 拾 birch_log」没换
+                                #       ⇒ 全计划不同族 ⇒ 合成永远差料 ✓
+                                旧木 = 旧物[:-len("_planks")] + "_log"
+                                新木 = 换[:-len("_planks")] + "_log"
+                                改了 = 0
+                                for _步2 in list((任 or {}).get("步骤") or []):
+                                    if not isinstance(_步2, dict):
+                                        continue
+                                    try:
+                                        if str(_步2.get("方块") or "") == 旧木:
+                                            _步2["方块"] = 新木
+                                            改了 += 1
+                                        if str(_步2.get("物品") or "") == 旧木:
+                                            _步2["物品"] = 新木
+                                            改了 += 1
+                                    except Exception:
+                                        continue
+                                _说(f"[记性·换木] 源头同步 {旧木} → {新木}（改了 {改了} 处 ✓ 全计划同族 ✓）")
                 # ══════ ★★★ 要跑「合成工作台」之前：**先看账上那个还在不在** ══════
                 #   2026-10-10 半夜（主人当场发火：「**他有工作台为啥又要重做一个**」✓）
                 #   病根：那条「合成工作台 → 改成走过去用账上那个」的规矩
@@ -1049,8 +1131,15 @@ def 装上(bridge, 日志=None, **kw):
                         and str(步.get("物品") or "") == "crafting_table":
                     位 = 想起("crafting_table")
                     我 = (s or {}).get("pos")
+                    # ★ 2026-10-17 P0-3：账上有不算 ✓ 这一帧读到那格真是工作台才算 ✓
+                    能用, 因 = (False, "账上没记")
+                    if 位 is not None:
+                        能用, 因 = _账上工作台能用(s, 位)
+                        if not 能用 and 因 != "没读数":
+                            忘记("crafting_table")
+                            _说(f"[记性·台子] 账上 {位} 不能用（{因}）⇒ 错账已忘 ✓ 这一拍不换 ✓")
                     该用 = False
-                    if isinstance(位, (list, tuple)) and len(位) >= 3 \
+                    if 位 is not None and 能用 and isinstance(位, (list, tuple)) and len(位) >= 3 \
                             and isinstance(我, (list, tuple)) and len(我) >= 3:
                         try:
                             距 = ((float(位[0]) - float(我[0])) ** 2
@@ -1067,6 +1156,15 @@ def 装上(bridge, 日志=None, **kw):
                         except Exception:
                             号2 = 0
                         if 0 <= 号2 < len(步表2):
+                            # ★ 2026-10-17 P0-3：先删**孤儿木板批**（紧挨着的前一步 ✓）
+                            #   删了它，当前步号要跟着前移 ✓（不然下一拍判错步 ✓）
+                            孤儿 = False
+                            if 号2 - 1 >= 0 and isinstance(步表2[号2 - 1], dict) \
+                                    and 步表2[号2 - 1].get("动作") == "合成" \
+                                    and str(步表2[号2 - 1].get("物品") or "").endswith("_planks"):
+                                步表2.pop(号2 - 1)
+                                号2 -= 1
+                                孤儿 = True
                             去掉放 = False
                             if 号2 + 1 < len(步表2) and isinstance(步表2[号2 + 1], dict) \
                                     and 步表2[号2 + 1].get("动作") == "放" \
@@ -1076,6 +1174,7 @@ def 装上(bridge, 日志=None, **kw):
                             新步 = {"动作": "走到", "p": list(位), "到点": 2.5}
                             步表2[号2:号2 + 1] = [新步]
                             任2["步骤"] = 步表2
+                            任2["第几步"] = 号2       # ★ 删了前一步，当前步号前移 ✓
                             任2["重试"] = 0
                             任2["重试到"] = 0.0
                             任2["下发过"] = False
@@ -1084,6 +1183,7 @@ def 装上(bridge, 日志=None, **kw):
                                 _说(f"[记性·台子] 这一步要「合成工作台」✗ 可账上记着"
                                     f" @{list(位)}（{距:.1f} 格 ✓ ≤200 ✓ 落差 {落差:.0f} ✓）"
                                     f" ⇒ **换成走过去用现成的** ✓（{'连「放」也跳掉 ✓' if 去掉放 else ''}"
+                                    f"{'孤儿木板批已删 ✓' if 孤儿 else ''}"
                                     f"**绝不再多搭一个** ✗）")
                             return 原下发(self, 新步, 任2, 现在, s)
                 # ══════ ★★★ 合成前先核对：**配方要几块、我挖了几块** ══════
@@ -1092,6 +1192,11 @@ def 装上(bridge, 日志=None, **kw):
                 #     ⇒ 手回「配方要：cobbled_deepslate 0/3」✗ ⇒ 空转 → 3 分钟失败 → 重排 → 又只挖一镐 ✓
                 #   规矩：**要几块就挖几块** ✓ —— 而且"要几块"这件事**问求解器** ✓
                 #     （它本来就管算料 ✓ 我不另抄一份配方表 ✗）
+                try:  # ★ 2026-10-16 直写（**上面** ✓ 同级 ✓ 不破坏结构 ✓）
+                    open("/dev/null", "a", encoding="utf-8").write("%s ｜ 下发到这里 ✓ 动作=%s ｜ 物品=%s ｜ 帧背包=%s\n" % (
+                        time.strftime("%H:%M:%S"), (步 or {}).get("动作"), (步 or {}).get("物品"),
+                        json.dumps({k: v for k, v in (((s or {}).get("items") or {}) if isinstance(s, dict) else {}).items() if v}, ensure_ascii=False)[:90]))
+                except Exception: pass
                 if isinstance(步, dict) and 步.get("动作") == "合成":
                     _物 = str(步.get("物品") or "")
                     if _物 and (time.monotonic() - float(_补料说过.get("t") or 0)) > 15.0:
@@ -1104,8 +1209,14 @@ def 装上(bridge, 日志=None, **kw):
                                     and isinstance(s, dict):
                                 _表 = _常3.可用方块(s)
                             _计 = _求.求解(_物, 1, 背包=_背, 方块在哪=_表) if _求 else None
+                            # ★★★ 2026-10-16【真凶 ✓ 主人「难道不是他自己的思维链来指导他自己吗」点醒 ✓】
+                            #   病：原来是 `x.get("动作") == "挖"` ✗ —— **只要"挖"** ⇒ 而求解器给的补料计划
+                            #      头一步常常不是挖（「合成棍」✓「走到」✓「collect」✓）⇒ `_挖步` 空 ⇒ 试盲挖 ⇒ 还空
+                            #      ⇒ **整段跳过** ✗ ⇒ 料永远补不上 ⇒ 合成永远超时 ✓（账上无「记性·补料」= 铁证 ✓）
+                            #   修：**求解器给什么就用什么** ✓（它本来就是"补合成这个要几步"✓ 不挑食 ✓ 句 3 ✓）
+                            #      只挡"给/说/等/打"这类**不产料**的 ✓（防命令混进来 ✓）
                             _挖步 = [x for x in ((_计 or {}).get("计划") or [])
-                                   if isinstance(x, dict) and x.get("动作") == "挖"]
+                                   if isinstance(x, dict) and x.get("动作") not in ("给", "说", "等", "wait_until", "打")]
                             # ★★ 求解器也排不出（石头在洞壁上、雷达没读数 ✓）
                             #   ⇒ **直接往下盲挖** ✓（主人原话：「**先让他直接执行向下挖**，
                             #      因为这是最好的办法做石镐，我平时就是这样干的」✓）
@@ -1503,19 +1614,31 @@ def 装上(bridge, 日志=None, **kw):
 
             def 发(self, 东西, _原=原发2):
                 try:
-                    if isinstance(东西, dict) and str(东西.get("cmd") or "") == "dig":
+                    if isinstance(东西, dict):
+                        东西 = dict(东西)
+                        # ★ 2026-10-17：每条命令贴「任务 id / 第几步」✓
+                        #   账本复盘时能直接对上，不用猜这条 dig 是哪一步 ✓
+                        任 = getattr(self, "任务", None)
+                        if isinstance(任, dict):
+                            东西.setdefault("任务", 任.get("id"))
+                            东西.setdefault("第几步", 任.get("第几步"))
+                    if str(东西.get("cmd") or "") == "dig":
                         if _允许脚下[0]:
-                            东西 = dict(东西)
                             东西["允许挖脚下"] = True
                         _允许脚下[0] = False
-                except Exception:
-                    pass
+                except Exception as _e:
+                    _说(f"[记性·发] 贴任务号出岔子（照原样发 ✓）：{_e}")
                 return _原(self, 东西)
 
             栈类.发 = 发
         _说("[记性] 降层闭环挂上了 ✓ 骨架：1宽/1高/45° ✓（挖到 Y 层为准 ✓ 一拍一判 ✓ 不是固定步数 ✓）")
 
     def 接(self, 名字, 步骤, s):
+        # ★ 入口探针（2026-10-15 定案用 ✓ 只记一笔 ✓ 不改逻辑 ✗）
+        try:
+            open("logs/包装探针.jsonl", "a", encoding="utf-8").write(
+                '{"t": ' + str(time.time()) + ', "车厢": "记性", "进": true}\n')
+        except Exception: pass
         try:
             # ★★★ 顺序是**先用后记** ✓ —— 我第一版写反了，当场被 C1 抓住 ✗
             #   写反的后果：计划里「放 crafting_table @新的地方」先被记下来 ✓
@@ -1526,7 +1649,7 @@ def 装上(bridge, 日志=None, **kw):
                 _说(f"[记性] {x}")
             记了 = 记计划(新步骤)
             for 名, 位 in 记了:
-                _说(f"[记性] 记下了：自己把「{名}」放在 {位} ✓（下次要用就直接过去 ✓）")
+                _说(f"[记性] 计划里有「放 {名}」@{位} ✓（等手确认再记账 ✓ 计划坐标不是事实 ✗）")
             if 说明:
                 return 原接(self, 名字, 新步骤, s)
         except Exception as e:
@@ -1539,6 +1662,43 @@ def 装上(bridge, 日志=None, **kw):
                 f"{x.filename.split('/')[-1]}:{x.lineno} {x.name}"
                 for x in _tb.extract_tb(e.__traceback__)[-4:]), flush=True)
         return 原接(self, 名字, 步骤, s)
+
+    # ★ 2026-10-17 P0-3：**手确认放下了才记账** ✓（计划坐标不是事实 ✗）
+    叙类 = getattr(bridge, "叙事者", None)
+    原回执 = getattr(叙类, "看回执", None) if 叙类 is not None else None
+    if callable(原回执) and not getattr(叙类, "_记性回执装了", False):
+        _原回执[叙类] = 原回执
+
+        def 看回执(self, e):
+            原回执(self, e)                  # 包装 ≠ 替换 ✓
+            try:
+                if (e or {}).get("cmd") == "place" and (e or {}).get("ok"):
+                    名 = str(e.get("放的是") or "")
+                    位 = _坐标(e.get("位置") or e.get("p"))
+                    if 名 and 位:
+                        记(名, 位)
+                        _说(f"[记性] 手确认放下了「{名}」@{位} ✓（现在才记账 ✓）")
+                        # ★ 2026-10-17 P0-7：手实际放到附近别处 ⇒ 当前步 p 改成实际位 ✓
+                        #   不然 _看完成了没 还在看老坐标（air），这一步永远不算完 ✓
+                        栈 = getattr(bridge, "任务栈", None)
+                        if isinstance(栈, type):
+                            实例 = getattr(栈, "车钩活着的实例", None) or []
+                            栈 = 实例[0] if 实例 else None
+                        任 = getattr(栈, "任务", None)
+                        步骤 = (任 or {}).get("步骤") or []
+                        try:
+                            号 = int((任 or {}).get("第几步") or 0)
+                        except Exception:
+                            号 = -1
+                        if 0 <= 号 < len(步骤) and isinstance(步骤[号], dict) \
+                                and 步骤[号].get("动作") == "放":
+                            步骤[号]["p"] = list(位)
+                            _说(f"[记性] 当前步落点改到实际位置 @{位} ✓（手放别处了 ✓）")
+            except Exception as ex:
+                print(f"[记性] 回执记账出岔子（不影响主链）：{ex}", flush=True)
+
+        叙类.看回执 = 看回执
+        叙类._记性回执装了 = True
 
     栈类.接 = 接
     栈类._记性装了 = True
@@ -1567,6 +1727,13 @@ def 卸下(bridge):
                 _说(f"[记性] 还原 {名} 出岔子：{e}")
     except Exception:
         pass
+    叙类 = getattr(bridge, "叙事者", None)
+    if 叙类 is not None and 叙类 in _原回执:
+        try:
+            叙类.看回执 = _原回执.pop(叙类)
+            del 叙类._记性回执装了
+        except Exception as e:
+            _说(f"[记性] 还原 看回执 出岔子：{e}")
     _日志 = None
     return {"好": True, "为什么": "", "打了": ["还原 任务栈.接()"]}
 
@@ -1579,3 +1746,22 @@ def 同步实例(bridge, 日志=None, 车钩=None):
     except Exception:
         pass
     return {"好": True, "为什么": "账在文件里，拔了也不丢", "打了": []}
+
+# ══════ ★ 拒单探针（2026-10-14 ✓ 只记录，不改行为 ✗）══════
+#   现象：声呐耳朵喊「栈.接 返回 False」✗ 而主链三条理由全被排除 ✓ ⇒ 凶手在这几个包装里 ✓
+#   本探针只做一件事：**谁返回了 False、当时那单长什么样**，写进 logs/拒单探针.jsonl ✓
+def _拒单探针记(名字, 步骤, 结果):
+    try:
+        import json as _j, os as _o, time as _t
+        根 = _o.path.dirname(_o.path.dirname(_o.path.dirname(_o.path.abspath(__file__))))
+        if 结果:
+            return
+        路 = _o.path.join(根, "logs", "拒单探针.jsonl")
+        _o.makedirs(_o.path.dirname(路), exist_ok=True)
+        with open(路, "a", encoding="utf-8") as f:
+            f.write(_j.dumps({"t": _t.time(), "车厢": '记性', "任务": str(名字)[:40],
+                              "步数": len(步骤 or []),
+                              "动作": sorted({str((x or {}).get("动作")) for x in (步骤 or [])})[:12],
+                              "结果": 结果}, ensure_ascii=False) + "\n")
+    except Exception:
+        pass

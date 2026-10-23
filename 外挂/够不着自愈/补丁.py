@@ -49,6 +49,8 @@ the main chain's own loop do the walking and the retrying.
 6. 卸下一字不差还原 ✓
 """
 
+import json
+import os
 import time
 import weakref
 
@@ -62,6 +64,9 @@ _原件 = weakref.WeakKeyDictionary()   # 类 -> {"回执": 原函数} / {"下�
 _上次 = {}          # (cmd, 坐标) -> 上次插步的时刻（去重用）
 _插了几次 = {}      # 任务 id -> 插了几次
 _共插过 = 0
+# ★ 2026-10-17：放置失败黑名单（持久化 ✓ 重启不丢 ✓ 下次计划不再撞同一个坐标）
+_放黑名单 = {}
+_放黑名单路 = os.path.join("logs", "放置黑名单.json")
 _绕了几次 = 0        # "挖还是绕"判成绕的次数（只为了报数好看 ✓）
 
 空气名 = ("air", "cave_air", "void_air")
@@ -253,6 +258,15 @@ def 处理回执(bridge, 状态=None, e=None):
     try:
         if e.get("够不着"):
             return _管够不着(bridge, 状态, e)
+        # ★ 2026-10-17 P0-4：手说「材料不够，缺 X×N」⇒ 就地问求解器要 X，插在当前步前 ✓
+        #   原来只念一句、干等 180 秒 ✗（ReAct 的 O 有了，T/A 没接上 ✓）
+        if isinstance(e.get("缺料"), dict) and e.get("缺料"):
+            return _管缺料(bridge, 状态, e)
+        # ★ 2026-10-17 P0-7：放失败（六面全拒/服务端拒绝）⇒ 拉黑 + 替代位 ✓
+        if str(e.get("cmd") or "") == "place" and e.get("ok") is False \
+                and any(x in str(e.get("why") or "")
+                        for x in ("六个面", "Server refused", "没有可以靠着放")):
+            return _管放不下(bridge, 状态, e)
         if e.get("要走过去") and e.get("工作台"):
             return _管走过去用家伙(bridge, 状态, e)
         # ★★★ 2026-10-09 深夜（主人：「他是不是做出来了？！」那一场）：
@@ -358,6 +372,178 @@ def _管没工作台(bridge, 状态, e):
     return f"手说 32 格内没有工作台 ✗ 我又插不了步、任务栈也不接这个活 ✗（{说法}）"
 
 
+def _管缺料(bridge, 状态, e):
+    """手说「材料不够，缺 X×N」⇒ 就地问求解器要 X，插在当前步前面 ✓
+
+    ★ 2026-10-17 P0-4：原来手报了、脑只念不补 ⇒ 干等 180 秒 ✗
+      ReAct 的 Observation 有了，Reflection/新 Action 没接上 ✓
+    规矩：一次补一样 ✓ 同一任务最多 4 次 ✓ 5 秒内不重复 ✓ 插不进就交回主链 ✓
+    """
+    global _共插过
+    栈 = _活实例(bridge, "任务栈")
+    if 栈 is None or not isinstance(状态, dict):
+        return None
+    任 = getattr(栈, "任务", None)
+    if not isinstance(任, dict) or 任.get("状态") != "跑":
+        return None
+    缺 = e.get("缺料") or {}
+    名, 数 = None, 0
+    for k, v in 缺.items():
+        try:
+            n = int(float(v))
+        except Exception:
+            n = 0
+        if n > 0:
+            名, 数 = str(k), n
+            break
+    if not 名:
+        return None
+    任id = str(任.get("id") or "")
+    键 = ("缺料", 任id, 名)
+    现在 = time.time()
+    次 = int(_插了几次.get("料:" + 任id, 0))
+    if 现在 - float(_上次.get(键, -999.0)) < 5.0:
+        return None
+    if 次 >= 4:
+        _上次[键] = 现在
+        return (f"手说缺「{名}×{数}」✗ 我已经补过 {次} 次了 ✗ **再插就是刷屏** ✓ —— "
+                f"停手，交回主链重排 ✓（大概率是雷达还没看到下一块 ✓）")
+    记 = _找记性()
+    求 = None
+    if 记 is not None and callable(getattr(记, "_求解器", None)):
+        try:
+            求 = 记._求解器()
+        except Exception:
+            求 = None
+    生 = _找生存常识()
+    if 求 is None or 生 is None or not callable(getattr(生, "落坐标", None)):
+        return (f"手说缺「{名}×{数}」✗ 我该补料 ✓ —— 可**摸不到求解器/落坐标** ✗（交回主链 ✓）")
+    背 = _背包(状态)
+    表 = None
+    try:
+        if callable(getattr(生, "可用方块", None)):
+            表 = 生.可用方块(状态)
+    except Exception:
+        表 = None
+    try:
+        计 = 求.求解(名, 数, 背包=背, 方块在哪=表)
+    except Exception as ex:
+        return (f"手说缺「{名}×{数}」✗ 求解器抛了（{type(ex).__name__}: {ex}）⇒ 交回主链 ✓")
+    if not (isinstance(计, dict) and 计.get("好") and 计.get("计划")):
+        return (f"手说缺「{名}×{数}」✗ 求解器也排不出"
+                f"（{str((计 or {}).get('为什么'))[:80]}）⇒ 交回主链 ✓")
+    try:
+        步表, 因 = 生.落坐标(计["计划"], 状态)
+    except Exception as ex:
+        return (f"手说缺「{名}×{数}」✗ 落坐标抛了（{type(ex).__name__}: {ex}）⇒ 交回主链 ✓")
+    if not 步表:
+        return (f"手说缺「{名}×{数}」✗ 落坐标排不出（{因}）⇒ 交回主链 ✓（不瞎挑位置 ✗）")
+    # ★ 2026-10-17：落坐标只排到「探路」时，石头类改用**向下盲挖** ✓
+    #   （实机：补料只插了 1 步走到 ⇒ 2 次上限后停 ⇒ 还是缺料 ✓）
+    if not any(isinstance(x, dict) and x.get("动作") in ("挖", "collect") for x in 步表):
+        if 名 in ("stone", "cobblestone", "deepslate", "cobbled_deepslate"):
+            盲 = getattr(生, "安排一趟向下盲挖", None)
+            if callable(盲):
+                try:
+                    盲步, 盲说 = 盲(状态, 背包=背)
+                except Exception as ex:
+                    盲步, 盲说 = None, f"{type(ex).__name__}: {ex}"
+                if 盲步:
+                    步表 = list(盲步)
+                    因 = f"落坐标只排到探路 ⇒ 改用向下盲挖（{盲说}）"
+    # ★ STRIPS 效果闭合：插入的每一步「挖」后面都要有「拾」✓
+    补 = []
+    for _i, _x in enumerate(步表):
+        if not isinstance(_x, dict):
+            补.append(_x)
+            continue
+        补.append(_x)
+        if _x.get("动作") != "挖":
+            continue
+        掉 = None
+        if callable(getattr(生, "挖了掉什么", None)):
+            try:
+                掉 = 生.挖了掉什么(str(_x.get("方块") or ""))
+            except Exception:
+                掉 = None
+        后 = 步表[_i + 1] if _i + 1 < len(步表) else None
+        已 = (isinstance(后, dict) and 后.get("动作") in ("拾", "collect")
+              and str(后.get("物品") or "") == str(掉))
+        if 掉 and not 已:
+            补.append({"动作": "拾", "物品": str(掉), "数量": 1})
+    步表 = 补
+    好, 说法 = _就地插(bridge, list(步表), f"补料：{名}×{数}", 状态)
+    if 好:
+        _上次[键] = 现在
+        _插了几次["料:" + 任id] = 次 + 1
+        _共插过 += 1
+        return (f"★ 够不着自愈：手说缺「{名}×{数}」✗ —— 已把补料步插到当前步前 ✓"
+                f"（{说法} ｜ 本条任务第 {次 + 1} 次 ✓）")
+    return (f"手说缺「{名}×{数}」✗ 可**插不进当前活**（{说法}）⇒ 交回主链重排 ✓")
+
+
+def _读放黑名单():
+    global _放黑名单
+    try:
+        with open(_放黑名单路, encoding="utf-8") as f:
+            d = json.load(f)
+        if isinstance(d, dict):
+            _放黑名单 = d
+    except Exception:
+        pass
+
+
+def _存放黑名单():
+    try:
+        os.makedirs(os.path.dirname(_放黑名单路), exist_ok=True)
+        with open(_放黑名单路, "w", encoding="utf-8") as f:
+            json.dump(_放黑名单, f, ensure_ascii=False, indent=1)
+    except Exception as ex:
+        _说(f"[放黑名单] 写盘失败：{ex}")
+
+
+def _管放不下(bridge, 状态, e):
+    """放失败（六面全拒/服务端拒绝）⇒ 拉黑该坐标，换 ±1/±2 的替代位 ✓
+
+    老祖：server-authoritative 拒绝不是“再试六面”，是 `the map is not the
+    territory` —— 先 negate 这个目标（黑名单），再在邻域里找新落点重规划。
+    """
+    global _共插过
+    _读放黑名单()
+    栈 = _活实例(bridge, "任务栈")
+    if 栈 is None:
+        return None
+    任, 第几, 步 = _当前步(栈)
+    if 任 is None or 步.get("动作") != "放":
+        return None
+    位 = 步.get("p")
+    if not (isinstance(位, (list, tuple)) and len(位) >= 3):
+        return None
+    键 = _键(位)
+    if 键 is None:
+        return None
+    现在 = time.time()
+    _放黑名单[str(list(键))] = 现在
+    _存放黑名单()
+    if 现在 - float(_上次.get(("放不下", 键), -999.0)) < 2.0:
+        return None
+    _上次[("放不下", 键)] = 现在
+    for dx, dz in ((1, 0), (-1, 0), (0, 1), (0, -1),
+                   (2, 0), (-2, 0), (0, 2), (0, -2)):
+        新 = [int(位[0]) + dx, int(位[1]), int(位[2]) + dz]
+        if str(新) in _放黑名单:
+            continue
+        步["p"] = 新
+        任["重试"] = 0
+        任["重试到"] = 0.0
+        任["下发过"] = False
+        任id = str(任.get("id") or "")
+        _插了几次[任id] = int(_插了几次.get(任id, 0)) + 1
+        _共插过 += 1
+        return (f"「放」@{list(键)} 六面全拒 ⇒ 已拉黑；改试替代位 {新} ✓")
+    return (f"「放」@{list(键)} 已拉黑；±2 内没有替代位 ⇒ 交回主链 ✓")
+
+
 def _管走过去用家伙(bridge, 状态, e):
     """手报「工作台在 N 格外，得先走过去」→ **插一步走过去** ✓
 
@@ -425,6 +611,24 @@ def _管走过去用家伙(bridge, 状态, e):
     return f"想走去找工作台 {p}，任务栈不接这个活 ✗（接单返回 {好!r}）"
 
 
+def _那格是什么(状态, 位):
+    """状态帧里**那一格**是什么方块 → 名字或 None（只读读数 ✓ 不猜 ✗）"""
+    try:
+        键 = (int(float(位[0]) // 1), int(float(位[1]) // 1), int(float(位[2]) // 1))
+    except Exception:
+        return None
+    for 条 in ((状态 or {}).get("blocks") or []):
+        try:
+            q = 条.get("p") or []
+            if len(q) < 3:
+                continue
+            if (int(float(q[0]) // 1), int(float(q[1]) // 1), int(float(q[2]) // 1)) == 键:
+                return str(条.get("name") or "")
+        except Exception:
+            continue
+    return None
+
+
 def _管够不着(bridge, 状态, e):
     """手说「够不着」→ 在当前那一步前面插一步「走到落点旁边」✓"""
     global _共插过
@@ -458,8 +662,15 @@ def _管够不着(bridge, 状态, e):
         return None
     走到哪, 为什么 = _落脚点(状态, 位)
     if 走到哪 is None:
-        _上次[(命令, 键)] = 现在        # 记一笔，别每 200ms 重复说同一句
-        return f"「{命令}」够不着 @{list(键)}（{e.get('距')} 格）—— {为什么}"
+        if 命令 == "place" and _那格是什么(状态, 位) in ("air", "cave_air", "void_air"):
+            # ★ 2026-10-17 P0-5：`放` 的目标格**读到是空气** ⇒ 就是计划选好的空位 ✓
+            #   落脚点没读数时，先走到目标旁边（到点 1.5）再放 ✓
+            #   ⚠ 没读到目标格（None）不许走 ✗ —— F1 用例就是这条（不瞎挑 ✓）
+            走到哪 = list(位)
+            为什么 = "目标格读数是空气 ✓ 计划的目标点就是空位 ⇒ 先走过去再放 ✓"
+        else:
+            _上次[(命令, 键)] = 现在        # 记一笔，别每 200ms 重复说同一句
+            return f"「{命令}」够不着 @{list(键)}（{e.get('距')} 格）—— {为什么}"
     # ── 插一步：**放在当前那一步之前** ✓ ──
     新步 = {"动作": "走到", "p": list(走到哪), "到点": 1.5}
     任["步骤"].insert(第几, 新步)

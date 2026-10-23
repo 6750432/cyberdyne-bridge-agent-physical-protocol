@@ -174,10 +174,12 @@ def 装上(bridge, 数=None, 开关=False):
             self.说(f"[{_时刻()}] 这活里有危险东西（{'、'.join(sorted(set(险的)))}）—— "
                     f"我不碰。", 紧急=True)
             self._记("拒单", 原因="危险物品", 物品=sorted(set(险的)))
+            # ★ 2026-10-16 删（同 268 行那处笔误 ✓）：本函数参数是 (步, 任, 现在, s) —— `名字`/`步骤` 都不存在 ✗
             return False
         if 缺的:
             self.说(f"[{_时刻()}] 这个活我没法干：{'；'.join(缺的)}。", 紧急=True)
             self._记("拒单", 原因="参数不全", 说明=缺的)
+            # ★ 2026-10-16 删（同 268 行那处笔误 ✓）：本函数参数是 (步, 任, 现在, s) —— `名字`/`步骤` 都不存在 ✗
             return False
         if not 扩展开着(self):
             野 = sorted({str(步.get("动作")) for 步 in 步骤
@@ -186,6 +188,7 @@ def 装上(bridge, 数=None, 开关=False):
                 self.说(f"[{_时刻()}] 「{'、'.join(野)}」这些本事我还没开 —— 不接。",
                         紧急=True)
                 self._记("拒单", 原因="扩展开关没开", 动作=野)
+                # ★ 2026-10-16 删（同 268 行那处笔误 ✓）：本函数参数是 (步, 任, 现在, s) —— `名字`/`步骤` 都不存在 ✗
                 return False
         return _原["接"](self, 名字, 步骤, s)
     栈.接 = 新接
@@ -215,7 +218,9 @@ def 装上(bridge, 数=None, 开关=False):
             if 有读数:
                 步[键] = 现在
                 self._记("步骤参数补全", 动作=步.get("动作"), 基准=键, 值=现在)
+                # ★ 2026-10-16 删（同 268 行那处笔误 ✓）：本函数参数是 (步, 任, 现在, s) —— `名字`/`步骤` 都不存在 ✗
                 return False, 现在        # 刚记完，这一拍不算完成
+            # ★ 2026-10-16 删（同 268 行那处笔误 ✓）：本函数参数是 (步, 任, 现在, s) —— `名字`/`步骤` 都不存在 ✗
             return False, 现在            # 探针还没到货 —— 既不算完，也不记基准
         return True, 现在
 
@@ -228,6 +233,7 @@ def 装上(bridge, 数=None, 开关=False):
             # 进项：比开工那一刻**多出**至少 数量 个
             有, 现在 = _取基准(self, 步, s, "_进项前")
             if not 有:
+                # ★ 2026-10-16 删（同 268 行那处笔误 ✓）：本函数参数是 (步, 任, 现在, s) —— `名字`/`步骤` 都不存在 ✗
                 return False, None
             return 现在 >= float(步["_进项前"]) + 数量, None
         # 往箱子里放（出项）
@@ -235,10 +241,12 @@ def 装上(bridge, 数=None, 开关=False):
             # 写死了保留数：直接看"降到保留数以下"
             计 = (s or {}).get("items") or {}
             if 步.get("物品") not in 计:
+                # ★ 2026-10-16 删（同 268 行那处笔误 ✓）：本函数参数是 (步, 任, 现在, s) —— `名字`/`步骤` 都不存在 ✗
                 return False, None
             return self._物品数量(s, 步.get("物品")) <= float(步["保留"]), None
         有, 现在 = _取基准(self, 步, s, "_放前")
         if not 有:
+            # ★ 2026-10-16 删（同 268 行那处笔误 ✓）：本函数参数是 (步, 任, 现在, s) —— `名字`/`步骤` 都不存在 ✗
             return False, None
         return 现在 <= float(步["_放前"]) - 数量, None
     栈._看完成了没 = 新看完成了没
@@ -250,16 +258,26 @@ def 装上(bridge, 数=None, 开关=False):
         if 动 not in 扩展动作:
             return _原["_下发"](self, 步, 任, 现在, s)
         if time.monotonic() < float(任.get("重试到") or 0):        # 退避期间不下发（单调钟 ✓）
+            # ★ 2026-10-16 删（同 268 行那处笔误 ✓）：本函数参数是 (步, 任, 现在, s) —— `名字`/`步骤` 都不存在 ✗
             return False
         # ★ 三种都是"会重复"的长动作 —— 复刻主链那条规矩：
         #   **重下 = 打断上一次**，太勤的结果是一直在"重新开始"（踩过两次）。
         重下 = self._数("动手重下毫秒", 5000) / 1000.0
         卡住 = isinstance(s.get("stuck_ms"), (int, float)) and s["stuck_ms"] < 1500
         if 现在 - self.上次下发 < 重下 and not 卡住:
+            # ★★★ 2026-10-15：这里原来有一行 `_拒单探针记(名字, 步骤, False)` ✗
+            #   而本函数的参数是 (步, 任, 现在, s) —— **`名字`/`步骤` 都不存在** ✗
+            #   ⇒ 每次节流都抛 NameError ⇒ 被静默吞掉 ⇒ **`return False` 永远执行不到** ✗
+            #   ⇒ 节流形同虚设 ⇒ 脑每拍重发 goto ⇒ 手每收一条就停掉上一条路径 ✗
+            #   ⇒ 实机：191 次 goto + 满屏「这条路被新命令打断了」（整晚走不动 ✓）
+            #   修法：删掉这行笔误（探针只该在"接单"那条路上记 ✓ 那里才有 名字/步骤 ✓）
             return False
         if 动 == "合成":
+            # ★ 2026-10-17：计划里的「数量」是**产物数** ✓
+            #   手侧按 `按产物` 换算配方次数（4 块木板 = 1 次配方 ✓ 不是 4 次 ✗）
             self.发({"cmd": "craft", "item": 步.get("物品"),
-                     "count": int(max(1, min(float(步.get("数量") or 1), 64)))})
+                     "count": int(max(1, min(float(步.get("数量") or 1), 64))),
+                     "按产物": True})
         elif 动 == "箱子里取":
             self.发({"cmd": "chest_take", "p": _三个数(步.get("p")),
                      "物品": 步.get("物品"),
@@ -572,3 +590,22 @@ def 同步实例(bridge, 日志=None, 车钩=None):
         日志(f"  ⟳ 动作面.同步实例：把 {改了} 个活着的翻译器拉到 "
             f"{len(允许)} 个动作（活实例已跟上，热插拔才算真生效）")
     return 改了
+
+# ══════ ★ 拒单探针（2026-10-14 ✓ 只记录，不改行为 ✗）══════
+#   现象：声呐耳朵喊「栈.接 返回 False」✗ 而主链三条理由全被排除 ✓ ⇒ 凶手在这几个包装里 ✓
+#   本探针只做一件事：**谁返回了 False、当时那单长什么样**，写进 logs/拒单探针.jsonl ✓
+def _拒单探针记(名字, 步骤, 结果):
+    try:
+        import json as _j, os as _o, time as _t
+        根 = _o.path.dirname(_o.path.dirname(_o.path.dirname(_o.path.abspath(__file__))))
+        if 结果:
+            return
+        路 = _o.path.join(根, "logs", "拒单探针.jsonl")
+        _o.makedirs(_o.path.dirname(路), exist_ok=True)
+        with open(路, "a", encoding="utf-8") as f:
+            f.write(_j.dumps({"t": _t.time(), "车厢": '动作面', "任务": str(名字)[:40],
+                              "步数": len(步骤 or []),
+                              "动作": sorted({str((x or {}).get("动作")) for x in (步骤 or [])})[:12],
+                              "结果": 结果}, ensure_ascii=False) + "\n")
+    except Exception:
+        pass

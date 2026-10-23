@@ -439,8 +439,14 @@ class 温度计:
                     continue
                 if 名 in ("coretemp", "k10temp", "zenpower"):
                     路径.append(hw)
-        except Exception:
-            pass
+        except Exception as _e:
+            try:
+                import json as _j, os as _o, time as _t
+                _o.makedirs("logs", exist_ok=True)
+                with open("logs/静默.jsonl", "a", encoding="utf-8") as _f:
+                    _f.write(_j.dumps({"t": _t.time(), "文件": "bridge.py", "行": 442, "异常": repr(_e)[:160]}, ensure_ascii=False) + "\n")
+            except Exception:
+                pass
         return 路径
 
     def _读cpu(self):
@@ -464,8 +470,14 @@ class 温度计:
                 capture_output=True, text=True, timeout=5)
             if 出.returncode == 0:
                 return float(出.stdout.strip().splitlines()[0])
-        except Exception:
-            pass
+        except Exception as _e:
+            try:
+                import json as _j, os as _o, time as _t
+                _o.makedirs("logs", exist_ok=True)
+                with open("logs/静默.jsonl", "a", encoding="utf-8") as _f:
+                    _f.write(_j.dumps({"t": _t.time(), "文件": "bridge.py", "行": 467, "异常": repr(_e)[:160]}, ensure_ascii=False) + "\n")
+            except Exception:
+                pass
         return None
 
     def 采样(self, 强制=False):
@@ -476,8 +488,14 @@ class 温度计:
         try:
             self.cpu = self._读cpu()
             self.gpu = self._读gpu()
-        except Exception:
-            pass
+        except Exception as _e:
+            try:
+                import json as _j, os as _o, time as _t
+                _o.makedirs("logs", exist_ok=True)
+                with open("logs/静默.jsonl", "a", encoding="utf-8") as _f:
+                    _f.write(_j.dumps({"t": _t.time(), "文件": "bridge.py", "行": 479, "异常": repr(_e)[:160]}, ensure_ascii=False) + "\n")
+            except Exception:
+                pass
         return self.cpu, self.gpu
 
 
@@ -1457,21 +1475,38 @@ class 任务栈:
         try:
             with open(self.日志路径, "a", encoding="utf-8") as f:
                 f.write(json.dumps(条, ensure_ascii=False) + "\n")
-        except Exception:
-            pass
+        except Exception as _e:
+            try:
+                import json as _j, os as _o, time as _t
+                _o.makedirs("logs", exist_ok=True)
+                with open("logs/静默.jsonl", "a", encoding="utf-8") as _f:
+                    _f.write(_j.dumps({"t": _t.time(), "文件": "bridge.py", "行": 1460, "异常": repr(_e)[:160]}, ensure_ascii=False) + "\n")
+            except Exception:
+                pass
 
     def _存快照(self):
         try:
             with open(self.快照路径, "w", encoding="utf-8") as f:
                 json.dump(self.任务 or {}, f, ensure_ascii=False, indent=1)
-        except Exception:
-            pass
+        except Exception as _e:
+            try:
+                import json as _j, os as _o, time as _t
+                _o.makedirs("logs", exist_ok=True)
+                with open("logs/静默.jsonl", "a", encoding="utf-8") as _f:
+                    _f.write(_j.dumps({"t": _t.time(), "文件": "bridge.py", "行": 1467, "异常": repr(_e)[:160]}, ensure_ascii=False) + "\n")
+            except Exception:
+                pass
 
     # ── 接单 ──
     def 接(self, 名字, 步骤, s):
+        print("[接三行] ★ 进 接 了 ✓ 步骤类型=" + type(步骤).__name__ + " len=" + str(len(步骤) if hasattr(步骤, "__len__") else "无") , flush=True)
         if not self.启用():
             return False
+        print("[接三行] ★ 要 list(步骤) 了 ✓", flush=True)
         步骤 = list(步骤 or [])
+        print("[接三行] ★ list(步骤) 完了 ✓ n=" + str(len(步骤)), flush=True)
+        try: print("[栈.接收到] " + str(名字)[:20] + " ｜ " + str(len(步骤)) + " 步 ｜ 首步=" + str(步骤[0])[:110], flush=True)
+        except Exception: pass
         if not 步骤:
             return False
         野的 = sorted({str(步.get("动作")) for 步 in 步骤} - self.允许动作)
@@ -1520,7 +1555,11 @@ class 任务栈:
             动 = 步.get("动作")
             if 动 in ("挖", "放", "wait_until") and isinstance(步.get("p"), (list, tuple)):
                 方块.append([float(v) for v in 步["p"][:3]])
-            if 动 in ("拾", "熔炉取成品", "wait_until") and 步.get("物品"):
+            # ★ 2026-10-17：**collect 也要盯物品** ✗ 原来只盯 拾/熔炉取成品/wait_until
+            #   病（实机铁证 ✓）：collect oak_log 时 oak_log **没进 watch 名单** ⇒ 帧里永远没有它
+            #     ⇒ 判据永远读到 0 ⇒ 每秒重发 collect ✓ 而手侧真收到了也判不成 ✗
+            #   修：把 collect 加进来 ✓（它跟「拾」一样，完成判据只看背包 ✓ 句 1）
+            if 动 in ("拾", "熔炉取成品", "wait_until", "collect") and 步.get("物品"):
                 物品.append(str(步["物品"]))
             if 动 in ("熔炉放料", "熔炉取成品") and isinstance(步.get("p"), (list, tuple)):
                 熔炉 = [float(v) for v in 步["p"][:3]]
@@ -1530,12 +1569,22 @@ class 任务栈:
         if any(步.get("动作") == "拾" and not 步.get("物品") for 步 in 步骤):
             物品.append("*")
         self.发({"cmd": "watch_blocks", "list": 方块[:16]})
-        self.发({"cmd": "watch_items", "list": sorted(set(物品))[:16]})
+        # ★★★ 2026-10-15：**并集，不是覆盖** ✗
+        #   原来整表覆盖 ⇒ 会把常识刚发的 `["*"]`（盯全量 ✓）一把盖掉 ✗
+        #   ⇒ 于是"看得见背包"和"看不见背包"来回跳 ⇒ 接单永远差一拍 ✓
+        #   老祖裁决（第 32 条 · 观察与意图解耦 ✓）：**观察通道只许加，不许悄悄减** ✓
+        _旧盯 = set(getattr(self, "_盯着物品", ()) or ())
+        _新盯 = sorted(_旧盯 | set(物品))[:24]
+        self._盯着物品 = _新盯
+        self.发({"cmd": "watch_items", "list": _新盯})
         self.发({"cmd": "furnace_watch", "p": 熔炉} if 熔炉 else {"cmd": "furnace_watch"})
 
     def _撤探针(self):
         self.发({"cmd": "watch_blocks", "list": []})
-        self.发({"cmd": "watch_items", "list": []})
+        # ★★★ 2026-10-15：**不再清空 watch** ✗（第 32 条 · 观察与意图解耦 ✓）
+        #   原来这里发 `list: []` ⇒ "没活就把唯一的观察窗关上"✗
+        #   ⇒ 鸡生蛋：脑要接单才发 watch ✗ 接单又要先看得见背包 ✗ ⇒ 从零起步永远接不上 ✓
+        #   改：**什么都不发** ✓（名单留着 ✓ 手侧继续报 ✓ 成本 = 16 个名字 ✓ 可忽略 ✓）
         self.发({"cmd": "furnace_watch"})
 
     # ── 打断与恢复 ──
@@ -1659,8 +1708,28 @@ class 任务栈:
                 # 而那一格其实还在（后面 60 秒的"拾"超时就是这么来的）。
                 return (名 in ("air", "cave_air", "void_air")), None
             return (名 == 步.get("方块")), None
-        if 动 in ("拾", "熔炉取成品"):
-            return self._物品数量(s, 步.get("物品")) >= float(步.get("数量", 1)), None
+        if 动 in ("拾", "熔炉取成品", "collect"):
+            # ★★★ 2026-10-15（血证 ✓）：`collect` 是**收集车厢**把「挖+拾」并成的一步 ✓
+            #   判据跟「拾」一模一样（背包里够了就算成 ✓）。原来这里没它 ✗ ⇒ 落到最下面
+            #   `return False` ✗ ⇒ **永远不算完成** ⇒ 卡死在第 1 步（实机：木头已在手 2 块 ✓ 4 分钟不动 ✗）
+            #   为什么写进主链而不是只靠车厢包装 ✗：`_看完成了没` 被 5 节包过 ✓
+            #   只要有一节没往上调，`collect` 就漏到底 ✗ ⇒ **判定表是"锁"的一部分，写在锁里最稳** ✓
+            # ★★★ 2026-10-16【主人点醒 ✓ 记性 944 行自己写着的设计】：
+            #   病：原来只判「物品数量 ≥ 数量」✗ —— 而 `数量` 是**增量**（补料合并出来的 ✓）
+            #      ⇒ 背包**本来就有 2 块** ⇒ `2 ≥ 1` **秒判成** ✗ ⇒ 一步没挖就放行 ⇒ 合成石镐永远缺料 ✓
+            #   修（照 记性:944「**如果背包物品数量没增加，这一步就判定为未完成**」✓）：
+            #      有"挖前数量"就判「**现在 ≥ 挖前 + 数量**」✓（= 真的增加了 ✓ 句 1 ✓）
+            #      没有才退回老判据 ✓（不砸别的路 ✓）
+            _有 = self._物品数量(s, 步.get("物品"))
+            _要 = float(步.get("数量", 1))
+            _前 = 步.get("挖前数量") if 步.get("挖前数量") is not None else 步.get("_进项前")
+            try:
+                _前 = float(_前) if _前 is not None else None
+            except Exception:
+                _前 = None
+            if _前 is not None:
+                return _有 >= _前 + _要, None
+            return _有 >= _要, None
         if 动 == "打":
             名 = 步.get("名")
             对方血 = ((s or {}).get("watched") or {}).get(名)
@@ -1772,7 +1841,49 @@ class 任务栈:
         elif 动 == "挖":
             self.发({"cmd": "dig", "p": [float(v) for v in 步.get("p", [])[:3]]})
         elif 动 == "放":
-            self.发({"cmd": "place", "p": [float(v) for v in 步.get("p", [])[:3]]})
+            try:  # ★ 2026-10-16 探针（写文件 ✓ 必出声 ✗）
+                import json as _jF, os as _oF, time as _tF
+                _oF.makedirs("logs", exist_ok=True)
+                with open("/dev/null", "a", encoding="utf-8") as _fF:
+                    _fF.write(_jF.dumps({"t": _tF.time(), "点": "放·即将下发", "p": 步.get("p"),
+                        "方块": 步.get("方块"), "有发函数": hasattr(self, "发")}, ensure_ascii=False) + "\n")
+            except Exception:
+                pass
+            # ★★★ 2026-10-16【实测 + 定案】（主人 观轨迹 ⇒ 对症下药 ✓）
+            #   病：`self.发(...)` 会在**关键路径上阻塞** ✗ —— 今晚实测逮到 6 处 ✓
+            #     其中「放工作台」这一步卡了 **15 分钟** ✗（它站在目标旁 1.9 格 ✓ 命令却发不出去 ✓）
+            #   修：**发命令放进工作线程 + 3 秒上限 + 出声** ✓（照本仓已验过的写法 ✓）
+            #     ⇒ 卡也只卡那条线程 ✗ 主链照走 ✓（下一拍 `_下发` 会再发一次 ✓ 幂等 ✓）
+            try:
+                import threading as _thP
+                _命 = {"cmd": "place", "p": [float(v) for v in 步.get("p", [])[:3]]}
+                _盒P = {}
+                def _发P():
+                    try:
+                        _盒P["值"] = self.发(_命)
+                    except Exception as _eP0:
+                        _盒P["错"] = _eP0
+                _tP = _thP.Thread(target=_发P, daemon=True, name="发place")
+                _tP.start(); _tP.join(3.0)
+                if _tP.is_alive():
+                    try:
+                        import json as _jP, os as _oP, time as _tP2
+                        _oP.makedirs("logs", exist_ok=True)
+                        with open("logs/发阻塞.jsonl", "a", encoding="utf-8") as _fP:
+                            _fP.write(_jP.dumps({"t": _tP2.time(), "点": "放·发命令卡了 >3 秒 ✗",
+                                "p": 步.get("p")}, ensure_ascii=False) + "\n")
+                    except Exception:
+                        pass
+                elif _盒P.get("错") is not None:
+                    print("[任务栈] 放命令抛异常（出声 ✓）：%s" % _盒P["错"], flush=True)
+            except Exception as _eP9:
+                print("[任务栈] 放·包装出岔子（出声 ✓）：%s" % _eP9, flush=True)
+            try:
+                import json as _jG, time as _tG
+                with open("/dev/null", "a", encoding="utf-8") as _fG:
+                    _fG.write(_jG.dumps({"t": _tG.time(), "点": "放·发完了（没卡 ✓）"}, ensure_ascii=False) + "\n")
+            except Exception:
+                pass
         elif 动 == "打":
             self.发({"cmd": 步.get("方式", "attack"), "target": 步.get("名")})
         elif 动 == "说":
@@ -1985,8 +2096,14 @@ class 记忆:
         self.卡 = {"地点": [], "事件": [], "人": [], "未了事": []}
         try:
             os.makedirs(目录, exist_ok=True)
-        except Exception:
-            pass
+        except Exception as _e:
+            try:
+                import json as _j, os as _o, time as _t
+                _o.makedirs("logs", exist_ok=True)
+                with open("logs/静默.jsonl", "a", encoding="utf-8") as _f:
+                    _f.write(_j.dumps({"t": _t.time(), "文件": "bridge.py", "行": 1988, "异常": repr(_e)[:160]}, ensure_ascii=False) + "\n")
+            except Exception:
+                pass
         self._载入()
 
     # ── 开关与参数 ──
@@ -2032,8 +2149,14 @@ class 记忆:
         try:
             with open(self._路(类), "a", encoding="utf-8") as f:
                 f.write(json.dumps(条, ensure_ascii=False) + "\n")
-        except Exception:
-            pass
+        except Exception as _e:
+            try:
+                import json as _j, os as _o, time as _t
+                _o.makedirs("logs", exist_ok=True)
+                with open("logs/静默.jsonl", "a", encoding="utf-8") as _f:
+                    _f.write(_j.dumps({"t": _t.time(), "文件": "bridge.py", "行": 2035, "异常": repr(_e)[:160]}, ensure_ascii=False) + "\n")
+            except Exception:
+                pass
 
     def _并入(self, 类, 条):
         """把一条（可能是"更新过的旧卡"）并进内存：按各自的键合并，后写的赢。
@@ -2074,8 +2197,14 @@ class 记忆:
         try:
             with open(self._路(类), "a", encoding="utf-8") as f:
                 f.write(json.dumps(条, ensure_ascii=False) + "\n")
-        except Exception:
-            pass
+        except Exception as _e:
+            try:
+                import json as _j, os as _o, time as _t
+                _o.makedirs("logs", exist_ok=True)
+                with open("logs/静默.jsonl", "a", encoding="utf-8") as _f:
+                    _f.write(_j.dumps({"t": _t.time(), "文件": "bridge.py", "行": 2077, "异常": repr(_e)[:160]}, ensure_ascii=False) + "\n")
+            except Exception:
+                pass
         if len(self.卡[类]) > self._容量(类):
             self._压缩(类)
 
@@ -2099,8 +2228,14 @@ class 记忆:
             with open(self._路(类), "w", encoding="utf-8") as f:
                 for 条 in self.卡[类]:
                     f.write(json.dumps(条, ensure_ascii=False) + "\n")
-        except Exception:
-            pass
+        except Exception as _e:
+            try:
+                import json as _j, os as _o, time as _t
+                _o.makedirs("logs", exist_ok=True)
+                with open("logs/静默.jsonl", "a", encoding="utf-8") as _f:
+                    _f.write(_j.dumps({"t": _t.time(), "文件": "bridge.py", "行": 2102, "异常": repr(_e)[:160]}, ensure_ascii=False) + "\n")
+            except Exception:
+                pass
 
     # ══════════ 写入规则（都发生在"事情刚发生"时）══════════
     def 看扫描(self, 扫, 我=None):
@@ -2361,7 +2496,13 @@ class 三觉:
         return True
 
     def 清扫描(self):
-        self.发({"cmd": "scan_clear"})
+        # ★★★ 2026-10-15（第 32 条 · 观察与意图解耦 ✓）：**不再真清** ✗
+        #   原来这里是 `self.发({"cmd": "scan_clear"})` ⇒ 手侧把那份扫描扔了 ✗
+        #   ⇒ 空闲时帧里 `scan` 就是空的 ⇒ 耳朵/常识一律报"没有扫描帧"✗
+        #   ⇒ 从冷启动**永远接不了单** ✓（今晚连撞三道同款门 ✓）
+        #   改：留着最后一份 ✓ —— 帧里本来就带 `scan.t`（那一份的时刻 ✓）
+        #       **谁用谁判新旧** ✓（tf2 的做法 ✓：带时间戳 ✓ 而不是发完就删 ✗）
+        pass
 
     def 扫描过期(self, s, 秒=90):
         t = ((s or {}).get("scan") or {}).get("t")
@@ -2549,8 +2690,14 @@ class 翻译器:
         try:
             with open(self.审计路径, "a", encoding="utf-8") as f:
                 f.write(json.dumps(条, ensure_ascii=False) + "\n")
-        except Exception:
-            pass
+        except Exception as _e:
+            try:
+                import json as _j, os as _o, time as _t
+                _o.makedirs("logs", exist_ok=True)
+                with open("logs/静默.jsonl", "a", encoding="utf-8") as _f:
+                    _f.write(_j.dumps({"t": _t.time(), "文件": "bridge.py", "行": 2552, "异常": repr(_e)[:160]}, ensure_ascii=False) + "\n")
+            except Exception:
+                pass
 
     # ══════════ 上行：组 Prompt ══════════
     def 组Prompt(self, s, 用途="翻译", 任务状况="没有任务", 说话人=None, 原话=None):
@@ -2691,8 +2838,14 @@ class 翻译器:
                 self.说(f"[{时刻()}] ⚠ **大模型输出畸形 JSON，请人工介入** ✗"
                         f"（四级裁剪都没过：严格 ✗ 抠块 ✗ 转义 ✗ literal ✗）｜"
                         f" 原样留档：{原文[:120]!r}", 紧急=True)
-            except Exception:
-                pass
+            except Exception as _e:
+                try:
+                    import json as _j, os as _o, time as _t
+                    _o.makedirs("logs", exist_ok=True)
+                    with open("logs/静默.jsonl", "a", encoding="utf-8") as _f:
+                        _f.write(_j.dumps({"t": _t.time(), "文件": "bridge.py", "行": 2694, "异常": repr(_e)[:160]}, ensure_ascii=False) + "\n")
+                except Exception:
+                    pass
             return None, None, 原因
         if 原因:
             self.总拒绝 += 1
@@ -2738,8 +2891,14 @@ class 翻译器:
                         self.说(f"[{时刻()}] ✗✗ **熔断**：连着 {self.连错} 次都没答成"
                                 f"（抠不出/语法错/结构残缺 都算 ✗）—— **停 60 秒再试** ✓"
                                 f"｜ 最近一次：{_因} ｜ 原文留档：{原文[:80]!r}", 紧急=True)
-                    except Exception:
-                        pass
+                    except Exception as _e:
+                        try:
+                            import json as _j, os as _o, time as _t
+                            _o.makedirs("logs", exist_ok=True)
+                            with open("logs/静默.jsonl", "a", encoding="utf-8") as _f:
+                                _f.write(_j.dumps({"t": _t.time(), "文件": "bridge.py", "行": 2741, "异常": repr(_e)[:160]}, ensure_ascii=False) + "\n")
+                        except Exception:
+                            pass
                     self.连错 = 0
                 return None, None, _因
             # 意图这一形状是**合法的** ✓（走常识那条路 ✓）——
@@ -2909,8 +3068,14 @@ class 心跳:
         try:
             with open(self.日志路径, "a", encoding="utf-8") as f:
                 f.write(json.dumps(条, ensure_ascii=False) + "\n")
-        except Exception:
-            pass
+        except Exception as _e:
+            try:
+                import json as _j, os as _o, time as _t
+                _o.makedirs("logs", exist_ok=True)
+                with open("logs/静默.jsonl", "a", encoding="utf-8") as _f:
+                    _f.write(_j.dumps({"t": _t.time(), "文件": "bridge.py", "行": 2912, "异常": repr(_e)[:160]}, ensure_ascii=False) + "\n")
+            except Exception:
+                pass
 
     def _预算还够(self, 现在):
         一小时 = [t for t in self.计数 if 现在 - t < 3600]
@@ -3075,8 +3240,14 @@ class 接线口:
         try:
             if self.s:
                 self.s.close()
-        except Exception:
-            pass
+        except Exception as _e:
+            try:
+                import json as _j, os as _o, time as _t
+                _o.makedirs("logs", exist_ok=True)
+                with open("logs/静默.jsonl", "a", encoding="utf-8") as _f:
+                    _f.write(_j.dumps({"t": _t.time(), "文件": "bridge.py", "行": 3078, "异常": repr(_e)[:160]}, ensure_ascii=False) + "\n")
+            except Exception:
+                pass
         self.s = None
 
 
@@ -3600,8 +3771,14 @@ class 大模型层:
             if 钥:
                 self.密钥 = 钥
                 return 钥
-        except OSError:
-            pass
+        except OSError as _e:
+            try:
+                import json as _j, os as _o, time as _t
+                _o.makedirs("logs", exist_ok=True)
+                with open("logs/静默.jsonl", "a", encoding="utf-8") as _f:
+                    _f.write(_j.dumps({"t": _t.time(), "文件": "bridge.py", "行": 3603, "异常": repr(_e)[:160]}, ensure_ascii=False) + "\n")
+            except Exception:
+                pass
         # 退路：从 Cherry Studio 的库里只读取（和配电盘里的终端聊天.py 一个办法）
         try:
             import sqlite3
@@ -3620,8 +3797,14 @@ class 大模型层:
                         if 钥:
                             self.密钥 = 钥
                             return 钥
-        except Exception:
-            pass
+        except Exception as _e:
+            try:
+                import json as _j, os as _o, time as _t
+                _o.makedirs("logs", exist_ok=True)
+                with open("logs/静默.jsonl", "a", encoding="utf-8") as _f:
+                    _f.write(_j.dumps({"t": _t.time(), "文件": "bridge.py", "行": 3623, "异常": repr(_e)[:160]}, ensure_ascii=False) + "\n")
+            except Exception:
+                pass
         return None
 
     # ── 审计 ──
@@ -3632,8 +3815,14 @@ class 大模型层:
             路 = os.path.join(self.审计目录, "llm审计.jsonl")
             with open(路, "a", encoding="utf-8") as f:
                 f.write(json.dumps(条, ensure_ascii=False) + "\n")
-        except Exception:
-            pass
+        except Exception as _e:
+            try:
+                import json as _j, os as _o, time as _t
+                _o.makedirs("logs", exist_ok=True)
+                with open("logs/静默.jsonl", "a", encoding="utf-8") as _f:
+                    _f.write(_j.dumps({"t": _t.time(), "文件": "bridge.py", "行": 3635, "异常": repr(_e)[:160]}, ensure_ascii=False) + "\n")
+            except Exception:
+                pass
 
     # ── 问 ──
     def 问(self, 原文, 说话人, s, 听懂的话):
@@ -3797,8 +3986,14 @@ def 主():
     # 输出被管道接走时 Python 会攒 8KB 才吐，看起来像"卡住了"。强制行缓冲。
     try:
         sys.stdout.reconfigure(line_buffering=True)
-    except Exception:
-        pass
+    except Exception as _e:
+        try:
+            import json as _j, os as _o, time as _t
+            _o.makedirs("logs", exist_ok=True)
+            with open("logs/静默.jsonl", "a", encoding="utf-8") as _f:
+                _f.write(_j.dumps({"t": _t.time(), "文件": "bridge.py", "行": 3800, "异常": repr(_e)[:160]}, ensure_ascii=False) + "\n")
+        except Exception:
+            pass
 
     cfg = 读配置()
     m1 = cfg.get("m1") or {}
@@ -3808,6 +4003,9 @@ def 主():
     退避 = m1.get("reconnect_backoff_ms") or [2000, 4000, 8000, 15000, 30000]
 
     叙事 = 叙事者(心跳秒=心跳秒, 每分钟上限=int(m1.get("max_lines_per_min", 12)))
+    # ★★★ 2026-10-15（血证 ✓）：**登记活实例** ✓ 车厢们靠这张表找它 ✓
+    #   不登记 ⇒ `_活实例(bridge,"叙事者")` 返回 None ⇒ 耳朵读到 None ✗ ⇒ 永远"没有扫描帧"✗（今晚老谜题 ✓）
+    叙事者.车钩活着的实例 = [叙事]
     说 = 叙事.说
     # ⚠ 反射层要同时拿到 m1 和 m2（还有 M4 的猎手参数）—— M2 的参数全在 m2 里。
     # 只喂 m1 的话，counter_dist / finish_hp / counter_cooldown_ms 这些
@@ -3900,8 +4098,14 @@ def 主():
                             三觉层.记聊天(谁, 话, 听懂了)
                             try:
                                 记忆层.记人(谁, "说话")      # ★ 只记名字与次数，不存原文
-                            except Exception:
-                                pass
+                            except Exception as _e:
+                                try:
+                                    import json as _j, os as _o, time as _t
+                                    _o.makedirs("logs", exist_ok=True)
+                                    with open("logs/静默.jsonl", "a", encoding="utf-8") as _f:
+                                        _f.write(_j.dumps({"t": _t.time(), "文件": "bridge.py", "行": 3903, "异常": repr(_e)[:160]}, ensure_ascii=False) + "\n")
+                                except Exception:
+                                    pass
                             if not 听懂了 and 大模型.开():
                                 if (cfg.get("m5") or {}).get("senses_enable", True) \
                                         and (cfg.get("m5") or {}).get("chitchat_enable", True) \
@@ -3940,14 +4144,26 @@ def 主():
                                 记忆层._上次记挨打 = 现在t
                                 try:
                                     记忆层.记人(打我, "打我")
-                                except Exception:
-                                    pass
+                                except Exception as _e:
+                                    try:
+                                        import json as _j, os as _o, time as _t
+                                        _o.makedirs("logs", exist_ok=True)
+                                        with open("logs/静默.jsonl", "a", encoding="utf-8") as _f:
+                                            _f.write(_j.dumps({"t": _t.time(), "文件": "bridge.py", "行": 3943, "异常": repr(_e)[:160]}, ensure_ascii=False) + "\n")
+                                    except Exception:
+                                        pass
                         # ── M7：见过的人建张卡（第一次见到）──
                         for _p in (消息.get("players") or []):
                             try:
                                 记忆层.记初见(_p.get("name"))
-                            except Exception:
-                                pass
+                            except Exception as _e:
+                                try:
+                                    import json as _j, os as _o, time as _t
+                                    _o.makedirs("logs", exist_ok=True)
+                                    with open("logs/静默.jsonl", "a", encoding="utf-8") as _f:
+                                        _f.write(_j.dumps({"t": _t.time(), "文件": "bridge.py", "行": 3949, "异常": repr(_e)[:160]}, ensure_ascii=False) + "\n")
+                                except Exception:
+                                    pass
                         # ── M5/M6：三觉记空闲 → 心跳看一眼 ──
                         闲着 = (反射.状态 in (反射.平静, 反射.饿等)) and not 任务.在跑()
                         三觉层.记空闲(闲着)

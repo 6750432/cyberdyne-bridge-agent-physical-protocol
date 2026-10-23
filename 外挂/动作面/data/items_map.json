@@ -4,7 +4,6 @@
   "_怎么改": "直接改这个文件就行，**不用碰任何 .py**。改完跑 `python3 外挂/动作面/测数据.py` 验一遍。",
   "_校验": "每个「值」都必须是真 MC 物品名 —— 必须能在 minecraft-data 的 pc/1.21.1/items.json 里查到。查不到会当场报错，绝不放行（手侧会认不出这个名字，白白跑一趟）。",
   "_为什么左边是口语右边是 MC": "左边是主人怎么说话，右边是服务端认什么。两边对不上，小家伙就会「听懂了但做不到」。",
-
   "映射": {
     "木板": "oak_planks",
     "木棍": "stick",
@@ -27,9 +26,21 @@
     "门": "oak_door",
     "床": "red_bed",
     "玻璃": "glass",
-
     "木头": "oak_log",
     "原木": "oak_log",
+    "橡木": "oak_log",
+    "橡木原木": "oak_log",
+    "白桦原木": "birch_log",
+    "桦木原木": "birch_log",
+    "白桦木": "birch_log",
+    "桦木": "birch_log",
+    "云杉原木": "spruce_log",
+    "云杉木": "spruce_log",
+    "丛林原木": "jungle_log",
+    "金合欢原木": "acacia_log",
+    "深色橡木原木": "dark_oak_log",
+    "草方块": "grass_block",
+    "草块": "grass_block",
     "石头": "stone",
     "圆石": "cobblestone",
     "鹅卵石": "cobblestone",
@@ -72,9 +83,15 @@
     "箭": "arrow",
     "盾": "shield",
     "铁护腿": "iron_leggings",
-    "钻石甲": "diamond_chestplate"
+    "钻石甲": "diamond_chestplate",
+    "birch_log": "birch_log",
+    "grass_block": "grass_block",
+    "oak_log": "oak_log",
+    "橡木木板": "oak_planks",
+    "白桦木板": "birch_planks",
+    "桦木木板": "birch_planks",
+    "云杉木板": "spruce_planks"
   },
-
   "_坑清单": [
     "「火把」的「把」是个大坑：任何「见把就删」的量词处理都会把它删成「火」，于是查不到、解析失败。抠数量词只认「数字 + 量词」这种成对出现的形态，绝不单删一个「把」字（见 中文.py 的 抠数量词）。",
     "「把 3 个石头 放进箱子 21 78 -21」里的「3」会污染坐标提取 —— 坐标是按「三连数字」抓的，不先把数量词抠掉就会读成坐标 (3,21,78)。所以取坐标之前必须先抠数量词（见 中文.py 的 取坐标串）。"

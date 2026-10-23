@@ -143,6 +143,7 @@ def _换接(bridge):
                     self._记("拒单", 原因="剧本不合格", 说明=为啥)
                 except Exception:
                     pass
+                _拒单探针记(名字, 步骤, False)
                 return False
             步骤 = 好
         # ── 乙：字符串数组（老毛病）—— 当成一段剧本试着救回来 ──
@@ -278,3 +279,22 @@ def 报个话(bridge):
     return {"装上": _已装,
             "统计": dict(统计),
             "记号": bool(getattr(bridge, "_受限脚本外挂", None))}
+
+# ══════ ★ 拒单探针（2026-10-14 ✓ 只记录，不改行为 ✗）══════
+#   现象：声呐耳朵喊「栈.接 返回 False」✗ 而主链三条理由全被排除 ✓ ⇒ 凶手在这几个包装里 ✓
+#   本探针只做一件事：**谁返回了 False、当时那单长什么样**，写进 logs/拒单探针.jsonl ✓
+def _拒单探针记(名字, 步骤, 结果):
+    try:
+        import json as _j, os as _o, time as _t
+        根 = _o.path.dirname(_o.path.dirname(_o.path.dirname(_o.path.abspath(__file__))))
+        if 结果:
+            return
+        路 = _o.path.join(根, "logs", "拒单探针.jsonl")
+        _o.makedirs(_o.path.dirname(路), exist_ok=True)
+        with open(路, "a", encoding="utf-8") as f:
+            f.write(_j.dumps({"t": _t.time(), "车厢": '受限脚本', "任务": str(名字)[:40],
+                              "步数": len(步骤 or []),
+                              "动作": sorted({str((x or {}).get("动作")) for x in (步骤 or [])})[:12],
+                              "结果": 结果}, ensure_ascii=False) + "\n")
+    except Exception:
+        pass

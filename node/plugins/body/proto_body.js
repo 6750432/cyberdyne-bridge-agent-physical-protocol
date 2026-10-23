@@ -569,6 +569,18 @@ async function 放(bot, a) {
   //   与其猜，不如都试一遍，并且把每一次的拒绝理由攒起来 —— 失败了要能看出为什么。
   const 六面 = [[0, -1, 0], [0, 1, 0], [1, 0, 0], [-1, 0, 0], [0, 0, 1], [0, 0, -1]];
   const 拒过 = [];
+  // ★ 2026-10-17 P0-6：站得太近（<1.5）时，桌子会卡在脚下，服务端六面全拒
+  //   实机：目标 [521,63,-100] air，复核报到 0.8 格，六个面全被拒
+  //   先退一步到 ~2 格再放 ✓（退不了就照原样试 ✓）
+  try {
+    const 目标块 = bot.blockAt(取坐标(bot, a.p));
+    if (目标块 && bot.entity.position.distanceTo(目标块.position) < 1.5) {
+      const { GoalNear } = require('mineflayer-pathfinder').goals;
+      await bot.pathfinder.goto(new GoalNear(目标块.position.x, 目标块.position.y, 目标块.position.z, 2.5));
+    }
+  } catch (e) {
+    console.log('[place] 退到 2.5 格失败（照原样试）', e && e.message);
+  }
   for (const [dx, dy, dz] of 六面) {
     const 邻 = bot.blockAt(取坐标(bot, [a.p[0] + dx, a.p[1] + dy, a.p[2] + dz]));
     if (!邻) continue;
@@ -594,19 +606,46 @@ async function 放(bot, a) {
         new Promise((_, 拒) => setTimeout(
           () => 拒(new Error('placeBlock 2.5 秒没回音（不许无声地等 ✗）')), 2500)),
       ]);
+      // ★ 2026-10-17 P0-7：放成功后本地 chunk 可能还是旧 air（SlotComponent/更新丢失）
+      //   ⇒ 直接把这一格写成本地方块，保证后面的 craft 能 findBlock 到自己的台子
+      try {
+        const 方 = bot.registry.blocksByName[手上.name];
+        if (方) bot.world.setBlockStateId(取坐标(bot, a.p), 方.defaultState);
+      } catch (e) { console.log('[place] 本地补格失败', e && e.message); }
       return { ok: true, 放的是: 手上.name, 位置: a.p, 用的面: [dx, dy, dz] };
     } catch (e) {
       拒过.push(`面(${dx},${dy},${dz}) ${String(e.message).slice(0, 42)}`);
     }
   }
   if (!拒过.length) return { ok: false, why: '六面全是空的，没有可以靠着放的地方' };
+  // ★ 2026-10-17 P0-7：原落点六面全拒 ⇒ ±2 找「本格空 + 下面实心」的替代位 ✓
+  //   实机：目标 air，下面补了石头仍被服务端六面全拒；死磕这个坐标只会空转
+  if (!a.改位) {
+    let 替代 = null;
+    for (let dx = -2; dx <= 2 && !替代; dx++) {
+      for (let dz = -2; dz <= 2 && !替代; dz++) {
+        if (!dx && !dz) continue;
+        const 试 = [a.p[0] + dx, a.p[1], a.p[2] + dz];
+        const 本 = bot.blockAt(取坐标(bot, 试));
+        const 下 = bot.blockAt(取坐标(bot, [试[0], 试[1] - 1, 试[2]]));
+        if (本 && (本.name === 'air' || 本.name === 'cave_air')
+            && 下 && 下.name !== 'air' && 下.name !== 'cave_air' && 下.name !== 'water') {
+          替代 = 试;
+        }
+      }
+    }
+    if (替代) {
+      const 再 = await 放(bot, Object.assign({}, a, { p: 替代, 改位: true }));
+      if (再 && 再.ok) return 再;
+    }
+  }
   return { ok: false, why: `六个面都试过了，全被拒：${拒过.slice(0, 3).join(' ｜ ')}` };
 }
 
 async function 合成(bot, a) {
   const 名 = a.item;
   if (!名) return { ok: false, why: '要告诉我要合成什么（item）' };
-  const 数 = 钳(a.count, 1, 64, 1);
+  const 要 = 钳(a.count, 1, 64, 1);
 
   let 物品定义 = null, 数据 = null;
   try {
@@ -794,6 +833,7 @@ async function 合成(bot, a) {
      *     ⇒ 把「这条配方要什么 ／ 我手里有多少」一起报回去 ✓
      *   （只动这一支的**输出**，不改任何行为 ✗） */
     let _要件 = '（这一版数据里没找到它的配方）';
+    const _缺料 = {};          // ★ P0-4：结构化缺料 {名字: 差几个} ⇒ 脑侧直接补 ✓
     try {
       const _全 = bot.recipesAll(物品定义.id, null, 工作台);
       if (_全.length) {
@@ -805,12 +845,14 @@ async function 合成(bot, a) {
             let _件 = String(_d.id);
             try { _件 = 数据.items[_d.id].name; } catch (e) { /* 拿不到名字就报 id */ }
             _料.push(`${_件} ${_有}/${-_d.count}`);
+            const _差 = (-_d.count) - _有;
+            if (_差 > 0) _缺料[_件] = (_缺料[_件] || 0) + _差;
           }
         }
         _要件 = `（配方要：${_料.join('、') || '?'}）`;
       }
     } catch (e) { _要件 = `（查配方时出错：${String(e.message).slice(0, 40)}）`; }
-    return { ok: false, why: `材料不够，合不出「${名}」${_要件}` };
+    return { ok: false, why: `材料不够，合不出「${名}」${_要件}`, 缺料: _缺料 };
   }
 
   清控制(bot);
@@ -822,6 +864,16 @@ async function 合成(bot, a) {
    *   ⇒ 照那个**成功先例**用超时兜住 ✓ ——
    *     宁可**如实回一句"超时"**✗，也不许一声不吭 ✓（这个项目的铁律：不许静默 ✓）
    */
+  /* ★ 2026-10-17：`按产物` 语义 ✓
+   *   脑侧 `合成 数量=4` 是“要 4 块成品”✓
+   *   可 mineflayer 的 `bot.craft(recipe, count)` 的 count 是“做几次配方”✗
+   *   一锅出 4 块木板 ⇒ 要 4 块只该做 1 次 ✓（原来做 4 次 = 16 块 ✗）
+   */
+  let 每炉 = 1;
+  try {
+    每炉 = Math.max(1, Number((配方表[0] && 配方表[0].result && 配方表[0].result.count) || 1));
+  } catch (e) { 每炉 = 1; }
+  const 数 = a.按产物 ? Math.max(1, Math.ceil(要 / 每炉)) : 要;
   const 超时毫秒 = 6000;
   const 果 = await Promise.race([
     bot.craft(配方表[0], 数, 工作台)
@@ -834,6 +886,7 @@ async function 合成(bot, a) {
          *     ⇒ 把"这条配方要什么 / 我手里有多少"贴在错误后面一起报回去 ✓
          */
         let _细 = "";
+        const _缺料 = {};
         try {
           const _料 = [];
           for (const d of ((配方表[0] && 配方表[0].delta) || [])) {
@@ -843,10 +896,12 @@ async function 合成(bot, a) {
             let _有 = 0;
             try { _有 = bot.inventory.count(d.id, d.metadata); } catch (e2) { _有 = 0; }
             _料.push(`${_件} ${_有}/${-d.count}`);
+            const _差 = (-d.count) - _有;
+            if (_差 > 0) _缺料[_件] = (_缺料[_件] || 0) + _差;
           }
           if (_料.length) _细 = `（配方要：${_料.join('、')}）`;
         } catch (e2) { _细 = "（配方细节没取到）"; }
-        return { ok: false, why: String((e && e.message) || e) + _细 };
+        return { ok: false, why: String((e && e.message) || e) + _细, 缺料: _缺料 };
       }),
     new Promise((修) => setTimeout(
       () => 修({ ok: false,
@@ -856,7 +911,7 @@ async function 合成(bot, a) {
       超时毫秒)),
   ]);
   if (!果 || !果.ok) return 果 || { ok: false, why: `合成「${名}」没成，而且没给原因 ✗` };
-  return { ok: true, 合成: 名, 数量: 数, 用了工作台: !!工作台 };
+  return { ok: true, 合成: 名, 数量: 要, 次数: 数, 产出: 数 * 每炉, 用了工作台: !!工作台 };
 }
 
 async function 使用(bot, a) {

@@ -669,6 +669,21 @@ def 求解(目标, 数量=1, 背包=None, 方块在哪=None, 最多深度=None):
             为什么 += "\n".join("    · " + x for x in 尾巴)
         return {"好": False, "为什么": 为什么, "计划": [], "统计": 统计}
     统计["剩料"] = {k: v for k, v in 工作.items() if v}
+    # ★ 2026-10-17 P0-8：**计划和雷达对账** ✓
+    #   没有默认树种/方块 ✗ —— 计划里有挖/收、而对应方块不在雷达清单
+    #   ⇒ 直接失败，逼耳朵等扫描后重解 ✓（不许再排 acacia 去撞空气 ✗）
+    缺 = []
+    for 步 in 计划:
+        if not isinstance(步, dict):
+            continue
+        if 步.get("动作") in ("挖", "收集"):
+            名 = str(步.get("目标方块") or 步.get("方块") or "")
+            if 名 and 名 not in 在哪:
+                缺.append(名)
+    if 缺:
+        return {"好": False,
+                "为什么": f"雷达清单里没有 {sorted(set(缺))}：拒绝默认树种/方块，先等扫描 ✓",
+                "计划": [], "统计": 统计}
     return {"好": True, "为什么": "", "计划": 计划, "统计": 统计}
 
 

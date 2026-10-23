@@ -148,9 +148,17 @@ def 装上(bridge, 数=None, 日志=None, **kw):
         #   不能拿吃饭的规矩去卡它。
         if 步.get("物品"):
             名0, 数0 = str(步["物品"]), int(float(步.get("数量") or 1))
+            谁0 = str(步.get("谁") or "")
+            # ★ 2026-10-17：谁是「文件口令/测试」⇒ **测试保留** ✓
+            #   文件口令不是玩家 ✗ 递出去只会丢地上 ⇒ 验收看不到镐 ✓
+            #   老祖：目标效果是「到对方手里」；没有对方就不假装送达 ✓
+            if 谁0 in ("文件口令", "测试", "keep"):
+                任["分饭_保留"] = {"物品": 名0, "数量": 数0}
+                _记(f"测试保留：{数0} 个 {名0} 留在背包（「{谁0}」不是玩家 ✓ 不丢地上 ✓）")
+                return True
             try:
                 self.发({"cmd": "递", "物品": 名0, "数量": float(数0),
-                         "谁": str(步.get("谁") or "")})
+                         "谁": 谁0})
             except Exception as e:
                 _记(f"递东西没发出去：{e}")
                 return False
@@ -185,6 +193,8 @@ def 装上(bridge, 数=None, 日志=None, **kw):
         if 任 is None:
             任 = self.任务 if isinstance(self.任务, dict) else {}
         if 任.get("分饭_回绝"):
+            return True, None
+        if 任.get("分饭_保留"):
             return True, None
         名 = str(步.get("物品") or "")
         要 = float(步.get("数量") or 1)

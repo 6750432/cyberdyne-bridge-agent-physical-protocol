@@ -1,4 +1,15 @@
 #!/usr/bin/env python3
+
+# ★★★ 2026-10-17【主人：「抓住问题直接细查然后根治」✓ 认真一次】
+#   病：有个线程 90% CPU busy loop ✗ ⇒ 占着 GIL ⇒ 主循环进不去 ✓ 而 `py-spy` 要 ptrace 权限 ✗
+#   修（标准做法 ✓）：`faulthandler` 挂 **SIGUSR1** ⇒ `kill -USR1 <pid>` 就把**所有线程的栈**打到 stderr ✓
+#      ⇒ 一次就知道它卡在哪个文件哪一行 ✓（不用改业务代码 ✗ 不用猜 ✓）
+try:
+    import faulthandler as _fh, signal as _sg, sys as _sy
+    _fh.register(_sg.SIGUSR1, file=_sy.stderr, all_threads=True)
+    print("[车钩] 栈转储就绪 ✓ `kill -USR1 <pid>` 即可 ✓", flush=True)
+except Exception as _eF:
+    print("[车钩] 栈转储没装上：%s" % _eF, flush=True)
 # -*- coding: utf-8 -*-
 """外挂列车·车钩 —— 让副链外挂像火车车厢一样随时挂、随时摘、随便重排。
 
@@ -330,6 +341,13 @@ def _载模块(路径, 模块名):
       在 sys.modules 里会撞名，后载的把先载的顶掉 —— 摘的时候就会
       摘到一个"其实不是它"的对象。所以名字必须带车厢 id。
     """
+    # ★★★ 2026-10-17【主人第 ④ 条 ✓ 根治】：**一个脑里，一种车厢只有一个实例** ✓
+    #   病：这里每次都 `spec_from_file_location` + `exec_module` ✗ ⇒ 同一个补丁.py 会有**好几份** ✗
+    #     ⇒ 每份各有各的模块级变量/类对象 ⇒ 钩子挂在 A 份 ✗ 而跑的是 B 份 ✗
+    #     ⇒ 今晚全部的"时好时坏/两份耳朵/两份计划/栈.接收不到"**根子都是这一条** ✓✓
+    #   修（照老祖第 6 条）：**先查 `sys.modules`** ✓ 有就**复用那一份** ✓ 不再造第二份 ✗
+    if 模块名 in sys.modules:
+        return sys.modules[模块名]
     spec = importlib.util.spec_from_file_location(模块名, 路径)
     if spec is None or spec.loader is None:
         raise 清单错(f"载不动 {路径}")

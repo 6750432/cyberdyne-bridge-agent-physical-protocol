@@ -441,6 +441,27 @@ function 方块快照() {
    *      也不违反反矿透 —— 挨着我的那 4 格，肉眼本来就看得到 ✓）
    */
   const 要报 = 补齐身边四格(看的方块, bot.entity.position);
+
+  /* ★★★ 2026-10-17【今晚最后一米 ✓】：**脚下那一列 ＋ 四周斜下**也要报 ✓
+   *   病：盲挖（`安排一趟向下盲挖`）要的是 `[x0+dx, y0-i, z0+dz]`（**前方斜下** ✓）
+   *     而这里只报"身边 4 格" ✗ ⇒ 它永远"缺读数"⇒ 永远不下钻 ✓
+   *     实机原话：「等雷达读数（脚下 [[-30,47,-37], [-30,46,-37], [-30,45,-37]] 这几…」✓
+   *   规矩来源：**439 行自己写的** ——「挨着我的那几格，肉眼本来就看得到 ✓ 不该等谁来指 ✓」
+   *     （反矿透不破 ✓ 这几格是伸手就能摸到的 ✓）
+   */
+  try {
+    const 我 = bot.entity.position;
+    // ★ 2026-10-17【差一个数 ✓】：**负数上 floor ≠ Python 的 int** ✗
+  //   JS `Math.floor(-31.5) = -32` ✗ 而 Python `int(-31.5) = -31` ✓（向零取整 ✓）
+  //   ⇒ 脑要 x=-30 那几格，我报的是 -33/-32/-31 ⇒ **永远差一格** ✗
+  const x0 = Math.trunc(我.x), y0 = Math.trunc(我.y), z0 = Math.trunc(我.z);
+    for (const 偏 of [[0, 0], [1, 0], [-1, 0], [0, 1], [0, -1]]) {
+      for (let i = 1; i <= 3; i++) {
+        const p = [x0 + 偏[0], y0 - i, z0 + 偏[1]];
+        if (!要报.some((q) => q[0] === p[0] && q[1] === p[1] && q[2] === p[2])) 要报.push(p);
+      }
+    }
+  } catch (e) { /* 读不到就照旧 ✓ 不静默也不炸是这里的既有风格 ✓ */ }
   if (!要报.length) return null;
   const 出 = [];
   for (const p of 要报) {
@@ -452,14 +473,21 @@ function 方块快照() {
 }
 
 function 物品快照() {
-  if (!bot || !bot.inventory || !看的物品.length) return null;
+  // ★★★ 2026-10-16【今晚最终定案 ✓ 实机铁证】：原来"没点单就 return null" ✗
+  //   ⇒ 脑**永远看不见背包** ✗（帧里 items 恒空 ✗ 而 RCON 亲口说它有木镐 1 + 圆石 2 ✓）
+  //   ⇒ 于是 collect 永远判不成、合成永远"缺料"⇒ **石镐永远做不出来** ✓✓
+  //   修：**默认全量上报** ✓（背包很小 ✓ 这点数据量可忽略 ✓；`看的物品` 只当作"额外要报 0 的名字"用 ✓）
+  if (!bot || !bot.inventory) return null;
   const 出 = {};
   try {
-    // 特殊条目 "*" = 把背包里**所有**物品都报上来。
-    // 用途：任务里"挖了才知道要拾什么"这类步骤 —— 先把全量给脑，它自己去对照。
-    const 要全部 = 看的物品.indexOf('*') >= 0;
+    // ★★★ 2026-10-17【注释早就这么写 ✓ 代码却还在按名单过滤 ✗】
+    //   病（实机铁证 ✓）：collect oak_log 时 `_挂探针` 没把 oak_log 加进名单
+    //     ⇒ 帧里 items 只有 5 个合成物品、**永远没有 oak_log** ✗
+    //     ⇒ 脑的完成判据永远读到 0 ⇒ 每秒重发 collect ✓（手侧真收到了也判不成 ✗）
+    //   修：**背包里有什么就报什么** ✓（背包很小 ✓ 这点数据量可忽略 ✓）
+    //   老祖句 1：判完成只看世界事实 ✓ —— 事实得先送到脑眼前 ✓
     for (const it of bot.inventory.items()) {
-      if (要全部 || 看的物品.indexOf(it.name) >= 0) 出[it.name] = (出[it.name] || 0) + it.count;
+      出[it.name] = (出[it.name] || 0) + it.count;
     }
     for (const 名 of 看的物品) if (名 !== '*' && !(名 in 出)) 出[名] = 0;   // 没有的也报 0，别让脑去猜
   } catch (e) { return null; }
@@ -1144,6 +1172,8 @@ function 收命令(sock, 行) {
   if (!动词) { 丢包(sock, '结构不对（缺 cmd / act）'); return; }
   // 账本：大脑下的每一条命令都留痕 —— 光有结果没有输入，事后没法复盘
   记一笔({ 事件: '命令', 动词, 目标: msg.target || null,
+           任务: msg.任务 || null,
+           第几步: (msg.第几步 === undefined ? null : msg.第几步),
            时长: msg.ms || null, 方向: msg.dir || null,
            频率: (msg.hz === undefined ? null : msg.hz),
            文本: (动词 === 'say' ? String(msg.text || '').slice(0, 60) : null) });

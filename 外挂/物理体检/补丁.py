@@ -236,7 +236,9 @@ def 体检(步骤, 状态):
         #   （"误报比漏报更危险" —— 报一堆假的，真的那条就没人看了 ✓ 今天记过）
         #   规矩：**判据要用在它真正管的地方** ✓
         #   换成有依据的两条（依据就是刚抓到的常量 ✓）：
-        if 动 == "走到" and isinstance(p, (list, tuple)) and len(p) >= 3:
+        if 动 == "走到" and isinstance(p, (list, tuple)) and len(p) >= 3 and not 步.get("爬"):   # ★ 爬上去的台阶不算"走" ✓
+        # ★★★ 2026-10-17：`安排一趟挖上去` 的台阶步带 `"爬": True` ✓ —— 它是**挖上去**不是走上去 ✓
+        #   跳过 T4 高度差检查 ✓（不然一条正确的"挖阶梯"计划会被判"走不上去"而整条拒掉 ✓）
             我 = (状态 or {}).get("pos")
             if isinstance(我, (list, tuple)) and len(我) >= 3:
                 try:
@@ -274,6 +276,11 @@ def 装上(bridge, 日志=None, **kw):
     _原件[id(栈类)] = 原
 
     def 接(self, 名字, 步骤, s):
+        # ★ 入口探针（2026-10-15 定案用 ✓ 只记一笔 ✓ 不改逻辑 ✗）
+        try:
+            open("logs/包装探针.jsonl", "a", encoding="utf-8").write(
+                '{"t": ' + str(time.time()) + ', "车厢": "物理体检", "进": true}\n')
+        except Exception: pass
         """★ 接单那一刻体检：**计划是全的、物理常识才是真的** ✓"""
         global _体检过, _挑出过, _最近报告
         try:
@@ -325,11 +332,19 @@ def 装上(bridge, 日志=None, **kw):
                                 计划=f"{len(挖步)} 镐 / 空气 {len(空气)}")
                     except Exception:
                         pass
+                    _拒单探针记(名字, 步骤, False)
                     return False
             return 原(self, 名字, 改, s)
         except Exception as ex:
             print(f"[物理体检] 体检时出岔子（不影响主链，按原样接单）：{ex}", flush=True)
-            return 原(self, 名字, 步骤, s)
+            print("[体检钩] ★ 要调原(任务栈.接) 了 ✓", flush=True)
+            try:
+                _r = 原(self, 名字, 步骤, s)
+            except Exception as _eO:
+                print("[体检钩] ✗ 原(任务栈.接) 炸了：" + str(_eO)[:120], flush=True)
+                raise
+            print("[体检钩] ★ 原(任务栈.接) 回来了 ✓ 结果=" + str(_r)[:60], flush=True)
+            return _r
 
     栈类.接 = 接
     栈类._物理体检装了 = True
@@ -360,3 +375,22 @@ def 同步实例(bridge, 日志=None, 车钩=None):
     except Exception:
         pass
     return {"好": True, "为什么": "无状态，随便拔", "打了": []}
+
+# ══════ ★ 拒单探针（2026-10-14 ✓ 只记录，不改行为 ✗）══════
+#   现象：声呐耳朵喊「栈.接 返回 False」✗ 而主链三条理由全被排除 ✓ ⇒ 凶手在这几个包装里 ✓
+#   本探针只做一件事：**谁返回了 False、当时那单长什么样**，写进 logs/拒单探针.jsonl ✓
+def _拒单探针记(名字, 步骤, 结果):
+    try:
+        import json as _j, os as _o, time as _t
+        根 = _o.path.dirname(_o.path.dirname(_o.path.dirname(_o.path.abspath(__file__))))
+        if 结果:
+            return
+        路 = _o.path.join(根, "logs", "拒单探针.jsonl")
+        _o.makedirs(_o.path.dirname(路), exist_ok=True)
+        with open(路, "a", encoding="utf-8") as f:
+            f.write(_j.dumps({"t": _t.time(), "车厢": '物理体检', "任务": str(名字)[:40],
+                              "步数": len(步骤 or []),
+                              "动作": sorted({str((x or {}).get("动作")) for x in (步骤 or [])})[:12],
+                              "结果": 结果}, ensure_ascii=False) + "\n")
+    except Exception:
+        pass

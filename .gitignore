@@ -1,0 +1,22 @@
+# 运行账 / 日志 / 本地状态（不进仓库）
+logs/
+runtime/
+进度/
+记忆/
+日记*.md
+
+# 依赖 / 缓存
+node/node_modules/
+node_modules/
+__pycache__/
+*.py[cod]
+.venv/
+
+# 备份 / 临时文件
+*.bak
+*.bak-*
+*.orig
+*.rej
+*.sock
+*.log
+.DS_Store

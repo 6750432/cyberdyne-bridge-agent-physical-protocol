@@ -618,6 +618,148 @@ def 主():
        isinstance(说M3, str) and "3 次" in 说M3 and "够不着" in 说M3
        and len(栈M.任务["步骤"]) == 3, str(说M3))
 
+    # ══════════ Q 组：手说「材料不够」→ 就地补料（P0-4）══════════
+    print("── Q 组：手说「材料不够」→ 就地补料 ──")
+
+    class 假求Q:
+        def __init__(self):
+            self.问 = None
+
+        def 求解(self, 名, 数, 背包=None, 方块在哪=None):
+            self.问 = (名, 数, 背包, 方块在哪)
+            return {"好": True, "计划": [{"动作": "挖", "目标方块": 名}]}
+
+    class 假记性Q:
+        def __init__(self):
+            self.求 = 假求Q()
+
+        def 想起(self, 名):
+            return None
+
+        def 忘记(self, 名):
+            return True
+
+        def _求解器(self):
+            return self.求
+
+    class 假常Q:
+        @staticmethod
+        def 挖还是绕(*a, **k):
+            return ("挖过去", "", [])
+
+        @staticmethod
+        def 可用方块(状态):
+            return {"birch_log": [10, 64, 10]}
+
+        @staticmethod
+        def 落坐标(计划, 状态):
+            return ([{"动作": "走到", "p": [10, 64, 10], "到点": 3.0},
+                     {"动作": "挖", "p": [10, 64, 10], "方块": "birch_log"},
+                     {"动作": "拾", "物品": "birch_log", "数量": 1}], None)
+
+        @staticmethod
+        def 插进当前活(bridge, 步骤, 名字=None, 状态=None):
+            栈 = 车._活实例(bridge, "任务栈")
+            任 = 栈.任务
+            号 = 任["第几步"]
+            任["步骤"][号:号] = list(步骤)
+            任["重试"] = 0
+            任["重试到"] = 0.0
+            任["下发过"] = False
+            return True, "插了 %d 步" % len(步骤)
+
+    class 有活Q:
+        def __init__(self):
+            self.接过的 = []
+            self.任务 = {"id": "任务-缺料-1", "状态": "跑", "第几步": 1,
+                       "重试": 1, "重试到": 99.0, "下发过": True,
+                       "步骤": [{"动作": "走到", "p": [1, 64, 1], "到点": 3.0},
+                              {"动作": "合成", "物品": "birch_planks", "数量": 4}]}
+
+        def 接(self, 名字, 步骤, s):
+            self.接过的.append((名字, 步骤))
+            return True
+
+    _旧常Q = sys.modules.get("车厢_生存常识_入口")
+    _旧记Q = sys.modules.get("车厢_记性_入口")
+    sys.modules["车厢_生存常识_入口"] = 假常Q
+    _记Q = 假记性Q()
+    sys.modules["车厢_记性_入口"] = _记Q
+    类Q = type("栈类Q", (), dict(vars(有活Q)))
+    栈Q = 类Q()
+    类Q.车钩活着的实例 = [栈Q]
+    桥Q = 假bridge()
+    桥Q.任务栈 = 类Q
+    _旧找Q = 车._找生存常识
+    车._找生存常识 = lambda: 假常Q      # 真模块已在 sys.modules 里，鸭子查找会先撞上它 ✗
+    车._上次.clear()
+    车._插了几次.clear()
+    帧Q = {"pos": [10, 64, 10], "items": {}, "blocks": []}
+    说Q = 车.处理回执(桥Q, 帧Q,
+                    {"cmd": "craft", "ok": False,
+                     "why": "材料不够，合不出「birch_planks」（配方要：birch_log 0/1）",
+                     "缺料": {"birch_log": 1}})
+    _步Q = 栈Q.任务["步骤"]
+    试("Q1 ★★★ 手说缺「birch_log×1」→ 就地插「走到/挖/拾」✓（不干等 180 秒 ✗）",
+       [x.get("动作") for x in _步Q[1:4]] == ["走到", "挖", "拾"]
+       and _步Q[4].get("动作") == "合成" and not 栈Q.接过的,
+       f"步骤={[x.get('动作') for x in _步Q]} ｜ 接过={栈Q.接过的}")
+    试("Q2 ★★★ 补的是**缺的那一样**（不是重做目标物 ✓）",
+       _记Q.求.问[0] == "birch_log" and _记Q.求.问[1] == 1,
+       str(getattr(_记Q.求, "问", None)))
+    试("Q3 ★★ 插完把重试账清零 ✓",
+       栈Q.任务["重试"] == 0 and 栈Q.任务["下发过"] is False, str(栈Q.任务))
+    说Q2 = 车.处理回执(桥Q, 帧Q,
+                     {"cmd": "craft", "ok": False, "缺料": {"birch_log": 1},
+                      "why": "同一件事又说了一遍"})
+    试("Q4 ★★ 5 秒内重复来 → 不重复插 ✓",
+       说Q2 is None and len(栈Q.任务["步骤"]) == 5,
+       str((说Q2, len(栈Q.任务["步骤"]))))
+    车._找生存常识 = _旧找Q
+    if _旧常Q is not None:
+        sys.modules["车厢_生存常识_入口"] = _旧常Q
+    else:
+        sys.modules.pop("车厢_生存常识_入口", None)
+    if _旧记Q is not None:
+        sys.modules["车厢_记性_入口"] = _旧记Q
+    else:
+        sys.modules.pop("车厢_记性_入口", None)
+
+    # ══════════ R 组：放够不着、落脚点没读数 → 先走到目标点（P0-5）══════════
+    print("── R 组：放够不着、落脚点没读数 → 先走到目标点 ──")
+
+    class 有活R:
+        def __init__(self):
+            self.接过的 = []
+            self.任务 = {"id": "任务-放远-1", "状态": "跑", "第几步": 1,
+                       "重试": 2, "重试到": 99.0, "下发过": True,
+                       "步骤": [{"动作": "走到", "p": [0, 64, 0], "到点": 3.0},
+                              {"动作": "放", "p": [513, 63, -99],
+                               "方块": "crafting_table"}]}
+
+        def 接(self, 名字, 步骤, s):
+            self.接过的.append((名字, 步骤))
+            return True
+
+    类R = type("栈类R", (), dict(vars(有活R)))
+    栈R = 类R()
+    类R.车钩活着的实例 = [栈R]
+    桥R = 假bridge()
+    桥R.任务栈 = 类R
+    车._上次.clear()
+    车._插了几次.clear()
+    说R = 车.处理回执(
+        桥R, {"pos": [515, 66, -104], "items": {"crafting_table": 1},
+              "blocks": [{"p": [513, 63, -99], "name": "air"}], "scan": {}},
+        {"cmd": "place", "ok": False, "够不着": True, "距": 6.8,
+         "why": "方块在 6.8 格外，够不着（最多 4.5）"})
+    _步R = 栈R.任务["步骤"]
+    试("R1 ★★★ 放够不着 + 落脚点没读数 → 先插「走到目标点」✓（不空转 ✗）",
+       _步R[1].get("动作") == "走到"
+       and list(_步R[1].get("p")) == [513, 63, -99]
+       and _步R[2].get("动作") == "放" and not 栈R.接过的,
+       f"步骤={_步R} ｜ 说={说R}")
+
     # ══════════ J 组：走不到，可**够得着** → 那一步没必要走 ══════════
     #   ★★★ 实机（主人 13:42 那一场）：
     #     计划要它走到 [-143, 79, 149]（树冠上 4 格高）✓
