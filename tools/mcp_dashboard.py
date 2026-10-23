@@ -22,6 +22,8 @@ from kernel.legacy_runtime.client import CBAPClient
 from kernel.legacy_runtime.server import KernelServer
 
 KEEPALIVE: list = []
+RUNTIME: dict = {"lock": threading.RLock(), "driver": None,
+                 "kernel": None, "client": None, "fd": None}
 DASH: dict = {
     "started_at": int(time.time() * 1000),
     "phase": "booting",
@@ -175,7 +177,10 @@ HTML = r"""<!doctype html>
       </div>
       <div class="state-line"><span class="big" id="pos">connecting…</span><span class="unit">feet position</span></div>
       <div class="blocks" id="blocks"></div>
-      <div class="flow" style="margin-top:12px">
+      <div class="flow" style="margin-top:10px">
+        <span class="node" id="inventory">inventory · —</span>
+      </div>
+      <div class="flow" style="margin-top:10px">
         <span class="node" id="last-write">last CBAP write · —</span>
         <span class="node" id="last-tool">last MCP tool · —</span>
       </div>
@@ -241,6 +246,9 @@ async function tick(){
       const t=th[th.length-1];
       document.getElementById('last-tool').textContent=`last MCP tool · ${t.tool} · ${t.ok?'ok':'error'}`;
     }
+    const items=st.items||{};
+    const inv=Object.entries(items).map(([k,v])=>`${k} × ${v}`).join('  ·  ');
+    document.getElementById('inventory').textContent = `inventory · ${inv || 'empty'}`;
     const blocks=st.blocks||[];
     document.getElementById('blocks').innerHTML = blocks.slice(0,6).map(b=>{
       const p=b.position||{}; return `<span class="block">${b.name} · ${p.x},${p.y},${p.z}</span>`;
@@ -285,6 +293,61 @@ class Handler(BaseHTTPRequestHandler):
         self.send_header("Content-Length", str(len(data)))
         self.end_headers()
         self.wfile.write(data)
+
+    def _json(self, obj, status=200):
+        data = json.dumps(obj, ensure_ascii=False).encode("utf-8")
+        self.send_response(status)
+        self.send_header("Content-Type", "application/json; charset=utf-8")
+        self.send_header("Cache-Control", "no-store")
+        self.send_header("Content-Length", str(len(data)))
+        self.end_headers()
+        self.wfile.write(data)
+
+    def do_POST(self):
+        n = int(self.headers.get("Content-Length") or 0)
+        try:
+            body = json.loads(self.rfile.read(n).decode("utf-8") or "{}")
+        except Exception:
+            self._json({"ok": False, "error": "bad json"}, 400)
+            return
+        c = RUNTIME.get("client")
+        fd = RUNTIME.get("fd")
+        if c is None or fd is None:
+            self._json({"ok": False, "error": "runtime not ready"}, 503)
+            return
+        try:
+            with RUNTIME["lock"]:
+                if self.path.startswith("/api/act"):
+                    lease = c.lease(fd, ttl_ms=120000)
+                    if not lease.get("ok"):
+                        self._json({"ok": False, "stage": "lease",
+                                    "error": lease.get("error")}, 409)
+                        return
+                    frame = body.get("frame") or body
+                    rid, ack, result = c.write(fd, frame, deadline_ms=120000)
+                    self._json({"ok": bool(result.get("ok")),
+                                "id": rid, "ack": ack, "result": result})
+                    return
+                if self.path.startswith("/api/observe"):
+                    driver = RUNTIME.get("driver")
+                    target = body.get("target") or "blocks"
+                    kwargs = {k: v for k, v in body.items()
+                              if k not in ("target",)}
+                    out = driver.observe(target, **kwargs)
+                    self._json({"ok": True, "result": out})
+                    return
+                if self.path.startswith("/api/read"):
+                    channel = body.get("channel")
+                    out = c.read(fd, channel=channel, timeout_ms=5000)
+                    self._json({"ok": bool(out.get("ok")), "result": out})
+                    return
+                if self.path.startswith("/api/estop"):
+                    out = c.estop(fd, reason=body.get("reason") or "dashboard")
+                    self._json({"ok": bool(out.get("ok")), "result": out})
+                    return
+            self._json({"ok": False, "error": "unknown endpoint"}, 404)
+        except Exception as e:
+            self._json({"ok": False, "error": str(e)}, 500)
 
     def log_message(self, fmt, *args):
         pass
@@ -344,6 +407,7 @@ def run_demo(args) -> None:
     refresh(driver)
     add_cbap("state", label="live CBAP state frames")
     KEEPALIVE.extend([driver, kernel, client])
+    RUNTIME.update(driver=driver, kernel=kernel, client=client, fd=fd)
     threading.Thread(target=_refresh_loop, args=(driver,), daemon=True).start()
 
 

@@ -47,6 +47,31 @@ python3 tools/mcp_dashboard.py \
 4. 通过 CBAP `write` 注入真实 `chat` 和 `move`；
 5. 把 MCP 工具流量、CBAP syscall、健康状态画在 dashboard 上。
 
+## Dashboard 控制接口
+
+`tools/mcp_dashboard.py` 还暴露了本机控制端点，方便 Agent 直接当 LLM 用：
+
+```bash
+# 观察
+curl -s -X POST http://127.0.0.1:8123/api/observe \
+  -H 'Content-Type: application/json' \
+  -d '{"target":"blocks","blockTypes":["spruce_log"],"maxDistance":64,"maxCount":16}'
+
+# 动作
+curl -s -X POST http://127.0.0.1:8123/api/act \
+  -H 'Content-Type: application/json' \
+  -d '{"frame":{"channel":"body","op":"move","args":{"p":[34,65,-52]}}}'
+
+# 状态
+curl -s http://127.0.0.1:8123/api/state
+
+# 硬停
+curl -s -X POST http://127.0.0.1:8123/api/estop \
+  -H 'Content-Type: application/json' -d '{"reason":"manual"}'
+```
+
+真实任务记录见 `docs/CBAP-真实MCP-LLM任务.md`。
+
 ## 驱动接口
 
 ```python

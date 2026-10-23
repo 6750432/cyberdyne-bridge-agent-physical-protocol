@@ -83,6 +83,14 @@ class MCPDriverTest(unittest.TestCase):
         self.assertIn("blocks", r["payload"]["frame"]["world"])
         self.assertIn("chat", r["payload"]["frame"]["world"])
 
+    def test_dig_uses_floor_offsets(self):
+        self.driver._latest_state = {"pos": [10.5, 64.9, 10.2]}
+        out = self.driver.map_action({
+            "channel": "world", "op": "dig",
+            "args": {"p": [12, 66, 10]}})
+        self.assertEqual(out["tool"], "dig")
+        self.assertEqual(out["args"], {"dx": 2, "dy": 2, "dz": 0})
+
     def test_estop_terminates_mcp_process(self):
         self.client.lease(self.fd)
         r = self.client.estop(self.fd, reason="test")

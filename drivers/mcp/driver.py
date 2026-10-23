@@ -292,6 +292,11 @@ class MCPDriver:
             except Exception:
                 pass
 
+    def observe(self, target: str, **kwargs) -> Any:
+        args = {"target": target}
+        args.update(kwargs)
+        return self._call("observe", args, timeout=30)
+
     @staticmethod
     def _inventory_to_dict(inv: Any) -> dict:
         if not isinstance(inv, dict):
@@ -418,9 +423,11 @@ class MCPDriver:
         pos = st.get("pos")
         if not pos or pos[0] is None:
             raise ActionError("E_STALE", "no position yet; cannot compute relative offset")
-        return (int(round(float(p[0]) - float(pos[0]))),
-                int(round(float(p[1]) - float(pos[1]))),
-                int(round(float(p[2]) - float(pos[2]))))
+        # MCP dig/place uses floor(bot feet) + offset, not rounded distance.
+        import math
+        return (int(math.floor(float(p[0]))) - int(math.floor(float(pos[0]))),
+                int(math.floor(float(p[1]))) - int(math.floor(float(pos[1]))),
+                int(math.floor(float(p[2]))) - int(math.floor(float(pos[2]))))
 
     def send(self, command: dict) -> bool:
         if not self.connected:
