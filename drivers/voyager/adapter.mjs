@@ -60,6 +60,10 @@ async function runCode(code) {
   const r = await jpost('/step', {code, programs: ''});
   return r;
 }
+function chats(r) {
+  if (!Array.isArray(r.data)) return [];
+  return r.data.filter(e => Array.isArray(e) && e[0] === 'onChat').map(e => e[1]?.onChat);
+}
 const timer = setInterval(async () => {
   if (stopped || !clients.size) return;
   const st = await state();
@@ -88,18 +92,21 @@ const server = net.createServer((sock) => {
           send(sock, {type:'event', kind:'cmdResult', cmd, ok:true});
         } else if (cmd === 'exec') {
           const r = await runCode(String(msg.code || ''));
-          send(sock, {type:'event', kind:'cmdResult', cmd:'exec', ok:r.status===200, why:r.status===200?undefined:`HTTP ${r.status}`});
+          send(sock, {type:'event', kind:'cmdResult', cmd:'exec', ok:r.status===200,
+                     why:r.status===200?undefined:`HTTP ${r.status}`, onChat:chats(r)});
           const st = await state(); if (st) broadcast(st);
         } else if (cmd === 'say') {
           const text = String(msg.text || '');
           const code = `bot.chat(${JSON.stringify(text)});`;
           const r = await runCode(code);
-          send(sock, {type:'event', kind:'cmdResult', cmd:'say', ok:r.status===200, why:r.status===200?undefined:`HTTP ${r.status}`});
+          send(sock, {type:'event', kind:'cmdResult', cmd:'say', ok:r.status===200,
+                     why:r.status===200?undefined:`HTTP ${r.status}`, onChat:chats(r)});
           const st = await state(); if (st) broadcast(st);
         } else if (cmd === 'forward') {
           const code = "bot.setControlState('forward', true); await bot.waitForTicks(20); bot.setControlState('forward', false);";
           const r = await runCode(code);
-          send(sock, {type:'event', kind:'cmdResult', cmd:'forward', ok:r.status===200, why:r.status===200?undefined:`HTTP ${r.status}`});
+          send(sock, {type:'event', kind:'cmdResult', cmd:'forward', ok:r.status===200,
+                     why:r.status===200?undefined:`HTTP ${r.status}`, onChat:chats(r)});
           const st = await state(); if (st) broadcast(st);
         } else if (cmd === 'stop') {
           stopped = true;
