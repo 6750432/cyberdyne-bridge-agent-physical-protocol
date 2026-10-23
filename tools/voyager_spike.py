@@ -41,7 +41,10 @@ def main() -> int:
     ap.add_argument("--out", default="logs/voyager-spike.json")
     args = ap.parse_args()
     code = (
+        "await bot.waitForTicks(10);\n"
+        "bot.setControlState('forward', true);\n"
         "await bot.waitForTicks(20);\n"
+        "bot.setControlState('forward', false);\n"
         "bot.chat('voyager spike: manual task OK');"
     )
     report = {"ok": False, "python": __import__("sys").version.split()[0],
@@ -63,8 +66,9 @@ def main() -> int:
         }, timeout=60)
         obs = started[0][1] if started and started[0][0] == "observe" else {}
         st = obs.get("status") or {}
+        start_pos = st.get("position")
         step("bridge /start connected", bool(st.get("name")), {
-            "name": st.get("name"), "position": st.get("position"),
+            "name": st.get("name"), "position": start_pos,
             "health": st.get("health"), "inventory": obs.get("inventory"),
             "elapsed_s": round(time.time() - t0, 2),
         })
@@ -73,8 +77,12 @@ def main() -> int:
                       timeout=60)
         chats = [e[1].get("onChat") for e in events if e and e[0] == "onChat"]
         last = events[-1][1] if events else {}
+        last_pos = (last.get("status") or {}).get("position")
         step("manual JS /step executed", bool(events),
              {"onChat": chats, "elapsedTime": (last.get("status") or {}).get("elapsedTime")})
+        step("manual movement changed position",
+             bool(start_pos and last_pos and start_pos != last_pos),
+             {"before": start_pos, "after": last_pos})
         step("manual chat observed", "voyager spike: manual task OK" in chats, chats)
         report["events"] = events[-2:]
         report["ok"] = all(x["ok"] for x in report["steps"])

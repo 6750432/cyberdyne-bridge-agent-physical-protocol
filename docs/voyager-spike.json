@@ -3,7 +3,7 @@
   "python": "3.10.14",
   "bridge": "http://127.0.0.1:3000",
   "mc_port": 25565,
-  "code": "await bot.waitForTicks(20);\nbot.chat('voyager spike: manual task OK');",
+  "code": "await bot.waitForTicks(10);\nbot.setControlState('forward', true);\nawait bot.waitForTicks(20);\nbot.setControlState('forward', false);\nbot.chat('voyager spike: manual task OK');",
   "steps": [
     {
       "name": "bridge /start connected",
@@ -11,15 +11,13 @@
       "detail": {
         "name": "bot",
         "position": {
-          "x": -7.5,
+          "x": -4.5,
           "y": -60,
-          "z": -5.5
+          "z": -8.5
         },
         "health": 20,
-        "inventory": {
-          "oak_log": 3
-        },
-        "elapsed_s": 3.72
+        "inventory": {},
+        "elapsed_s": 4.28
       }
     },
     {
@@ -29,7 +27,23 @@
         "onChat": [
           "voyager spike: manual task OK"
         ],
-        "elapsedTime": 60
+        "elapsedTime": 70
+      }
+    },
+    {
+      "name": "manual movement changed position",
+      "ok": true,
+      "detail": {
+        "before": {
+          "x": -4.5,
+          "y": -60,
+          "z": -8.5
+        },
+        "after": {
+          "x": -4.5,
+          "y": -60,
+          "z": -4.186573060475261
+        }
       }
     },
     {
@@ -60,14 +74,14 @@
           "saturation": 5,
           "oxygen": 20,
           "position": {
-            "x": -7.5,
+            "x": -4.5,
             "y": -60,
-            "z": -5.5
+            "z": -4.4424177380418195
           },
           "velocity": {
             "x": 0,
             "y": -0.0784000015258789,
-            "z": 0
+            "z": 0.11785842372264366
           },
           "yaw": 3.141592653589793,
           "pitch": 0,
@@ -77,7 +91,7 @@
             null,
             null,
             null,
-            "oak_log",
+            null,
             null
           ],
           "name": "bot",
@@ -88,12 +102,10 @@
           "biome": "",
           "entities": {},
           "timeOfDay": "sunrise",
-          "inventoryUsed": 1,
-          "elapsedTime": 40
+          "inventoryUsed": 0,
+          "elapsedTime": 50
         },
-        "inventory": {
-          "oak_log": 3
-        },
+        "inventory": {},
         "nearbyChests": {},
         "blockRecords": []
       }
@@ -111,9 +123,9 @@
           "saturation": 5,
           "oxygen": 20,
           "position": {
-            "x": -7.5,
+            "x": -4.5,
             "y": -60,
-            "z": -5.5
+            "z": -4.186573060475261
           },
           "velocity": {
             "x": 0,
@@ -128,7 +140,7 @@
             null,
             null,
             null,
-            "oak_log",
+            null,
             null
           ],
           "name": "bot",
@@ -139,12 +151,10 @@
           "biome": "",
           "entities": {},
           "timeOfDay": "sunrise",
-          "inventoryUsed": 1,
-          "elapsedTime": 60
+          "inventoryUsed": 0,
+          "elapsedTime": 70
         },
-        "inventory": {
-          "oak_log": 3
-        },
+        "inventory": {},
         "nearbyChests": {},
         "blockRecords": [
           "dirt",

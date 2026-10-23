@@ -71,7 +71,7 @@ vanilla 1.19.2 上就能跑。这个 spike 没装 Fabric，也没跑客户端。
 ## 实际结果
 
 ```text
-voyager_spike.py: 4/4 checks passed
+voyager_spike.py: 5/5 checks passed
 ```
 
 输出：
@@ -79,14 +79,17 @@ voyager_spike.py: 4/4 checks passed
 ```text
 OK  bridge /start connected
     name=bot
-    position={x:-7.5, y:-60, z:-5.5}
+    position={x:-4.5, y:-60, z:-8.5}
     health=20
-    inventory={oak_log:3}
-    elapsed=3.72s
+    elapsed=4.28s
 
 OK  manual JS /step executed
     onChat=['voyager spike: manual task OK']
-    elapsedTime=60
+    elapsedTime=70
+
+OK  manual movement changed position
+    before={x:-4.5, y:-60, z:-8.5}
+    after ={x:-4.5, y:-60, z:-4.19}
 
 OK  manual chat observed
 OK  bridge /stop
