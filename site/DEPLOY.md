@@ -6,7 +6,7 @@
 GitHub Pages：已启用（GitHub Actions）
 最近部署：success（push site/** 自动触发）
 内容：已在线（HTTP 可访问）
-临时地址：https://6750432.github.io/cyberdyne-bridge-agent-physical-protocol/
+临时地址：https://cyberdyne-bridge.github.io/cyberdyne-bridge-agent-physical-protocol/
 自定义域名：www.cyberdyne-bridge.com
 HTTPS：尚未完成 —— GitHub 目前仍返回 *.github.io 证书
 ```
@@ -29,7 +29,7 @@ The certificate does not exist yet
 ### 现在的处理顺序
 
 1. GitHub → Settings → Pages → Custom domain 重新保存 `www.cyberdyne-bridge.com`
-2. 确认 DNS `www CNAME 6750432.github.io`
+2. 确认 DNS `www CNAME cyberdyne-bridge.github.io`
 3. 等 GitHub 签发证书；不要先勾 Enforce HTTPS
 4. 证书匹配后再勾 **Enforce HTTPS**
 5. 用 `curl -I https://www.cyberdyne-bridge.com/` 验证证书 SAN
@@ -69,7 +69,7 @@ www.cyberdyne-bridge.com
 
 ```text
 记录类型    主机记录    记录值
-CNAME       www         6750432.github.io
+CNAME       www         cyberdyne-bridge.github.io
 A           @           185.199.108.153
 A           @           185.199.109.153
 A           @           185.199.110.153
