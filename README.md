@@ -7,7 +7,7 @@
 **把异构 Minecraft Agent，变成同一个协议下的外设。**
 
 [![CBAP](https://img.shields.io/badge/CBAP-v1-0f766e?style=flat-square)](spec/README.md)
-[![Release](https://img.shields.io/badge/release-v1.4.0-0f766e?style=flat-square)](https://github.com/6750432/cyberdyne-bridge-agent-physical-protocol/releases)
+[![Release](https://img.shields.io/badge/release-v1.4.0-0f766e?style=flat-square)](https://github.com/cyberdyne-bridge/cyberdyne-bridge-agent-physical-protocol/releases)
 [![Conformance](https://img.shields.io/badge/conformance-101%2F101-14b8a6?style=flat-square)](tools/cbap_conformance.py)
 [![Python](https://img.shields.io/badge/Python-3.10%2B-3776AB?style=flat-square&logo=python&logoColor=white)](kernel/)
 [![Transport](https://img.shields.io/badge/CBAP--U-Unix%20socket-334155?style=flat-square)](spec/README.md)
@@ -289,7 +289,7 @@ v1.0.0  Security Baseline     82/82
 
 Release 页面：
 
-- https://github.com/6750432/cyberdyne-bridge-agent-physical-protocol/releases
+- https://github.com/cyberdyne-bridge/cyberdyne-bridge-agent-physical-protocol/releases
 
 v1.4.0 附带 `CBAP-parameters-zh.pdf`。
 版本边界和兼容性见 [`RELEASES.md`](RELEASES.md)。
