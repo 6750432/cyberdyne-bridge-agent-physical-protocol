@@ -3,7 +3,7 @@
 set -euo pipefail
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 REPO="cyberdyne-bridge/cyberdyne-bridge-agent-physical-protocol"
-WIKI_URL="https://github.com/${REPO}.wiki.git"
+WIKI_URL="git@github.com:${REPO}.wiki.git"
 TMP="$(mktemp -d)"
 trap 'rm -rf "$TMP"' EXIT
 cd "$TMP"

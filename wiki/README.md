@@ -1,7 +1,7 @@
 # Wiki source
 
-GitHub Wiki has no public API for the **first page**. A fresh wiki's
-`.wiki.git` repository does not exist until one page is created in the web UI.
+GitHub Wiki has no public API for the **first page**. The first page has now
+been created, so the index can be pushed normally.
 
 This directory contains the source for the index-only wiki:
 
@@ -10,7 +10,7 @@ Home.md
 _Sidebar.md
 ```
 
-After the first page exists, push this folder to:
+Push this folder with:
 
 ```text
 git@github.com:cyberdyne-bridge/cyberdyne-bridge-agent-physical-protocol.wiki.git
