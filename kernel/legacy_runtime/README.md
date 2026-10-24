@@ -50,7 +50,7 @@ c.close()
 python3 tools/cbap_conformance.py --target fake
 ```
 
-当前 69 条用例（网关/驱动/适配器/数据/20 条一致性 + D1/D4/D5）：
+当前 81 条用例（网关/驱动/适配器/数据/20 条一致性 + D1/D4/D5）：
 
 - hello/welcome、device_list
 - open/read
@@ -73,7 +73,7 @@ python3 tools/cbap_conformance.py --target fake
 4. **回执 FIFO**：legacy `cmdResult` 没有请求 ID，设备描述把 `max_inflight` 诚实写成 1；同一动词并发仍可能错配，等 legacy hand 加 `id` 后再消掉这条。
 5. **cancel 是 best-effort**：CBAP 请求会回 `E_CANCELED`；MCP driver 通过终止/重启外部进程实现，legacy hand 已发出的动作仍可能继续跑完。
 6. **estop 是锁存的**：`estop` 后网关进入 `safe`，`write` 回 `E_SAFETY`；v0 没有 `resume` 权限模型，恢复要 close/open 或重启网关。
-7. **没有鉴权**：UDS 默认无 token；TCP/token 字段已留，但 v0 只跑 UDS。
+7. **本地鉴权**：UDS 为 0600，SO_PEERCRED + token + operator token；同一 OS 用户仍可读本用户的 token。
 8. **没有断线重连后的请求重放**：`McDriver` 会重连手，`MCPDriver` 会自动重启外部 server，但未完成的 CBAP 请求会 `E_IO`；需要重试的 Agent 自己用 `idempotency_key`。MCP 崩溃后租约释放，必须重新 `lease`。
 
 ## 下一步
@@ -82,3 +82,25 @@ python3 tools/cbap_conformance.py --target fake
 - 把 `bridge.py` 的 `接线口` 换成 `CBAPClient`（真正“脑走 CBAP”）；
 - 给 `mc-driver` 加 `device.json` 一致性测试与 `health` 看门狗；
 - 给 `kernel` 加 `resume` 的 admin 权限模型。
+
+## Security boundary (2026-10-24)
+
+The Kernel now:
+
+```text
+binds the UDS with mode 0600
+checks SO_PEERCRED against allowed_uids
+generates <socket>.token and <socket>.operator (0600)
+uses a capability policy; default agents cannot estop
+requires the operator token for estop
+enforces max sessions / inflight / write rate
+adds fencing tokens and cancels pending writes on release
+writes a hash-chained audit with optional HMAC and remote sink
+latches safe mode on auth failure, estop burst, or audit failure
+runs a state-age watchdog
+```
+
+Old clients that call `estop` as a normal agent must now use the operator
+token or be granted `estop` by policy.
+
+See [`docs/SECURITY-HARDENING.md`](../../docs/SECURITY-HARDENING.md).

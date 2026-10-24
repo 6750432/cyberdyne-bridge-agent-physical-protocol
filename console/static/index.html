@@ -3,7 +3,6 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <meta name="cbap-console-token" content="__CONSOLE_TOKEN__">
   <title>CBAP Operator Console</title>
   <link rel="stylesheet" href="/static/style.css">
 </head>
@@ -20,6 +19,7 @@
       <span id="connection" class="pill offline">connecting</span>
       <button id="refresh" class="btn">Refresh</button>
       <button id="global-estop" class="btn danger">EMERGENCY STOP</button>
+      <button id="logout" class="btn">Logout</button>
     </div>
   </header>
 
@@ -44,6 +44,18 @@
       </div>
     </section>
   </main>
+
+  <div id="login" class="login-backdrop">
+    <form id="login-form" class="login-card">
+      <div class="mark">CBAP</div>
+      <h2>Operator login</h2>
+      <p>Enter the operator token printed by the console process.</p>
+      <input id="login-token" type="password" autocomplete="current-password"
+             placeholder="operator token" required>
+      <button class="btn danger" type="submit">Unlock console</button>
+      <p id="login-error" class="login-error" role="alert"></p>
+    </form>
+  </div>
 
   <div id="toast" class="toast" role="status" aria-live="polite"></div>
   <script src="/static/app.js"></script>

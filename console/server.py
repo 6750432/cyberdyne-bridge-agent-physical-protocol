@@ -17,6 +17,7 @@ import os
 import secrets
 import sys
 import threading
+import time
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 
@@ -36,9 +37,14 @@ class ConsoleHTTPServer(ThreadingHTTPServer):
     daemon_threads = True
     allow_reuse_address = True
 
-    def __init__(self, addr, handler, backend: ConsoleBackend, token: str):
+    def __init__(self, addr, handler, backend: ConsoleBackend,
+                 operator_token: str, session_ttl_s: int = 8 * 3600):
         self.backend = backend
-        self.token = token
+        self.operator_token = operator_token
+        self.session_ttl_s = int(session_ttl_s)
+        self.sessions: dict[str, float] = {}
+        self.login_attempts: dict[str, list[float]] = {}
+        self._session_lock = threading.Lock()
         super().__init__(addr, handler)
 
 
@@ -65,9 +71,9 @@ class Handler(BaseHTTPRequestHandler):
         if self.command != "HEAD":
             self.wfile.write(body)
 
-    def _json(self, code: int, obj: dict) -> None:
+    def _json(self, code: int, obj: dict, extra: dict | None = None) -> None:
         self._send(code, json.dumps(obj, ensure_ascii=False).encode("utf-8"),
-                   "application/json; charset=utf-8")
+                   "application/json; charset=utf-8", extra=extra)
 
     def _host_ok(self) -> bool:
         host = self.headers.get("Host", "")
@@ -82,9 +88,25 @@ class Handler(BaseHTTPRequestHandler):
         return origin in {f"http://127.0.0.1:{port}",
                           f"http://localhost:{port}"}
 
-    def _token_ok(self) -> bool:
-        supplied = self.headers.get("X-CBAP-Token", "")
-        return secrets.compare_digest(supplied, self.server.token)
+    def _session_token(self) -> str | None:
+        raw = self.headers.get("Cookie", "")
+        for part in raw.split(";"):
+            k, _, v = part.strip().partition("=")
+            if k == "cbap_console_session" and v:
+                return v
+        return None
+
+    def _session_ok(self) -> bool:
+        token = self._session_token()
+        if not token:
+            return False
+        now = time.time()
+        with self.server._session_lock:
+            exp = self.server.sessions.get(token)
+            if not exp or exp <= now:
+                self.server.sessions.pop(token, None)
+                return False
+            return True
 
     def _api_guard(self) -> bool:
         if not self._host_ok():
@@ -93,8 +115,8 @@ class Handler(BaseHTTPRequestHandler):
         if not self._origin_ok():
             self._json(403, {"ok": False, "error": "invalid Origin"})
             return False
-        if not self._token_ok():
-            self._json(403, {"ok": False, "error": "invalid console token"})
+        if not self._session_ok():
+            self._json(401, {"ok": False, "error": "operator login required"})
             return False
         return True
 
@@ -108,6 +130,9 @@ class Handler(BaseHTTPRequestHandler):
             return
         if self.path == "/static/style.css":
             self._file(STATIC / "style.css", "text/css; charset=utf-8")
+            return
+        if self.path == "/api/session":
+            self._json(200, {"ok": True, "authenticated": self._session_ok()})
             return
         if self.path == "/api/status":
             if not self._api_guard():
@@ -129,19 +154,29 @@ class Handler(BaseHTTPRequestHandler):
             return
         self._json(404, {"ok": False, "error": "not found"})
 
+    def _read_json(self) -> dict:
+        n = int(self.headers.get("Content-Length") or "0")
+        if n <= 0 or n > 8192:
+            raise ValueError("bad body size")
+        body = json.loads(self.rfile.read(n).decode("utf-8"))
+        if not isinstance(body, dict):
+            raise ValueError("body must be an object")
+        return body
+
     def do_POST(self) -> None:
+        if self.path == "/api/login":
+            self._login()
+            return
+        if self.path == "/api/logout":
+            self._logout()
+            return
         if self.path != "/api/estop":
             self._json(404, {"ok": False, "error": "not found"})
             return
         if not self._api_guard():
             return
         try:
-            n = int(self.headers.get("Content-Length") or "0")
-            if n <= 0 or n > 8192:
-                raise ValueError("bad body size")
-            body = json.loads(self.rfile.read(n).decode("utf-8"))
-            if not isinstance(body, dict):
-                raise ValueError("body must be an object")
+            body = self._read_json()
         except Exception as e:
             self._json(400, {"ok": False, "error": str(e)})
             return
@@ -152,6 +187,42 @@ class Handler(BaseHTTPRequestHandler):
         reason = str(body.get("reason") or "console")[:200]
         res = self.server.backend.estop(fd, reason=reason)
         self._json(200 if res.get("ok") else 500, res)
+
+    def _login(self) -> None:
+        if not self._host_ok() or not self._origin_ok():
+            self._json(403, {"ok": False, "error": "invalid Host/Origin"})
+            return
+        now = time.time()
+        ip = self.client_address[0]
+        attempts = [t for t in self.server.login_attempts.get(ip, []) if t > now - 60]
+        if len(attempts) >= 5:
+            self._json(429, {"ok": False, "error": "too many login attempts"})
+            return
+        try:
+            body = self._read_json()
+        except Exception as e:
+            self._json(400, {"ok": False, "error": str(e)})
+            return
+        supplied = body.get("token")
+        if not isinstance(supplied, str) or not secrets.compare_digest(
+                supplied, self.server.operator_token):
+            attempts.append(now)
+            self.server.login_attempts[ip] = attempts
+            self._json(401, {"ok": False, "error": "invalid operator token"})
+            return
+        token = secrets.token_urlsafe(32)
+        with self.server._session_lock:
+            self.server.sessions[token] = now + self.server.session_ttl_s
+        cookie = (f"cbap_console_session={token}; HttpOnly; SameSite=Strict; "
+                  f"Path=/; Max-Age={self.server.session_ttl_s}")
+        self._json(200, {"ok": True}, {"Set-Cookie": cookie})
+
+    def _logout(self) -> None:
+        token = self._session_token()
+        if token:
+            with self.server._session_lock:
+                self.server.sessions.pop(token, None)
+        self._json(200, {"ok": True})
 
     # ── static ───────────────────────────────────────────────
     def _file(self, path: Path, ctype: str) -> None:
@@ -168,7 +239,6 @@ class Handler(BaseHTTPRequestHandler):
         except OSError:
             self._json(500, {"ok": False, "error": "index missing"})
             return
-        html = html.replace("__CONSOLE_TOKEN__", self.server.token)
         self._send(200, html.encode("utf-8"), "text/html; charset=utf-8")
 
     def log_message(self, fmt: str, *args) -> None:
@@ -177,13 +247,16 @@ class Handler(BaseHTTPRequestHandler):
 
 
 def serve(socket_path: str, audit_path: str | None, port: int = 8765,
-          token: str | None = None, kernel_token: str | None = None) -> None:
+          operator_token: str | None = None,
+          kernel_token: str | None = None) -> None:
     backend = ConsoleBackend(socket_path, audit_path=audit_path,
                              token=kernel_token)
+    op_token = operator_token or secrets.token_urlsafe(18)
     httpd = ConsoleHTTPServer(("127.0.0.1", int(port)), Handler,
-                              backend=backend, token=token or secrets.token_urlsafe(24))
+                              backend=backend, operator_token=op_token)
     url = f"http://127.0.0.1:{httpd.server_port}/"
     print(f"CBAP console: {url}")
+    print(f"operator token: {op_token}")
     print(f"kernel socket: {backend.socket_path}")
     print("local-only; no resume endpoint; estop is latched in the Kernel")
     try:
@@ -203,9 +276,13 @@ def main() -> int:
         "CBAP_AUDIT", str(ROOT / "logs" / "cbap-audit.jsonl")))
     ap.add_argument("--port", type=int, default=8765)
     ap.add_argument("--token", default=None,
-                    help="optional Kernel auth token (not the browser token)")
+                    help="optional Kernel auth token")
+    ap.add_argument("--operator-token", default=os.environ.get(
+        "CBAP_CONSOLE_OPERATOR_TOKEN"),
+        help="operator login token; generated and printed if omitted")
     ns = ap.parse_args()
-    serve(ns.socket, ns.audit, ns.port, kernel_token=ns.token)
+    serve(ns.socket, ns.audit, ns.port,
+          operator_token=ns.operator_token, kernel_token=ns.token)
     return 0
 
 

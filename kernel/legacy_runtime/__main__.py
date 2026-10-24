@@ -29,9 +29,20 @@ def main(argv: list[str] | None = None) -> int:
     p.add_argument("--cbap-socket", default=os.path.join(root, "cbap.sock"))
     p.add_argument("--device", default=os.path.join(root, "drivers", "mc", "device.json"))
     p.add_argument("--mapping", default=os.path.join(root, "drivers", "mc", "mapping.json"))
-    p.add_argument("--token", default=None, help="optional CBAP token (TCP future)")
+    p.add_argument("--token", default=None,
+                   help="CBAP token; generated and written 0600 if omitted")
+    p.add_argument("--policy", default=None,
+                   help="per-agent capability policy JSON")
+    p.add_argument("--allowed-uid", type=int, action="append", default=None,
+                   help="allowed local peer uid (repeatable; default current uid)")
+    p.add_argument("--max-sessions", type=int, default=64)
+    p.add_argument("--max-inflight", type=int, default=4)
+    p.add_argument("--rate-hz", type=int, default=10)
     p.add_argument("--lease-ttl-ms", type=int, default=30000)
     p.add_argument("--audit", default=os.path.join(root, "logs", "cbap-audit.jsonl"))
+    p.add_argument("--audit-mirror", default=None)
+    p.add_argument("--audit-remote-url", default=None)
+    p.add_argument("--require-independent-facts", action="store_true")
     p.add_argument("--check", action="store_true",
                    help="connect to the hand, print health, then exit")
     a = p.parse_args(argv)
@@ -52,10 +63,15 @@ def main(argv: list[str] | None = None) -> int:
         driver.close()
         return 0
 
-    server = KernelServer(driver, socket_path=a.cbap_socket,
-                          token=a.token,
-                          lease_ttl_ms=a.lease_ttl_ms,
-                          audit_path=a.audit)
+    server = KernelServer(
+        driver, socket_path=a.cbap_socket, token=a.token,
+        lease_ttl_ms=a.lease_ttl_ms, audit_path=a.audit,
+        policy=a.policy, allowed_uids=set(a.allowed_uid) if a.allowed_uid else None,
+        max_sessions=a.max_sessions, max_inflight=a.max_inflight,
+        rate_hz=a.rate_hz, audit_mirror_path=a.audit_mirror,
+        audit_remote_url=a.audit_remote_url,
+        require_independent_facts=a.require_independent_facts,
+    )
     if not server.start():
         print("[cbap] cannot start CBAP server", file=sys.stderr)
         driver.close()

@@ -41,7 +41,7 @@ class GatewayTest(unittest.TestCase):
 
         self.client = CBAPClient(self.cbap_sock, agent_id="test-agent")
         self.client.connect()
-        self.welcome = self.client.hello()
+        self.welcome = self.client.hello(operator_token=open(self.cbap_sock + ".operator", encoding="ascii").read().strip())
 
     def tearDown(self) -> None:
         try:
@@ -114,7 +114,7 @@ class GatewayTest(unittest.TestCase):
     def test_fair_lease_wait_and_release(self) -> None:
         fd1 = self._open()
         c2 = CBAPClient(self.cbap_sock, agent_id="waiter")
-        c2.connect(); c2.hello()
+        c2.connect(); c2.hello(operator_token=open(self.cbap_sock + ".operator", encoding="ascii").read().strip())
         try:
             r2 = c2.open(DEVICE_ID)
             self.assertTrue(r2.get("ok"), r2)

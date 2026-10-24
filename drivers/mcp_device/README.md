@@ -74,3 +74,83 @@ Exit codes:
 
 Only stdio MCP in v0. HTTP/SSE and MCP resources can be added behind the same
 `facts.source` contract.
+
+## Security hardening
+
+### Environment
+
+The child MCP server no longer inherits the full parent environment by
+default. It receives only:
+
+```text
+PATH, HOME, LANG, LC_ALL, LC_CTYPE, TMPDIR
+```
+
+Add explicit values under `transport.env`. To inherit the full environment
+(the old behavior), set `transport.inherit_env: true` — not recommended for
+third-party servers.
+
+Optional process limits:
+
+```json
+"transport": {
+  "rlimits": {"RLIMIT_NOFILE": 256}
+}
+```
+
+### Manifest signature
+
+```json
+"signature": "<hmac-sha256 hex>"
+```
+
+Set `CBAP_MANIFEST_KEY` to the same key. The signature covers the manifest
+without `signature` and `_manifest_path`.
+
+```bash
+export CBAP_REQUIRE_SIGNED_MANIFEST=1
+```
+
+rejects unsigned manifests.
+
+### Tool / instruction pinning
+
+On connect the driver hashes the advertised tool definitions and
+`server/discover.instructions`. Optional pins:
+
+```json
+"pin_tools": {
+  "tools_sha256": "<hex>",
+  "instructions_sha256": "<hex>"
+}
+```
+
+A mismatch refuses to connect.
+
+### Estop evidence
+
+Declare the postcondition:
+
+```json
+"estop": {
+  "tool": "turn_off",
+  "expect": {"on": false}
+}
+```
+
+`driver.health()["estop_verified"]` is then `true` only when the fact source
+matches. Without `expect`/`verify`, `safe_state` is `unknown`.
+
+### Independent facts
+
+```json
+"facts": {
+  "source": "tool",
+  "tool": "get_state",
+  "independent": true
+}
+```
+
+`independent` is a declaration, not a proof. Use a separate device/sensor
+channel when the MCP server itself is untrusted. A Kernel started with
+`require_independent_facts=True` rejects results without the marker.

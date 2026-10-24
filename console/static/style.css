@@ -99,3 +99,22 @@ pre {
   .audit-row { grid-template-columns: 1fr; gap: 2px; }
   .kv { grid-template-columns: 78px 1fr; }
 }
+
+.login-backdrop {
+  position: fixed; inset: 0; z-index: 10; display: grid; place-items: center;
+  background: rgba(5,10,13,.88); backdrop-filter: blur(8px);
+}
+.login-backdrop.hidden { display: none; }
+.login-card {
+  width: min(380px, calc(100vw - 28px)); background: var(--panel);
+  border: 1px solid var(--line); border-radius: 12px; padding: 22px;
+  display: grid; gap: 10px;
+}
+.login-card h2 { text-transform: none; font-size: 18px; color: var(--text); }
+.login-card p { margin: 0; color: var(--muted); font-size: 12px; }
+.login-card input {
+  background: #091014; border: 1px solid var(--line); color: var(--text);
+  padding: 10px; border-radius: 7px; font: inherit;
+}
+.login-card input:focus { outline: 1px solid var(--teal); }
+.login-error { min-height: 18px; color: var(--red) !important; }

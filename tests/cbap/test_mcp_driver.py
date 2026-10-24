@@ -37,7 +37,7 @@ class MCPDriverTest(unittest.TestCase):
         self.client = CBAPClient(os.path.join(self.tmp, "cbap.sock"),
                                  agent_id="mcp-test")
         self.client.connect()
-        self.client.hello()
+        self.client.hello(operator_token=open(os.path.join(self.tmp, "cbap.sock") + ".operator", encoding="ascii").read().strip())
         r = self.client.open("mcp://mc/MCPBody")
         self.assertTrue(r.get("ok"), r)
         self.fd = r["payload"]["fd"]

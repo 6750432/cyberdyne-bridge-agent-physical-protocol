@@ -12,6 +12,7 @@ import json
 import os
 import queue
 import select
+import signal
 import subprocess
 import sys
 import threading
@@ -28,12 +29,22 @@ class MCPError(RuntimeError):
 
 class MCPStdioClient:
     def __init__(self, command: list[str], cwd: str | None = None,
-                 env: dict | None = None, timeout: float = 30.0):
+                 env: dict | None = None, timeout: float = 30.0,
+                 inherit_env: bool = True,
+                 env_allowlist: list[str] | None = None,
+                 rlimits: dict | None = None):
         self.command = [str(x) for x in command]
         self.cwd = cwd
-        self.env = dict(os.environ)
+        if inherit_env:
+            self.env = dict(os.environ)
+        else:
+            allow = env_allowlist or [
+                "PATH", "HOME", "LANG", "LC_ALL", "LC_CTYPE", "TMPDIR",
+            ]
+            self.env = {k: os.environ[k] for k in allow if k in os.environ}
         if env:
             self.env.update({str(k): str(v) for k, v in env.items()})
+        self.rlimits = dict(rlimits or {})
         self.timeout = float(timeout)
         self.proc: subprocess.Popen | None = None
         self._id = 0
@@ -108,10 +119,24 @@ class MCPStdioClient:
         if self.proc and self.proc.poll() is None:
             return self.server_info
         self._stop.clear()
+        preexec = None
+        if self.rlimits:
+            def _limit():
+                import resource
+                for name, value in self.rlimits.items():
+                    res = getattr(resource, str(name), None)
+                    if res is None:
+                        continue
+                    try:
+                        resource.setrlimit(res, (int(value), int(value)))
+                    except (ValueError, OSError):
+                        pass
+            preexec = _limit
         self.proc = subprocess.Popen(
             self.command, cwd=self.cwd, env=self.env,
             stdin=subprocess.PIPE, stdout=subprocess.PIPE,
             stderr=subprocess.PIPE, bufsize=0,
+            start_new_session=True, preexec_fn=preexec,
         )
         self._reader = threading.Thread(target=self._read_stdout,
                                         name="mcp-stdout", daemon=True)
@@ -192,11 +217,20 @@ class MCPStdioClient:
             return
         try:
             if p.poll() is None:
-                p.terminate()
+                # The child was started in its own session.  Kill the group
+                # best-effort so an MCP server cannot leave helper processes
+                # behind after estop/close.
+                try:
+                    os.killpg(os.getpgid(p.pid), signal.SIGTERM)
+                except (OSError, ProcessLookupError):
+                    p.terminate()
                 try:
                     p.wait(timeout=3)
                 except subprocess.TimeoutExpired:
-                    p.kill()
+                    try:
+                        os.killpg(os.getpgid(p.pid), signal.SIGKILL)
+                    except (OSError, ProcessLookupError):
+                        p.kill()
                     p.wait(timeout=2)
         except Exception:
             try:

@@ -42,7 +42,13 @@ class ConsoleBackend:
         self._fds.clear()
         c = CBAPClient(self.socket_path, agent_id=self.agent_id)
         c.connect()
-        c.hello(token=self.token)
+        op = None
+        try:
+            with open(self.socket_path + ".operator", encoding="ascii") as f:
+                op = f.read().strip()
+        except OSError:
+            op = None
+        c.hello(token=self.token, operator_token=op)
         self._client = c
         self._last_error = None
 

@@ -66,7 +66,7 @@ python3 tools/cbap_conformance.py --target fake
 当前：
 
 ```text
-69/69 tests passed
+81/81 tests passed
 ```
 
 四个 Agent 子仓各自有独立 smoke：
@@ -193,7 +193,7 @@ http://127.0.0.1:8765/
 ```
 
 没有 resume。Kernel 的 estop 是 latched，必须由操作员重启 Kernel 才能解除。
-控制台只绑 `127.0.0.1`，校验 Host / Origin，并要求本地 console token。
+控制台只绑 `127.0.0.1`，校验 Host / Origin；登录使用独立的 operator token，页面里不嵌 token。
 
 ![CBAP Operator Console](docs/diagrams/cbap-console.jpg)
 
@@ -215,7 +215,7 @@ archive/      Alice 归档
 ## 当前状态
 
 ```text
-CBAP conformance       69/69
+CBAP conformance       81/81
 活跃 Agent 子仓        4
 Alice                  源码归档，未构建
 控制面 p50             0.2–0.3 ms
@@ -240,6 +240,7 @@ docs/MCP-device-audit-2026-10-24.md     MCP 回执 vs 事实审计
 docs/MCP-audit-report-2026-10-24.md     独立 MCP 审计报告（PDF 版同目录）
 docs/MCP-protocol-security-2026-10-24.md  MCP 协议级安全审计（PDF 版同目录）
 console/README.md                      本地操作员控制台 / 人能看见、能停
+docs/SECURITY-HARDENING.md             13 项安全加固 / 控制项与残余风险
 agents/*/docs/                         各 Agent 自己的接入文档
 ```
 

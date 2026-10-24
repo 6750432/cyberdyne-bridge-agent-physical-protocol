@@ -1,8 +1,8 @@
 "use strict";
 
-const token = document.querySelector('meta[name="cbap-console-token"]').content;
 const $ = (id) => document.getElementById(id);
 let loading = false;
+let authed = false;
 
 function el(tag, cls, text) {
   const n = document.createElement(tag);
@@ -20,14 +20,29 @@ function toast(message, isError = false) {
 }
 
 async function api(path, options = {}) {
-  const headers = Object.assign({"X-CBAP-Token": token}, options.headers || {});
-  const res = await fetch(path, Object.assign({}, options, {headers}));
+  const res = await fetch(path, Object.assign({credentials: "same-origin"}, options));
   let body = null;
   try { body = await res.json(); } catch (_) {}
+  if (res.status === 401) {
+    showLogin();
+    throw new Error("operator login required");
+  }
   if (!res.ok || !body || body.ok === false) {
     throw new Error((body && body.error) || `HTTP ${res.status}`);
   }
   return body;
+}
+
+function showLogin() {
+  authed = false;
+  $("login").classList.remove("hidden");
+  $("login-token").focus();
+}
+
+function hideLogin() {
+  authed = true;
+  $("login").classList.add("hidden");
+  $("login-error").textContent = "";
 }
 
 function setConnection(ok, text) {
@@ -98,7 +113,7 @@ function renderDevices(devices) {
 function auditDetail(row) {
   const parts = [];
   for (const [k, v] of Object.entries(row)) {
-    if (k === "t" || k === "event") continue;
+    if (k === "t" || k === "event" || k === "hash" || k === "prev") continue;
     if (v === null || v === undefined || v === "") continue;
     parts.push(`${k}=${typeof v === "object" ? JSON.stringify(v) : v}`);
   }
@@ -122,7 +137,7 @@ function renderAudit(rows) {
 }
 
 async function load() {
-  if (loading) return;
+  if (loading || !authed) return;
   loading = true;
   try {
     const [status, audit] = await Promise.all([api("/api/status"), api("/api/audit?limit=80")]);
@@ -138,6 +153,7 @@ async function load() {
 }
 
 async function doEstop(fd, name) {
+  if (!authed) { showLogin(); return; }
   const scope = fd ? `device ${name}` : "ALL DEVICES";
   if (!confirm(`EMERGENCY STOP: ${scope}\n\nThis is latched in the Kernel until it is restarted by an operator. Continue?`)) return;
   try {
@@ -161,5 +177,37 @@ async function doEstop(fd, name) {
 
 $("refresh").addEventListener("click", load);
 $("global-estop").addEventListener("click", () => doEstop(null, "all devices"));
-load();
-setInterval(() => { if (!document.hidden) load(); }, 2000);
+$("logout").addEventListener("click", async () => {
+  try { await api("/api/logout", {method: "POST", headers: {"Content-Type": "application/json"}, body: "{}"}); } catch (_) {}
+  showLogin();
+});
+$("login-form").addEventListener("submit", async (event) => {
+  event.preventDefault();
+  const token = $("login-token").value;
+  $("login-token").value = "";
+  try {
+    const res = await fetch("/api/login", {
+      method: "POST",
+      credentials: "same-origin",
+      headers: {"Content-Type": "application/json"},
+      body: JSON.stringify({token})
+    });
+    const body = await res.json().catch(() => ({}));
+    if (!res.ok || !body.ok) throw new Error(body.error || `HTTP ${res.status}`);
+    hideLogin();
+    await load();
+  } catch (e) {
+    $("login-error").textContent = String(e.message || e);
+  }
+});
+
+(async () => {
+  try {
+    const s = await fetch("/api/session", {credentials: "same-origin"}).then(r => r.json());
+    if (s.authenticated) { hideLogin(); await load(); }
+    else showLogin();
+  } catch (_) {
+    showLogin();
+  }
+  setInterval(() => { if (!document.hidden && authed) load(); }, 2000);
+})();

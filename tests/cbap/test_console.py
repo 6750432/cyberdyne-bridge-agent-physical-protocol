@@ -66,10 +66,12 @@ class ConsoleTest(unittest.TestCase):
             self.driver, socket_path=self.sock, audit_path=self.audit)
         self.assertTrue(self.kernel.start())
         self.backend = ConsoleBackend(self.sock, audit_path=self.audit)
-        self.token = "console-test-token"
+        self.operator_token = "console-test-operator"
         self.httpd = ConsoleHTTPServer(
-            ("127.0.0.1", 0), Handler, backend=self.backend, token=self.token)
+            ("127.0.0.1", 0), Handler, backend=self.backend,
+            operator_token=self.operator_token)
         self.port = self.httpd.server_port
+        self.cookie = None
         self.thread = threading.Thread(
             target=self.httpd.serve_forever, daemon=True)
         self.thread.start()
@@ -86,8 +88,9 @@ class ConsoleTest(unittest.TestCase):
         c = http.client.HTTPConnection("127.0.0.1", self.port, timeout=5)
         headers = {
             "Host": host or f"127.0.0.1:{self.port}",
-            "X-CBAP-Token": self.token if token else "",
         }
+        if token and self.cookie:
+            headers["Cookie"] = self.cookie
         if origin:
             headers["Origin"] = origin
         if body is not None:
@@ -103,7 +106,8 @@ class ConsoleTest(unittest.TestCase):
         status, data = self.req("GET", "/")
         self.assertEqual(status, 200)
         self.assertIn(b"CBAP", data)
-        self.assertIn(self.token.encode(), data)
+        self.assertNotIn(self.operator_token.encode(), data)
+        self.login()
         status, data = self.req("GET", "/api/status")
         self.assertEqual(status, 200)
         payload = json.loads(data)
@@ -112,16 +116,33 @@ class ConsoleTest(unittest.TestCase):
                          "test://console/light-01")
         self.assertFalse(payload["devices"][0]["safe"])
 
+    def login(self):
+        c = http.client.HTTPConnection("127.0.0.1", self.port, timeout=5)
+        body = json.dumps({"token": self.operator_token}).encode()
+        c.request("POST", "/api/login", body=body, headers={
+            "Host": f"127.0.0.1:{self.port}",
+            "Origin": f"http://127.0.0.1:{self.port}",
+            "Content-Type": "application/json",
+        })
+        r = c.getresponse()
+        raw = r.getheader("Set-Cookie")
+        data = r.read(); c.close()
+        self.assertEqual(r.status, 200, data)
+        self.assertIn("cbap_console_session=", raw or "")
+        self.cookie = raw.split(";", 1)[0]
+
     def test_api_guards(self):
-        self.assertEqual(self.req("GET", "/api/status", token=False)[0], 403)
+        self.assertEqual(self.req("GET", "/api/status", token=False)[0], 401)
         self.assertEqual(self.req("GET", "/api/status",
                                   host="evil.example")[0], 403)
         self.assertEqual(self.req("GET", "/api/status",
                                   origin="http://evil.example")[0], 403)
+        self.login()
         self.assertEqual(self.req("GET", "/api/status",
                                   origin=f"http://127.0.0.1:{self.port}")[0], 200)
 
     def test_per_device_estop_and_audit(self):
+        self.login()
         status, data = self.req("GET", "/api/status")
         fd = json.loads(data)["devices"][0]["fd"]
         status, data = self.req(

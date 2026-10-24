@@ -22,6 +22,7 @@ Known v0 limits (documented, not hidden):
 
 from __future__ import annotations
 
+import hmac
 import json
 import os
 import socket
@@ -33,6 +34,8 @@ from dataclasses import dataclass, field
 from typing import Any
 
 from . import protocol
+from .security import (AnomalyMonitor, AuditChain, CapabilityPolicy,
+                       PolicyError, TokenFile, peer_credentials)
 
 ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 DEFAULT_CBAP_SOCKET = os.path.join(ROOT, "cbap.sock")
@@ -61,6 +64,7 @@ class Pending:
     done: bool = False
     idem_key: tuple | None = None
     driver: Any = None
+    device_id: str | None = None
 
 
 class Session:
@@ -69,6 +73,11 @@ class Session:
         self.addr = addr
         self.agent_id: str | None = None
         self.capabilities: set[str] = set()
+        self.allowed_devices: list[str] = ["*"]
+        self.peer: dict | None = None
+        self.role: str = "agent"
+        self.inflight: int = 0
+        self.rate_times: deque = deque()
         self.fds: dict[str, Fd] = {}
         self.send_lock = threading.Lock()
         self.events: list[dict] = []
@@ -106,7 +115,18 @@ class KernelServer:
                  token: str | None = None,
                  lease_ttl_ms: int = 30000,
                  audit_path: str | None = None,
-                 drivers: list | None = None):
+                 drivers: list | None = None,
+                 policy: str | dict | None = None,
+                 allowed_uids: set[int] | list[int] | None = None,
+                 max_sessions: int = 64,
+                 max_inflight: int = 4,
+                 rate_hz: int = 10,
+                 watchdog: bool = True,
+                 audit_mirror_path: str | None = None,
+                 audit_signing_key: str | None = None,
+                 audit_remote_url: str | None = None,
+                 audit_remote_token: str | None = None,
+                 require_independent_facts: bool = False):
         # 多设备：drivers=[legacy, dataflow...]；旧单驱动参数仍然兼容。
         if drivers is None:
             drivers = [driver] if driver is not None else []
@@ -121,9 +141,28 @@ class KernelServer:
         self.driver = self.drivers[0]  # 兼容旧代码/旧测试
         self.socket_path = os.path.abspath(socket_path or DEFAULT_CBAP_SOCKET)
         self.kernel_id = kernel_id
-        self.token = token
+        self.token_file = TokenFile(self.socket_path, token)
+        self.token = self.token_file.token
+        self.operator_token_file = TokenFile(
+            self.socket_path, None, suffix=".operator")
+        self.operator_token = self.operator_token_file.token
         self.lease_ttl_ms = max(1000, int(lease_ttl_ms))
         self.audit_path = audit_path or os.path.join(ROOT, "logs", "cbap-audit.jsonl")
+        self.policy = CapabilityPolicy(policy)
+        self.allowed_uids = set(allowed_uids or {os.getuid()})
+        self.max_sessions = max(1, int(max_sessions))
+        self.max_inflight = max(1, int(max_inflight))
+        self.rate_hz = max(1, int(rate_hz))
+        self.watchdog = bool(watchdog)
+        self.require_independent_facts = bool(require_independent_facts)
+        self.audit = AuditChain(
+            self.audit_path, mirror_path=audit_mirror_path,
+            lock=threading.RLock(),
+            signing_key=audit_signing_key or os.environ.get("CBAP_AUDIT_KEY"),
+            remote_url=audit_remote_url or os.environ.get("CBAP_AUDIT_REMOTE_URL"),
+            remote_token=audit_remote_token or os.environ.get("CBAP_AUDIT_REMOTE_TOKEN"),
+        )
+        self.monitor = AnomalyMonitor()
 
         self._sessions: set[Session] = set()
         self._fds: dict[str, Fd] = {}
@@ -135,6 +174,7 @@ class KernelServer:
         self._safe = False
         self._safe_devices: set[str] = set()
         self._fd_counter = 0
+        self._fence_counter = 0
         self._lease_cv = threading.Condition(self._lock)
         # device_id -> deque of (token, session, fd, ttl_ms, deadline_monotonic)
         self._lease_waiters: dict[str, deque] = {}
@@ -143,6 +183,8 @@ class KernelServer:
         self._stop = threading.Event()
         self._ready = threading.Event()
         self._thread: threading.Thread | None = None
+        self._watchdog_thread: threading.Thread | None = None
+        self._security_degraded = False
 
         # Wire each driver's callbacks with its own identity.
         for d in self.drivers:
@@ -160,7 +202,13 @@ class KernelServer:
         self._thread = threading.Thread(
             target=self.serve_forever, name="cbap-kernel", daemon=True)
         self._thread.start()
-        return self._ready.wait(timeout)
+        ok = self._ready.wait(timeout)
+        if ok and self.watchdog and not (self._watchdog_thread and
+                                         self._watchdog_thread.is_alive()):
+            self._watchdog_thread = threading.Thread(
+                target=self._watchdog_loop, name="cbap-watchdog", daemon=True)
+            self._watchdog_thread.start()
+        return ok
 
     def serve_forever(self) -> None:
         path = self.socket_path
@@ -173,8 +221,11 @@ class KernelServer:
         self._server = srv
         try:
             srv.bind(path)
+            os.chmod(path, 0o600)
             srv.listen(16)
             srv.settimeout(0.5)
+            self.token_file.write()
+            self.operator_token_file.write()
             self._ready.set()
             self._audit("kernel_start", socket=path)
             while not self._stop.is_set():
@@ -202,9 +253,12 @@ class KernelServer:
                     os.unlink(path)
             except OSError:
                 pass
+            self.token_file.remove()
+            self.operator_token_file.remove()
 
     def stop(self) -> None:
         self._stop.set()
+        self._watchdog_thread = None
         srv = self._server
         self._server = None
         try:
@@ -223,10 +277,55 @@ class KernelServer:
         if self._thread and self._thread.is_alive():
             self._thread.join(timeout=1.0)
 
+    def _watchdog_loop(self) -> None:
+        """Best-effort software watchdog; hardware kill is still external."""
+        while not self._stop.wait(1.0):
+            for d in list(self.drivers):
+                try:
+                    dev = d.describe()
+                    dev_id = str(dev.get("device_id") or "")
+                    if not dev_id or dev_id in self._safe_devices:
+                        continue
+                    wd = int((dev.get("safety") or {}).get("watchdog_ms") or 0)
+                    if wd <= 0:
+                        continue
+                    h = d.health()
+                    age = h.get("state_age_ms") if isinstance(h, dict) else None
+                    if isinstance(age, (int, float)) and age > wd * 2:
+                        try:
+                            ok = bool(d.estop())
+                        except Exception:
+                            ok = False
+                        with self._lock:
+                            self._safe_devices.add(dev_id)
+                        self._audit("watchdog_estop", device_id=dev_id,
+                                    age_ms=int(age), watchdog_ms=wd,
+                                    driver_ok=ok)
+                except Exception:
+                    continue
+
     # ── session loop ──────────────────────────────────────────
 
     def _handle_session(self, sock: socket.socket, addr: Any) -> None:
+        peer = peer_credentials(sock)
+        if peer is not None and int(peer["uid"]) not in self.allowed_uids:
+            self._audit("auth_failure", reason="peer_uid",
+                        uid=peer.get("uid"), gid=peer.get("gid"),
+                        pid=peer.get("pid"))
+            try:
+                sock.close()
+            except OSError:
+                pass
+            return
+        if len(self._sessions) >= self.max_sessions:
+            self._audit("auth_failure", reason="max_sessions")
+            try:
+                sock.close()
+            except OSError:
+                pass
+            return
         session = Session(sock, addr)
+        session.peer = peer
         sock.settimeout(0.5)
         buf = b""
         try:
@@ -302,7 +401,15 @@ class KernelServer:
             return False
         if self.token:
             auth = msg.get("auth") or {}
-            if auth.get("token") != self.token:
+            supplied = auth.get("token")
+            if not isinstance(supplied, str) or not hmac.compare_digest(supplied, self.token):
+                self._audit("auth_failure", reason="bad_token",
+                            agent=str(msg.get("agent_id") or "")[:128])
+                if self.monitor.hit("auth_failure") >= self.monitor.auth_threshold:
+                    self._security_degraded = True
+                    self._safe = True
+                    self._audit("security_degrade", reason="auth_failure",
+                                count=self.monitor.hit("auth_failure"))
                 session.send({
                     "v": protocol.PROTOCOL_VERSION, "type": "error",
                     "id": rid, "ts": protocol.now_ms(),
@@ -317,8 +424,15 @@ class KernelServer:
                 "error": protocol.error("E_INVAL", "agent_id required"),
             })
             return False
+        auth = msg.get("auth") or {}
+        op_supplied = auth.get("operator_token")
+        is_operator = (isinstance(op_supplied, str) and
+                       hmac.compare_digest(op_supplied, self.operator_token))
+        session.role = "operator" if is_operator else "agent"
         session.agent_id = agent_id
-        session.capabilities = {"read", "write", "lease", "estop"}
+        grant = self.policy.grant(agent_id, operator=is_operator)
+        session.capabilities = set(grant["capabilities"])
+        session.allowed_devices = list(grant["devices"])
         with self._lock:
             self._sessions.add(session)
         devices = []
@@ -339,7 +453,9 @@ class KernelServer:
             "session_id": session.session_id,
             "capabilities": sorted(session.capabilities),
             "limits": {"max_frame": protocol.MAX_FRAME,
-                       "max_inflight": 4, "rate_hz": 5},
+                       "max_inflight": self.max_inflight,
+                       "rate_hz": self.rate_hz,
+                       "max_sessions": self.max_sessions},
             "devices": devices,
         })
         self._audit("hello", agent=agent_id, session=session.session_id)
@@ -472,8 +588,15 @@ class KernelServer:
                 raise _OpError("E_BUSY", "device is leased by another writer")
             lease_id = lease["lease_id"] if lease and lease["fd"] == fd.fd \
                 else protocol.new_id("l")
+            current = self._leases.get(fd.device_id)
+            if current and current.get("fd") == fd.fd:
+                fence = int(current.get("fencing_token") or 0)
+            else:
+                self._fence_counter += 1
+                fence = self._fence_counter
             self._leases[fd.device_id] = {
                 "lease_id": lease_id,
+                "fencing_token": fence,
                 "fd": fd.fd,
                 "device_id": fd.device_id,
                 "agent_id": session.agent_id,
@@ -495,6 +618,18 @@ class KernelServer:
                 return True
             return False
 
+    # ── policy checks ───────────────────────────────────────
+
+    @staticmethod
+    def _require_cap(session: Session, cap: str) -> None:
+        if cap not in session.capabilities:
+            raise _OpError("E_PERM", f"capability required: {cap}")
+
+    @staticmethod
+    def _require_device(session: Session, device_id: str) -> None:
+        if not CapabilityPolicy.device_allowed(device_id, session.allowed_devices):
+            raise _OpError("E_PERM", f"device not allowed: {device_id}")
+
     # ── syscalls ─────────────────────────────────────────────
 
     def _op_open(self, session: Session, rid: str, args: dict) -> None:
@@ -509,6 +644,12 @@ class KernelServer:
                 break
         if dev is None:
             raise _OpError("E_NOENT", f"unknown device: {device_id}")
+        self._require_device(session, device_id)
+        self._require_cap(session, "read")
+        if mode in ("rw", "exclusive"):
+            self._require_cap(session, "write")
+        if mode == "exclusive":
+            self._require_cap(session, "lease")
         with self._lock:
             self._fd_counter += 1
             fd_id = f"fd-{self._fd_counter}"
@@ -533,6 +674,7 @@ class KernelServer:
         f = self._get_fd(session, args)
         held = self._release_lease(f)
         if held:
+            self._cancel_device_pending(f.device_id, "fd closed")
             f.driver.estop()
         f.closed = True
         with self._lock:
@@ -544,6 +686,8 @@ class KernelServer:
 
     def _op_read(self, session: Session, rid: str, args: dict) -> None:
         f = self._get_fd(session, args)
+        self._require_cap(session, "read")
+        self._require_device(session, f.device_id)
         channel = args.get("channel")
         timeout_ms = args.get("timeout_ms", 0)
         if not isinstance(timeout_ms, int) or timeout_ms < 0:
@@ -562,14 +706,44 @@ class KernelServer:
                      facts={"state_seq": payload.get("legacy_seq")})
         _ = f
 
+    def _rate_allow(self, session: Session) -> bool:
+        now = time.monotonic()
+        while session.rate_times and session.rate_times[0] < now - 1.0:
+            session.rate_times.popleft()
+        if len(session.rate_times) >= self.rate_hz:
+            return False
+        session.rate_times.append(now)
+        return True
+
+    def _cancel_device_pending(self, device_id: str, reason: str) -> int:
+        with self._lock:
+            found = []
+            for q in list(self._pending.values()):
+                for p in list(q):
+                    if not p.done and p.device_id == device_id:
+                        found.append(p)
+        for p in found:
+            if p.timer:
+                p.timer.cancel()
+            self._finish_pending(
+                p, False, None, None,
+                protocol.error("E_CANCELED", reason))
+        return len(found)
+
     def _op_write(self, session: Session, rid: str, args: dict, msg: dict) -> None:
         f = self._get_fd(session, args)
+        self._require_cap(session, "write")
+        self._require_device(session, f.device_id)
         if self._safe or f.device_id in self._safe_devices:
             raise _OpError("E_SAFETY", "device is in safe mode after estop")
         if f.mode == "r":
             raise _OpError("E_PERM", "fd is read-only")
-        if not self._lease_for_fd(f):
+        lease = self._lease_for_fd(f)
+        if not lease:
             raise _OpError("E_BUSY", "write requires a lease")
+        wanted_fence = args.get("fencing_token")
+        if wanted_fence is not None and int(wanted_fence) != int(lease.get("fencing_token") or 0):
+            raise _OpError("E_BUSY", "stale fencing token")
         frame = args.get("frame")
         if not isinstance(frame, dict):
             raise _OpError("E_INVAL", "frame must be an object")
@@ -600,9 +774,16 @@ class KernelServer:
                                  err=cached.get("error"))
                     return
 
+        if not self._rate_allow(session):
+            raise _OpError("E_BUSY", "write rate limit")
+        with self._lock:
+            if session.inflight >= self.max_inflight:
+                raise _OpError("E_BUSY", "max inflight writes")
+            session.inflight += 1
         p = Pending(session=session, request_id=rid, cmd=cmd,
                     deadline=time.monotonic() + deadline_ms / 1000.0,
-                    idem_key=key, driver=f.driver)
+                    idem_key=key, driver=f.driver,
+                    device_id=f.device_id)
         with self._lock:
             self._pending.setdefault((f.device_id, cmd), deque()).append(p)
             if key:
@@ -620,10 +801,13 @@ class KernelServer:
                                  protocol.error("E_IO", "hand is not connected"))
         self._audit("write", agent=session.agent_id, id=rid, fd=f.fd,
                     op=frame.get("op"), cmd=cmd,
+                    fencing_token=lease.get("fencing_token"),
                     idem=bool(idem_key))
 
     def _op_ioctl(self, session: Session, rid: str, args: dict) -> None:
         f = self._get_fd(session, args)
+        self._require_cap(session, "write")
+        self._require_device(session, f.device_id)
         request = args.get("request")
         payload = args.get("args") or {}
         if request == "scan":
@@ -645,8 +829,15 @@ class KernelServer:
             cmd = "furnace_watch"
         else:
             raise _OpError("E_NOTSUP", f"unknown ioctl: {request}")
+        if not self._rate_allow(session):
+            raise _OpError("E_BUSY", "ioctl rate limit")
+        with self._lock:
+            if session.inflight >= self.max_inflight:
+                raise _OpError("E_BUSY", "max inflight writes")
+            session.inflight += 1
         p = Pending(session=session, request_id=rid, cmd=cmd,
-                    deadline=time.monotonic() + 5.0, driver=f.driver)
+                    deadline=time.monotonic() + 5.0, driver=f.driver,
+                    device_id=f.device_id)
         with self._lock:
             self._pending.setdefault((f.device_id, cmd), deque()).append(p)
         session.send({"v": protocol.PROTOCOL_VERSION, "type": "ack",
@@ -662,6 +853,8 @@ class KernelServer:
 
     def _op_lease(self, session: Session, rid: str, args: dict) -> None:
         f = self._get_fd(session, args)
+        self._require_cap(session, "lease")
+        self._require_device(session, f.device_id)
         if f.mode == "r":
             raise _OpError("E_PERM", "cannot lease a read-only fd")
         try:
@@ -681,6 +874,7 @@ class KernelServer:
             lease = self._acquire_lease(session, f, ttl)
             self._result(session, rid, True, payload={
                 "lease_id": lease["lease_id"],
+                "fencing_token": int(lease.get("fencing_token") or 0),
                 "expires_at": int(lease["expires_at"] * 1000),
             })
             return
@@ -724,31 +918,47 @@ class KernelServer:
                     self._lease_cv.notify_all()
         self._result(session, rid, True, payload={
             "lease_id": lease["lease_id"],
+            "fencing_token": int(lease.get("fencing_token") or 0),
             "expires_at": int(lease["expires_at"] * 1000),
         })
 
     def _op_release(self, session: Session, rid: str, args: dict) -> None:
         f = self._get_fd(session, args)
         held = self._release_lease(f)
-        self._result(session, rid, True, payload={"released": held})
+        canceled = self._cancel_device_pending(f.device_id, "lease released") if held else 0
+        self._result(session, rid, True, payload={"released": held,
+                                                  "canceled": canceled})
         self._audit("release", agent=session.agent_id, id=rid, fd=f.fd,
-                    released=held)
+                    released=held, canceled=canceled)
 
     def _op_estop(self, session: Session, rid: str, args: dict) -> None:
+        self._require_cap(session, "estop")
+        burst = self.monitor.hit("estop_burst")
+        if burst >= self.monitor.estop_threshold and not self._safe:
+            self._security_degraded = True
+            self._safe = True
+            self._audit("security_degrade", reason="estop_burst", count=burst)
         f = None
+        canceled = 0
         if args.get("fd"):
             f = self._get_fd(session, args)
+            self._require_device(session, f.device_id)
             targets = [f.driver]
             with self._lock:
                 self._safe_devices.add(f.device_id)
                 self._leases.pop(f.device_id, None)
                 self._lease_cv.notify_all()
+            canceled = self._cancel_device_pending(f.device_id, "estop")
         else:
             self._safe = True
             targets = list(self.drivers)
             with self._lock:
                 self._leases.clear()
                 self._lease_cv.notify_all()
+            for d in targets:
+                dev_id = d.describe().get("device_id")
+                if dev_id:
+                    canceled += self._cancel_device_pending(dev_id, "global estop")
         oks = []
         safe_state = "idle"
         for d in targets:
@@ -761,28 +971,38 @@ class KernelServer:
         self._result(session, rid, True, payload={
             "safe_state": safe_state,
             "driver_ok": all(oks) if oks else False,
+            "canceled": canceled,
         })
         self._audit("estop", agent=session.agent_id, id=rid,
-                    reason=args.get("reason"), driver_ok=all(oks) if oks else False)
+                    reason=args.get("reason"), driver_ok=all(oks) if oks else False,
+                    canceled=canceled)
 
     def _op_stat(self, session: Session, rid: str, args: dict) -> None:
         f = self._get_fd(session, args)
+        self._require_cap(session, "read")
+        self._require_device(session, f.device_id)
         with self._lock:
             lease = dict(self._leases.get(f.device_id) or {}) or None
-            pending = sum(len(q) for q in self._pending.values())
+            pending = sum(len(q) for q in self._pending.values()
+                          if any(p.device_id == f.device_id for p in q))
         self._result(session, rid, True, payload={
             "device": f.driver.describe(),
             "health": f.driver.health(),
             "lease": lease,
             "safe": self._safe or f.device_id in self._safe_devices,
+            "security": {"degraded": self._security_degraded,
+                         "role": session.role},
             "pending": pending,
             "fd": f.fd,
         })
 
     def _op_device_list(self, session: Session, rid: str) -> None:
+        self._require_cap(session, "read")
         devices = []
         for d in self.drivers:
             dev = d.describe()
+            if not CapabilityPolicy.device_allowed(dev.get("device_id"), session.allowed_devices):
+                continue
             devices.append({
                 "device_id": dev.get("device_id"),
                 "type": dev.get("type"),
@@ -850,7 +1070,9 @@ class KernelServer:
             if p.done:
                 return
             p.done = True
-            dev_id = p.driver.describe().get("device_id") if p.driver else None
+            p.session.inflight = max(0, int(p.session.inflight) - 1)
+            dev_id = p.device_id or (p.driver.describe().get("device_id")
+                                     if p.driver else None)
             key = (dev_id, p.cmd)
             q = self._pending.get(key)
             if q:
@@ -888,6 +1110,11 @@ class KernelServer:
         if p.done:
             return
         extra = _ascii_extra(extra or {})
+        if ok and self.require_independent_facts:
+            if extra.get("independent") is not True:
+                ok = False
+                why = "independent fact source required"
+                extra = dict(extra, independent=False)
         if ok:
             self._finish_pending(p, True, extra, extra, None)
         else:
@@ -986,13 +1213,11 @@ class KernelServer:
 
     def _audit(self, event: str, **fields: Any) -> None:
         try:
-            os.makedirs(os.path.dirname(self.audit_path), exist_ok=True)
-            row = {"t": protocol.now_ms(), "event": event}
-            row.update(fields)
-            with open(self.audit_path, "a", encoding="utf-8") as f:
-                f.write(json.dumps(row, ensure_ascii=False) + "\n")
+            self.audit.append(event, **fields)
         except OSError:
-            pass
+            # Audit is security-critical: if it cannot be written, fail closed.
+            self._security_degraded = True
+            self._safe = True
 
 
 class _OpError(Exception):

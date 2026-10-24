@@ -36,7 +36,8 @@ class MCPDeviceDriverTest(unittest.TestCase):
                           "turn_off": {"tool": "turn_off"},
                       }),
             "facts": {"source": "tool", "tool": "get_state"},
-            "estop": ({"tool": "turn_off"} if device == "light" else {}),
+            "estop": ({"tool": "turn_off", "expect": {"on": False}}
+                      if device == "light" else {}),
             "poll_interval": 0.05,
         }
         path = tmp / "device.json"
@@ -79,6 +80,49 @@ class MCPDeviceDriverTest(unittest.TestCase):
             self.assertEqual(facts["status"], "verified")
         finally:
             driver.close()
+
+    def test_estop_is_verified_by_facts(self):
+        driver = MCPDeviceDriver(self._manifest())
+        try:
+            self.assertTrue(driver.connect())
+            self.assertTrue(driver.estop())
+            self.assertEqual(driver.health()["estop_verified"], True)
+        finally:
+            driver.close()
+
+    def test_tool_definition_pin_rejects_drift(self):
+        path = self._manifest()
+        manifest = json.loads(path.read_text(encoding="utf-8"))
+        manifest["pin_tools"] = {"tools_sha256": "0" * 64}
+        path.write_text(json.dumps(manifest), encoding="utf-8")
+        with self.assertRaises(Exception):
+            MCPDeviceDriver(path).connect()
+
+    def test_manifest_signature_rejects_tampering(self):
+        import hashlib, hmac, os
+        from drivers.mcp_device.driver import _canonical, _manifest_payload
+        path = self._manifest()
+        manifest = json.loads(path.read_text(encoding="utf-8"))
+        key = "test-manifest-key"
+        manifest["signature"] = hmac.new(
+            key.encode(), _canonical(_manifest_payload(manifest)).encode(),
+            hashlib.sha256).hexdigest()
+        path.write_text(json.dumps(manifest), encoding="utf-8")
+        old = os.environ.get("CBAP_MANIFEST_KEY")
+        os.environ["CBAP_MANIFEST_KEY"] = key
+        try:
+            driver = MCPDeviceDriver(path)
+            self.assertTrue(driver.connect())
+            driver.close()
+            bad = dict(manifest, display_name="tampered")
+            path.write_text(json.dumps(bad), encoding="utf-8")
+            with self.assertRaises(Exception):
+                MCPDeviceDriver(path)
+        finally:
+            if old is None:
+                os.environ.pop("CBAP_MANIFEST_KEY", None)
+            else:
+                os.environ["CBAP_MANIFEST_KEY"] = old
 
     def test_missing_facts_source_is_unverifiable(self):
         driver = MCPDeviceDriver(self._manifest())

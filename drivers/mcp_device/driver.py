@@ -39,6 +39,8 @@ driver contract without changing the Kernel.
 from __future__ import annotations
 
 import copy
+import hashlib
+import hmac
 import json
 import os
 import threading
@@ -75,12 +77,23 @@ def _read_manifest(path: str | os.PathLike) -> dict[str, Any]:
     return manifest
 
 
+def _canonical(obj: Any) -> str:
+    return json.dumps(obj, ensure_ascii=False, sort_keys=True,
+                      separators=(",", ":"))
+
+
+def _manifest_payload(manifest: dict) -> dict:
+    return {k: v for k, v in manifest.items()
+            if k not in {"_manifest_path", "signature"}}
+
+
 class MCPDeviceDriver:
     """A CBAP-D driver wrapping a generic MCP hardware server."""
 
     def __init__(self, manifest_path: str | os.PathLike,
                  connect_timeout: float = 30.0):
         self.manifest = _read_manifest(manifest_path)
+        self._verify_manifest_signature()
         self.manifest_path = self.manifest["_manifest_path"]
         self.device_id = str(self.manifest["device_id"])
         self.display_name = str(self.manifest.get("display_name") or self.device_id)
@@ -97,6 +110,9 @@ class MCPDeviceDriver:
         self.client = MCPStdioClient(
             [str(x) for x in transport["command"]],
             cwd=cwd, env=env, timeout=self.connect_timeout,
+            inherit_env=bool(transport.get("inherit_env", False)),
+            env_allowlist=transport.get("env_allowlist"),
+            rlimits=transport.get("rlimits"),
         )
         self.tools: dict[str, dict] = dict(self.manifest["tools"])
         self.facts_spec = dict(self.manifest.get("facts") or {})
@@ -110,6 +126,9 @@ class MCPDeviceDriver:
         self._last_tool_result: Any = None
         self._last_verification: dict | None = None
         self._last_error: str | None = None
+        self._tool_digest: str | None = None
+        self._instructions_digest: str | None = None
+        self._estop_verified: bool | None = None
         self._lock = threading.RLock()
         # Kernel-compatible callback hooks.  The Kernel replaces these on
         # startup just like it does for McDriver.
@@ -117,6 +136,20 @@ class MCPDeviceDriver:
         self.on_result = None
         self.on_event = None
         self.on_disconnect = None
+
+    def _verify_manifest_signature(self) -> None:
+        sig = self.manifest.get("signature")
+        if not sig:
+            if os.environ.get("CBAP_REQUIRE_SIGNED_MANIFEST") == "1":
+                raise MCPDeviceError("E_AUTH", "unsigned manifest rejected")
+            return
+        key = os.environ.get("CBAP_MANIFEST_KEY")
+        if not key:
+            raise MCPDeviceError("E_AUTH", "manifest signature requires CBAP_MANIFEST_KEY")
+        body = _canonical(_manifest_payload(self.manifest)).encode("utf-8")
+        want = hmac.new(key.encode("utf-8"), body, hashlib.sha256).hexdigest()
+        if not hmac.compare_digest(str(sig), want):
+            raise MCPDeviceError("E_AUTH", "manifest signature mismatch")
 
     # ── lifecycle ─────────────────────────────────────────────
 
@@ -139,6 +172,26 @@ class MCPDeviceDriver:
                     "E_NOTSUP",
                     f"{self.device_id}: advertised server is missing tools: {missing}",
                 )
+            tools = [
+                {"name": t.get("name"), "description": t.get("description"),
+                 "inputSchema": t.get("inputSchema"),
+                 "annotations": t.get("annotations")}
+                for t in (self.client.tools or []) if isinstance(t, dict)
+            ]
+            self._tool_digest = hashlib.sha256(
+                _canonical(tools).encode("utf-8")).hexdigest()
+            instr = (self.server_info or {}).get("instructions") or ""
+            self._instructions_digest = hashlib.sha256(
+                str(instr).encode("utf-8")).hexdigest()
+            pin = self.manifest.get("pin_tools") or {}
+            if pin.get("tools_sha256") and not hmac.compare_digest(
+                    str(pin["tools_sha256"]), self._tool_digest):
+                self.client.close()
+                raise MCPDeviceError("E_SAFETY", "tool definition digest mismatch")
+            if pin.get("instructions_sha256") and not hmac.compare_digest(
+                    str(pin["instructions_sha256"]), self._instructions_digest):
+                self.client.close()
+                raise MCPDeviceError("E_SAFETY", "server instructions digest mismatch")
             self.connected = True
             self._last_error = None
             self.refresh()
@@ -270,8 +323,10 @@ class MCPDeviceDriver:
             except Exception as e:
                 return {"ok": False, "status": "error", "actual": None,
                         "error": str(e)}
+            independent = bool(self.facts_spec.get("independent", False))
             if expected is None:
-                return {"ok": True, "status": "observed", "actual": actual}
+                return {"ok": True, "status": "observed", "actual": actual,
+                        "independent": independent}
             # Device facts can lag the tool result (Minecraft server ticks,
             # MQTT broker round trips, ...).  Poll until the fact settles or
             # the declared window expires.  A one-shot read here would create
@@ -282,7 +337,8 @@ class MCPDeviceDriver:
                 matched = self._match(last, expected, tolerance)
                 if matched:
                     return {"ok": True, "status": "verified",
-                            "expected": expected, "actual": last}
+                            "expected": expected, "actual": last,
+                            "independent": independent}
                 if time.monotonic() >= deadline:
                     return {"ok": False, "status": "mismatch",
                             "expected": expected, "actual": last}
@@ -378,10 +434,21 @@ class MCPDeviceDriver:
                 return False
             try:
                 self._call_spec(self.estop_spec)
-                self.refresh()
+                actual = self.refresh()
+                expect = (self.estop_spec.get("expect")
+                          or self.estop_spec.get("verify"))
+                if expect is not None:
+                    v = self.verify(expect, self.estop_spec.get("tolerance"))
+                    self._estop_verified = bool(v.get("ok"))
+                    if not v.get("ok"):
+                        self._last_error = "estop safe-state mismatch"
+                        return False
+                else:
+                    self._estop_verified = None
                 self._last_error = None
                 return True
             except Exception as e:
+                self._estop_verified = False
                 self._last_error = str(e)
                 return False
 
@@ -406,11 +473,17 @@ class MCPDeviceDriver:
             "transport": "stdio",
             "tools": sorted(self.tools),
             "facts": bool(self.facts_spec),
+            "facts_independent": bool(self.facts_spec.get("independent", False)),
+            "tool_digest": self._tool_digest,
+            "instructions_digest": self._instructions_digest,
             "estop": bool(self.estop_spec),
             "safety": {
                 "estop": bool(self.estop_spec),
                 "watchdog_ms": int(self.manifest.get("watchdog_ms", 10000)),
-                "safe_state": "off" if self.estop_spec else "unknown",
+                "safe_state": ("off" if (self.estop_spec and
+                                         (self.estop_spec.get("expect") or
+                                          self.estop_spec.get("verify")))
+                               else "unknown"),
             },
         }
 
@@ -422,6 +495,9 @@ class MCPDeviceDriver:
             "last_error": self._last_error,
             "server": self.server_info,
             "advertised_tools": sorted(self.advertised_tools),
+            "tool_digest": self._tool_digest,
+            "instructions_digest": self._instructions_digest,
+            "estop_verified": self._estop_verified,
         }
 
     def last_verification(self) -> dict | None:

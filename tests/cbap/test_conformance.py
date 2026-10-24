@@ -85,12 +85,16 @@ class Harness:
             raise RuntimeError("kernel did not start")
         self.client = None
         if start_client:
-            self.client = self.new_client("conf-agent")
+            self.client = self.new_client("cbap-operator", operator=True)
 
-    def new_client(self, agent_id="conf-agent"):
+    def new_client(self, agent_id="cbap-operator", operator=False):
         c = CBAPClient(self.cbap_sock, agent_id=agent_id)
         c.connect()
-        c.hello(token=None)
+        op = None
+        if operator:
+            with open(self.cbap_sock + ".operator", encoding="ascii") as f:
+                op = f.read().strip()
+        c.hello(token=None, operator_token=op)
         return c
 
     def open(self, client=None, mode="rw"):
@@ -195,7 +199,7 @@ class ConformanceTest(unittest.TestCase):
     def test_04_unknown_message_type(self):
         self.h = Harness()
         s = raw_connect(self.h.cbap_sock)
-        raw_send(s, hello_msg())
+        raw_send(s, hello_msg(token=self.h.server.token))
         welcome = raw_recv(s)
         self.assertEqual(welcome["type"], "welcome")
         raw_send(s, {"v": "1.0", "type": "wat", "id": "w1"})
@@ -394,7 +398,7 @@ class ConformanceTest(unittest.TestCase):
     def test_19_oversize_frame_keeps_connection(self):
         self.h = Harness(start_client=False)
         s = raw_connect(self.h.cbap_sock)
-        raw_send(s, hello_msg())
+        raw_send(s, hello_msg(token=self.h.server.token))
         self.assertEqual(raw_recv(s)["type"], "welcome")
         s.sendall(b"x" * (protocol.MAX_FRAME + 1024) + b"\n")
         msg = raw_recv(s)

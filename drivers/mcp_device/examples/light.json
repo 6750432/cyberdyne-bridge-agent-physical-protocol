@@ -26,7 +26,10 @@
     "tool": "get_state"
   },
   "estop": {
-    "tool": "turn_off"
+    "tool": "turn_off",
+    "expect": {
+      "on": false
+    }
   },
   "poll_interval": 0.05,
   "facts_timeout_ms": 2000

@@ -50,11 +50,24 @@ Open:
 http://127.0.0.1:8765/
 ```
 
-If the Kernel has an auth token:
+The console prints an **operator token** at startup. Enter it in the login
+form. The token is not embedded in the HTML page.
+
+To pin it yourself:
+
+```bash
+export CBAP_CONSOLE_OPERATOR_TOKEN='<operator-token>'
+python3 console/server.py --socket ./cbap.sock
+```
+
+If the Kernel has an explicit agent token:
 
 ```bash
 python3 console/server.py --socket ./cbap.sock --token '<kernel-token>'
 ```
+
+The operator token is separate from the Kernel agent token. The console reads
+`<socket>.operator` (mode 0600), which the Kernel creates.
 
 ## Security posture
 
@@ -62,16 +75,17 @@ python3 console/server.py --socket ./cbap.sock --token '<kernel-token>'
 bind:       127.0.0.1 only
 Host:       validated against 127.0.0.1:<port> / localhost:<port>
 Origin:     validated when present
-API auth:   per-process X-CBAP-Token
+API auth:   HttpOnly SameSite=Strict operator session cookie
+Login:      POST /api/login with the printed operator token
 CSP:        self only, frame-ancestors none
 No CORS
 No resume
 No arbitrary command endpoint
 ```
 
-The console token is embedded in the local HTML page for the same-origin UI.
-It is not a substitute for Kernel authentication; use `--token` when the
-Kernel requires one.
+The page contains no token. Login attempts are rate-limited. The console is
+still a local-only host; a hostile process running as the same OS user can
+read the process environment or files.
 
 ## Test
 
@@ -82,7 +96,7 @@ python3 -m unittest -v tests.cbap.test_console
 ## Limitations
 
 ```text
-no multi-operator authentication
+single operator token (no multi-user account system)
 no TLS (localhost only)
 no resume UI
 no historical charts

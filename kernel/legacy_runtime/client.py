@@ -176,7 +176,14 @@ class CBAPClient:
     # ── convenience ───────────────────────────────────────────
 
     def hello(self, capabilities: list[str] | None = None,
-              token: str | None = None, timeout: float = 3.0) -> dict:
+              token: str | None = None, timeout: float = 3.0,
+              operator_token: str | None = None) -> dict:
+        if token is None:
+            try:
+                with open(self.socket_path + ".token", encoding="ascii") as f:
+                    token = f.read().strip()
+            except OSError:
+                token = None
         rid = protocol.new_id("h")
         msg = {
             "v": protocol.PROTOCOL_VERSION,
@@ -187,8 +194,13 @@ class CBAPClient:
             "role": "agent",
             "capabilities": capabilities or ["read", "write", "lease", "estop"],
         }
+        auth = {}
         if token:
-            msg["auth"] = {"token": token}
+            auth["token"] = token
+        if operator_token:
+            auth["operator_token"] = operator_token
+        if auth:
+            msg["auth"] = auth
         self.send(msg)
         if not self._welcome_evt.wait(timeout):
             raise TimeoutError("no welcome")

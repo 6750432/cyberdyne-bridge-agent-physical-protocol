@@ -61,7 +61,7 @@ class MultiDeviceTest(unittest.TestCase):
             raise RuntimeError("kernel did not start")
         self.client = CBAPClient(self.cbap_sock, agent_id="multi")
         self.client.connect()
-        self.client.hello()
+        self.client.hello(operator_token=open(self.cbap_sock + ".operator", encoding="ascii").read().strip())
 
     def tearDown(self):
         for x in (self.client,):
