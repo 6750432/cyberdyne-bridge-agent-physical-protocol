@@ -4,9 +4,37 @@
 
 ```text
 GitHub Pages：已启用（GitHub Actions）
+最近部署：success（push site/** 自动触发）
+内容：已在线（HTTP 可访问）
 临时地址：https://6750432.github.io/cyberdyne-bridge-agent-physical-protocol/
-自定义域名：www.cyberdyne-bridge.com（DNS 已添加，等待 GitHub 完成校验/签发 HTTPS）
+自定义域名：www.cyberdyne-bridge.com
+HTTPS：尚未完成 —— GitHub 目前仍返回 *.github.io 证书
 ```
+
+这意味着：
+
+```text
+http://www.cyberdyne-bridge.com/      可用
+https://www.cyberdyne-bridge.com/    证书主机名不匹配
+https_enforced                       false
+```
+
+不是站点内容没发；是 GitHub Pages 的自定义域证书还没签发。
+`PUT /repos/.../pages` 设置 `https_enforced=true` 会返回：
+
+```text
+The certificate does not exist yet
+```
+
+### 现在的处理顺序
+
+1. GitHub → Settings → Pages → Custom domain 重新保存 `www.cyberdyne-bridge.com`
+2. 确认 DNS `www CNAME 6750432.github.io`
+3. 等 GitHub 签发证书；不要先勾 Enforce HTTPS
+4. 证书匹配后再勾 **Enforce HTTPS**
+5. 用 `curl -I https://www.cyberdyne-bridge.com/` 验证证书 SAN
+
+在证书签发前不要宣传 HTTPS 已可用，也不要用 `curl -k` 当作验证。
 
 
 这是 `cyberdyne-bridge.com` 的静态门面：只放项目摘要和仓库链接，不镜像文档、不接本地服务、不放运行数据。
