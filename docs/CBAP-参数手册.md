@@ -1420,7 +1420,7 @@ Console audit limit       80 default / 500 max
 | hello capabilities | 请求权限 | 以 policy 授予为准 |
 | global state | 推送 | 只推给持有该设备 fd 的会话 |
 | `write` 前置失败 | result | 无 ack；`CBAPClient.write` 可能表现为超时 |
-| spec 用例数 | 20 条 | 当前 100 条实现测试 |
+| spec 用例数 | 20 条 | 当前 101 条实现测试 |
 
 ---
 
@@ -1447,7 +1447,7 @@ python3 tools/mcp_device_probe.py drivers/mcp_device/examples/light.json \
 当前状态：
 
 ```text
-CBAP conformance: 100/100
+CBAP conformance: 101/101
 console tests:    5
 transport tests:  2
 security tests:   14

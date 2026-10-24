@@ -1,6 +1,6 @@
 # Cyberdyne MC Agent
 
-Status: **active / ours**
+Status: **legacy-frozen / ours; CBAP wrapper available**
 
 This is our original MC Agent:
 
@@ -13,6 +13,16 @@ plugins/                 hot-plug carriages
 The brain/hand direct UDS path is **legacy** and does not go through CBAP.
 The hand can also be wrapped by `McDriver` as the CBAP device
 `mc://bot/DeepSeek`.
+
+M4 migration wrapper:
+
+```text
+agents/cyberdyne/brain/bridge_cbap.py
+agents/cyberdyne/tools/启动大脑-cbap.sh
+```
+
+It keeps the legacy brain but replaces `接线口` with `CBAPHandAdapter`.
+The original direct hand path remains frozen and is not the recommended runtime.
 
 Compatibility shims remain at the repository root:
 

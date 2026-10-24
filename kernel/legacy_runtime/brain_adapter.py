@@ -44,8 +44,10 @@ class CBAPHandAdapter:
                  agent_id: str = "bridge-legacy"):
         self.cfg = cfg or {}
         self.说 = 说 or (lambda *a, **k: None)
-        self.cbap_socket = cbap_socket or DEFAULT_CBAP_SOCKET
-        self.device_id = device_id
+        self.cbap_socket = (cbap_socket or self.cfg.get("cbap_socket") or
+                            os.environ.get("CBAP_SOCKET") or DEFAULT_CBAP_SOCKET)
+        self.device_id = (device_id or self.cfg.get("cbap_device") or
+                          os.environ.get("CBAP_DEVICE") or DEFAULT_DEVICE)
         self.agent_id = agent_id
         with open(mapping_path, encoding="utf-8") as f:
             self.mapping = json.load(f)

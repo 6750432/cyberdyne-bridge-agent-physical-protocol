@@ -2,7 +2,7 @@
 
 **状态**：implemented
 **日期**：2026-10-24
-**基线**：CBAP 100/100 tests
+**基线**：CBAP 101/101 tests
 **范围**：Console lease/审批；MCP onboarding/probe；注册表热插拔；双人审批；签名；持久化历史；SLA 通知；mTLS operator；resume
 
 ---
@@ -221,7 +221,7 @@ verification
 [x] Console mTLS operator identity
 [x] operator resume with reason + confirm
 [x] UI + API
-[x] 100/100 tests
+[x] 101/101 tests
 ```
 
 部署注意：

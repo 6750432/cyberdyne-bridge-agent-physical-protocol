@@ -95,7 +95,8 @@ Removing a shim is a separate migration after every caller has moved.
 6. External callers moved off shims                    [done]
 7. External agent shims removed                        [done]
 8. Own legacy path constants migrated                  [next]
-9. Decide whether to use real git submodules/remotes   [later]
+9. M4 legacy bridge freeze / CBAP wrapper              [phase 1 done]
+10. Decide whether to use real git submodules/remotes  [later]
 ```
 
 ## Contract
@@ -132,10 +133,11 @@ and imports a factory on explicit request.
 ## Verification (2026-10-24)
 
 ```text
-CBAP conformance: 100/100 passed
+CBAP conformance: 101/101 passed
 console tests:    5 passed (login / approvals / onboarding / history)
 console TLS:      1 passed (mTLS operator identity)
 registry hotplug: 1 passed (load / disable / unload)
+legacy wrapper:   1 passed (bridge_cbap boundary)
 transport tests:  2 passed (TCP/TLS/mTLS)
 security tests:   14 passed (socket/token/policy/audit/fencing/limits)
 MCP device tests: 14 passed
@@ -167,5 +169,7 @@ directories up); `proto_body.js` now also looks in
 `agents/cyberdyne/plugins/常识/方块交互表.json`, and all 22 JS tests pass.
 
 Own legacy shims remain because `bridge.py`, `node` and `外挂` are still
-hardcoded by the old brain/hand/plugin code. They are not external-agent
-shims.
+hardcoded by the old brain/hand/plugin code. M4 phase 1 adds
+`agents/cyberdyne/brain/bridge_cbap.py`, which keeps the old brain and swaps
+only `接线口` for `CBAPHandAdapter`. The direct path is frozen; root shims are
+removed only after all callers move.

@@ -5,7 +5,7 @@
 - **Specification**: [`cbap-v1.md`](cbap-v1.md)
 - **Implementation matrix**: [`implementation-matrix.md`](implementation-matrix.md)
 - **Command**: `python3 tools/cbap_conformance.py --target fake`
-- **Current suite**: **100 tests, 0 failures**
+- **Current suite**: **101 tests, 0 failures**
 
 ## Levels
 
@@ -62,13 +62,14 @@ tests/cbap/test_security.py     14  token/uid/policy/audit/fencing/limits
 tests/cbap/test_console.py       5  login/Host+Origin/estop/audit/approval/onboarding
 tests/cbap/test_console_tls.py   1  mTLS operator identity
 tests/cbap/test_registry.py      1  Kernel hot-plug
+tests/cbap/test_bridge_cbap.py   1  legacy wrapper boundary
 tests/cbap/test_transport.py     2  TCP/TLS/mTLS
 ```
 
 ## Current status
 
 ```text
-CBAP conformance: 100/100 passed
+CBAP conformance: 101/101 passed
 ```
 
 Not claimed as passed:
