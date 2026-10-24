@@ -92,5 +92,41 @@ class MCPDeviceDriverTest(unittest.TestCase):
             driver.close()
 
 
+    def test_kernel_write_and_generic_state_read(self):
+        from kernel.legacy_runtime.client import CBAPClient
+        from kernel.legacy_runtime.server import KernelServer
+
+        driver = MCPDeviceDriver(self._manifest())
+        socket_dir = Path(tempfile.mkdtemp(prefix="mcp-kernel-"))
+        sock = socket_dir / "cbap.sock"
+        try:
+            self.assertTrue(driver.connect())
+            kernel = KernelServer(
+                drivers=[driver], socket_path=str(sock),
+                audit_path=str(socket_dir / "audit"),
+            )
+            self.assertTrue(kernel.start())
+            client = CBAPClient(str(sock), agent_id="mcp-device-test")
+            client.connect()
+            client.hello()
+            opened = client.open("mcp://lab/light-01")
+            self.assertTrue(opened["ok"], opened)
+            fd = opened["payload"]["fd"]
+            client.lease(fd)
+            _rid, ack, wr = client.write(fd, {
+                "channel": "mcp", "op": "turn_on", "args": {},
+                "expect": {"on": True},
+            })
+            self.assertEqual(ack.get("state"), "accepted")
+            self.assertTrue(wr["ok"], wr)
+            rd = client.read(fd, "state", timeout_ms=1000)
+            self.assertTrue(rd["ok"], rd)
+            self.assertTrue(rd["payload"]["frame"]["state"]["on"])
+            client.close()
+            kernel.stop()
+        finally:
+            driver.close()
+
+
 if __name__ == "__main__":
     unittest.main()

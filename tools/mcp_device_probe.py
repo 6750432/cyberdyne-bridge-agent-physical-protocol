@@ -26,6 +26,7 @@ def main() -> int:
     ap.add_argument("--op")
     ap.add_argument("--args", default="{}")
     ap.add_argument("--expect")
+    ap.add_argument("--tolerance", type=float)
     ap.add_argument("--json", action="store_true")
     ns = ap.parse_args()
     try:
@@ -39,12 +40,17 @@ def main() -> int:
         tool_ok = None
         if ns.op:
             cmd = {"op": ns.op, "args": json.loads(ns.args)}
+            if ns.tolerance is not None:
+                cmd["tolerance"] = ns.tolerance
             if ns.expect is not None:
                 cmd["expect"] = json.loads(ns.expect)
             tool_ok = driver.send(cmd)
         result = driver.last_verification()
         if result is None:
-            result = driver.verify(json.loads(ns.expect) if ns.expect else None)
+            result = driver.verify(
+            json.loads(ns.expect) if ns.expect else None,
+            ns.tolerance,
+        )
         result = dict(result)
         result["tool_ok"] = tool_ok
         result["device_id"] = driver.device_id

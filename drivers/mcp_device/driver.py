@@ -85,6 +85,8 @@ class MCPDeviceDriver:
         self.device_id = str(self.manifest["device_id"])
         self.display_name = str(self.manifest.get("display_name") or self.device_id)
         self.poll_interval = max(0.05, float(self.manifest.get("poll_interval", 0.2)))
+        self.facts_timeout = max(
+            0.0, float(self.manifest.get("facts_timeout_ms", 2000)) / 1000.0)
         self.connect_timeout = float(connect_timeout)
 
         transport = self.manifest["transport"]
@@ -109,8 +111,12 @@ class MCPDeviceDriver:
         self._last_verification: dict | None = None
         self._last_error: str | None = None
         self._lock = threading.RLock()
-        # Kernel-compatible callback hook.
+        # Kernel-compatible callback hooks.  The Kernel replaces these on
+        # startup just like it does for McDriver.
         self.on_state = None
+        self.on_result = None
+        self.on_event = None
+        self.on_disconnect = None
 
     # ── lifecycle ─────────────────────────────────────────────
 
@@ -227,18 +233,25 @@ class MCPDeviceDriver:
 
     # ── action ────────────────────────────────────────────────
 
-    def _match(self, actual: Any, expected: Any) -> bool:
+    def _match(self, actual: Any, expected: Any,
+               tolerance: float | None = None) -> bool:
         if isinstance(expected, dict):
             if not isinstance(actual, dict):
                 return False
-            return all(k in actual and self._match(actual[k], v)
+            return all(k in actual and self._match(actual[k], v, tolerance)
                        for k, v in expected.items())
         if isinstance(expected, list):
             return isinstance(actual, list) and len(actual) == len(expected) and all(
-                self._match(a, b) for a, b in zip(actual, expected))
+                self._match(a, b, tolerance) for a, b in zip(actual, expected))
+        if (tolerance is not None and isinstance(actual, (int, float))
+                and isinstance(expected, (int, float))
+                and not isinstance(actual, bool)
+                and not isinstance(expected, bool)):
+            return abs(float(actual) - float(expected)) <= float(tolerance)
         return actual == expected
 
-    def verify(self, expected: Any = None) -> dict:
+    def verify(self, expected: Any = None,
+               tolerance: float | None = None) -> dict:
         """Read the independent fact source and compare it to an expectation.
 
         A missing fact source is ``unverifiable``; it is never treated as
@@ -259,9 +272,38 @@ class MCPDeviceDriver:
                         "error": str(e)}
             if expected is None:
                 return {"ok": True, "status": "observed", "actual": actual}
-            matched = self._match(actual, expected)
-            return {"ok": matched, "status": "verified" if matched else "mismatch",
-                    "expected": expected, "actual": actual}
+            # Device facts can lag the tool result (Minecraft server ticks,
+            # MQTT broker round trips, ...).  Poll until the fact settles or
+            # the declared window expires.  A one-shot read here would create
+            # a false mismatch.
+            deadline = time.monotonic() + self.facts_timeout
+            last = actual
+            while True:
+                matched = self._match(last, expected, tolerance)
+                if matched:
+                    return {"ok": True, "status": "verified",
+                            "expected": expected, "actual": last}
+                if time.monotonic() >= deadline:
+                    return {"ok": False, "status": "mismatch",
+                            "expected": expected, "actual": last}
+                time.sleep(min(self.poll_interval, 0.1))
+                try:
+                    last = self.refresh()
+                except Exception as e:
+                    last = None
+                    if time.monotonic() >= deadline:
+                        return {"ok": False, "status": "error",
+                                "expected": expected, "actual": None,
+                                "error": str(e)}
+
+    def _emit_result(self, cmd: str, ok: bool, why: str | None,
+                     extra: dict | None = None) -> None:
+        if self.on_result:
+            try:
+                self.on_result(cmd, bool(ok), why,
+                               dict(extra or {}))
+            except Exception:
+                pass
 
     def _call_spec(self, spec: dict, extra_args: dict | None = None) -> Any:
         tool = spec.get("tool")
@@ -305,12 +347,18 @@ class MCPDeviceDriver:
                 actual = self.refresh()
                 expect = command.get("expect")
                 if expect is not None:
-                    verification = self.verify(expect)
+                    verification = self.verify(expect, command.get("tolerance"))
                     self._last_verification = verification
+                    self._emit_result(
+                        op, bool(verification["ok"]),
+                        None if verification["ok"] else "fact mismatch",
+                        verification,
+                    )
                     return bool(verification["ok"])
                 self._last_verification = {
                     "ok": True, "status": "observed", "actual": actual,
                 }
+                self._emit_result(op, True, None, {"facts": actual})
                 return True
             except Exception as e:
                 self._last_error = str(e)
@@ -318,6 +366,7 @@ class MCPDeviceDriver:
                     "ok": False, "status": "error", "actual": self.latest_state,
                     "error": str(e),
                 }
+                self._emit_result(op, False, f"MCP tool failed: {e}")
                 return False
 
     def estop(self) -> bool:
@@ -342,12 +391,10 @@ class MCPDeviceDriver:
         channel = frame.get("channel")
         op = frame.get("op")
         args = frame.get("args") or {}
-        if channel == "mcp":
-            return {"op": op, "args": args,
-                    **({"expect": frame["expect"]} if "expect" in frame else {})}
-        # A bare generic op is also accepted for device-to-device tests.
-        return {"op": op, "args": args,
-                **({"expect": frame["expect"]} if "expect" in frame else {})}
+        command = {"cmd": op, "op": op, "args": args}
+        if "expect" in frame:
+            command["expect"] = frame["expect"]
+        return command
 
     # ── Kernel interface ─────────────────────────────────────
 
@@ -360,6 +407,11 @@ class MCPDeviceDriver:
             "tools": sorted(self.tools),
             "facts": bool(self.facts_spec),
             "estop": bool(self.estop_spec),
+            "safety": {
+                "estop": bool(self.estop_spec),
+                "watchdog_ms": int(self.manifest.get("watchdog_ms", 10000)),
+                "safe_state": "off" if self.estop_spec else "unknown",
+            },
         }
 
     def health(self) -> dict:

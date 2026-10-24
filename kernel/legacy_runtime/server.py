@@ -1049,4 +1049,7 @@ def _state_payload(s: dict) -> dict:
         "attacked_by": s.get("attacked_by"),
         "legacy_seq": s.get("seq"),
         "legacy_t": s.get("t"),
+        # Generic device channel.  MC continues to use body/world/etc.; an
+        # MCP hardware driver exposes its own facts here.
+        "state": s,
     }
