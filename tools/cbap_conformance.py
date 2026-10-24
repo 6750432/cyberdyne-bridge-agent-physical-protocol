@@ -30,6 +30,7 @@ MODULES = [
     "tests.cbap.test_mcp_driver",
     "tests.cbap.test_plugins",
     "tests.cbap.test_agent_smoke",
+    "tests.cbap.test_mcp_device",
 ]
 
 

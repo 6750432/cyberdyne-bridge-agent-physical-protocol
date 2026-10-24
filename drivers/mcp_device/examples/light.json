@@ -1,0 +1,16 @@
+{
+  "device_id": "mcp://lab/light-01",
+  "display_name": "Lab light",
+  "transport": {
+    "type": "stdio",
+    "command": ["python3", "tests/cbap/fake_mcp_hardware.py", "--device", "light"],
+    "cwd": "../../.."
+  },
+  "tools": {
+    "turn_on": {"tool": "turn_on", "args": {}},
+    "turn_off": {"tool": "turn_off", "args": {}}
+  },
+  "facts": {"source": "tool", "tool": "get_state"},
+  "estop": {"tool": "turn_off"},
+  "poll_interval": 0.05
+}

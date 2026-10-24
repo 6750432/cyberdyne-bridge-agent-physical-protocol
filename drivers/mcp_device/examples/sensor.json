@@ -1,0 +1,14 @@
+{
+  "device_id": "mcp://lab/temp-01",
+  "display_name": "Lab temperature sensor",
+  "transport": {
+    "type": "stdio",
+    "command": ["python3", "tests/cbap/fake_mcp_hardware.py", "--device", "sensor"],
+    "cwd": "../../.."
+  },
+  "tools": {
+    "read_temperature": {"tool": "read_temperature"}
+  },
+  "facts": {"source": "tool", "tool": "get_state"},
+  "poll_interval": 0.2
+}
