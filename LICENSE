@@ -1,3 +1,14 @@
+Cyberdyne Bridge / CBAP
+
+The MIT license below applies to original CBAP Kernel, protocol, driver,
+test code and original documentation authored for this repository.
+
+Third-party components, patches, runtime dependencies, names and trademarks
+are NOT relicensed by this file. See THIRD_PARTY_NOTICES.md,
+third_party/licenses/, TRADEMARKS.md and DISCLAIMER.md.
+
+---
+
 MIT License
 
 Copyright (c) 2026 BZYS17Mintstar

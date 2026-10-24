@@ -1,0 +1,8 @@
+This patch is against swaynos/mineflayer-mcp, which is GPL-3.0.
+
+The patch is distributed under GPL-3.0. It is NOT part of the MIT-licensed
+CBAP core. See LICENSE in this directory and ../../../../third_party/
+licenses/mineflayer-mcp-GPL-3.0.txt.
+
+The CBAP MCP adapter talks to the upstream server as a separate stdio
+process; it does not import upstream GPL code into the Kernel.

@@ -344,37 +344,53 @@ agents/*/docs/                         各 Agent 自己的接入文档
 
 ## 许可
 
-MIT，见 [`LICENSE`](LICENSE)。Minecraft 是 Mojang Studios 的商标，本项目与 Mojang 无关。
+原创 CBAP Kernel / 协议 / 驱动 / 测试代码和原创文档采用 **MIT**，见 [`LICENSE`](LICENSE)。
 
----
+第三方组件、补丁、运行时依赖、外部项目和名称**不因本仓引用而变成 MIT**：
 
-## ⚠️ 免责声明 / Disclaimer
+```text
+THIRD_PARTY_NOTICES.md        第三方组件 / 补丁 / 运行时依赖清单
+third_party/licenses/         上游 license 原文
+TRADEMARKS.md                 第三方名称与商标说明
+```
 
-请在使用本项目前，务必仔细阅读以下全部条款。任何对本项目的 Clone、下载、编译、运行、修改或分发行为，均视为您已阅读、理解并同意本免责声明的全部内容。
+其中 `agents/mcp-mineflayer/driver/patches/mineflayer-mcp-place.patch`
+来自 **GPL-3.0** 的 `mineflayer-mcp`，该补丁按 GPL-3.0 分发，不属于 MIT
+核心。CBAP 只通过独立 stdio 进程与它通信。
 
-### 🚫 1. 严禁滥用与公共服务器红线
+Minecraft 是 Mojang Studios 的商标。本项目与 Mojang、Microsoft、网易、
+DeepSeek、Qwen、Mindcraft、Voyager、mineflayer-mcp 均无官方关联。
 
-- **仅限本地环境**：本项目（Cyberdyne-Bridge）仅限用于本地单机、局域网私服、AI Agent 架构研究。绝对禁止将本项目的任何代码、脚本或衍生程序用于任何未经官方授权的公共服务器（如 Hypixel、2B2T 等）。
-- **封号风险自负**：由于本项目使用了无头客户端（mineflayer）并在底层实现了 0ms 反射弧和连击逻辑，在公共服务器运行时，极大几率会触发反作弊系统（如 Watchdog、NCP、Matrix）导致账号或 IP 被封禁。因违反服务器规则导致的一切后果，由使用者自行承担。
-- **破坏游戏体验零容忍**：严禁利用本项目在多人游戏中恶意破坏他人游戏体验（如无理由屠杀、恶意破坏建筑等）。
+## 免责声明
 
-### 🛡️ 2. AI 自主行为与物理环境风险
+本项目是实验性研究软件，按 **AS IS** 提供，不提供任何明示或暗示担保。
+完整条款见：
 
-- **大模型幻觉**：本项目接入了云端或本地的 LLM（大语言模型）进行任务规划。尽管本地已实现 Fail-Closed（默认拒绝）的安全白名单和双向翻译器校验，但仍不能完全排除由于大模型幻觉、网络延迟或物理引擎 Bug 导致的意外行为（如误挖方块、误放物品、卡死、掉入岩浆等）。
-- **资源与成本**：使用本项目调用云端 API 会产生 Token 费用。作者不承担任何因 API 泄漏、盗刷、费率变更或云端服务商条款变动导致的财务损失。
-- **硬件红线**：项目内置了热保护与资源看护脚本，但使用者需自行评估本地硬件的承载能力。因不当配置导致的高温、死机、硬件损坏或存档丢失，作者概不负责。
+```text
+DISCLAIMER.md
+```
 
-### 🐧 3. 运行环境限制
+摘要：
 
-- **Linux Only**：本项目深度依赖 `nice`、`ionice`、`xinput`、Unix Domain Socket 等 Linux 专属机制及标准库。目前仅支持 Linux（推荐 Linux Mint / Ubuntu），且未提供图形界面（无头模式）。
-- **Windows 兼容性**：作者坚决不处理任何 Windows 环境下的兼容性问题或 Issues。如果你只有 Windows，请自行尝试 WSL2 或使用虚拟机。
+```text
+只在你拥有或获授权的设备 / 账号 / 服务器 / 网络上使用
+禁止未授权访问、反作弊规避、公共服务器滥用、骚扰或违法用途
+host bridge 是本地测试设施，不是生产远程管理
+host 输入默认关闭；不要把 host bridge 暴露公网
+LLM 可能出错；lease / policy / audit / estop 不是安全认证
+第三方名称与商标见 TRADEMARKS.md
+```
 
-### ⚖️ 4. 版权与第三方许可
+## 安全
 
-- **非官方项目**：本项目为个人开源研究项目，与 Mojang Studios、Microsoft 或网易（中国版 MC）没有任何直接或间接的关联。Minecraft 是 Mojang Studios 的商标。
-- **开源依赖**：项目依赖 mineflayer 等优秀的开源 Node.js 库，这些库遵循其各自的开源许可协议。
-- **AI 协作声明**：本项目约 80% 的代码、全部测试用例、验收报告及安全断言，由 AI 助手（大肥鱼，基于 DeepSeek V4）自主编写。人类（作者）仅负责架构设计、安全红线制定及最终验收。本项目不提供任何形式的明示或暗示担保（AS IS）。
+漏洞报告和负责任披露见 [`SECURITY.md`](SECURITY.md)。
 
-### 💸 5. 无担保声明
+```text
+不要公开贴 token / 私钥 / 他人数据 / 可利用细节
+优先使用 GitHub Security Advisory 私密报告
+```
 
-本项目按"原样（AS IS）"提供，不包含任何明示或暗示的保证，包括但不限于对适销性、特定用途适用性及非侵权的保证。在任何情况下，作者均不对任何索赔、损害或其他责任负责，无论是在合同诉讼、侵权行为还是其他方面，均不承担因本软件、本软件的使用或其他交易而产生或与之相关的责任。
+## 贡献
+
+提交 PR 即表示你同意贡献按本项目 MIT 许可发布，并保留适用的第三方声明。
+详见 [`CONTRIBUTING.md`](CONTRIBUTING.md)。
