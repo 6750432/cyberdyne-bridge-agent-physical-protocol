@@ -4,11 +4,15 @@
 
 ### 赛博戴恩之桥 · CBAP v1
 
+> **UNOFFICIAL OPEN-SOURCE PROTOCOL**
+> Not affiliated with or endorsed by Mojang, Microsoft, NetEase, DeepSeek,
+> Qwen, Mindcraft, Voyager, mineflayer-mcp, or PrismarineJS.
+
 **把异构 Minecraft Agent，变成同一个协议下的外设。**
 
 [![CBAP](https://img.shields.io/badge/CBAP-v1-0f766e?style=flat-square)](spec/README.md)
 [![Release](https://img.shields.io/badge/release-v1.7.3-0f766e?style=flat-square)](https://github.com/cyberdyne-bridge/cyberdyne-bridge-agent-physical-protocol/releases)
-[![Conformance](https://img.shields.io/badge/conformance-114%2F114-14b8a6?style=flat-square)](tools/cbap_conformance.py)
+[![Conformance](https://img.shields.io/badge/conformance-118%2F118-14b8a6?style=flat-square)](tools/cbap_conformance.py)
 [![Python](https://img.shields.io/badge/Python-3.10%2B-3776AB?style=flat-square&logo=python&logoColor=white)](kernel/)
 [![Transport](https://img.shields.io/badge/CBAP--U-Unix%20socket-334155?style=flat-square)](spec/README.md)
 [![No paid API](https://img.shields.io/badge/LLM-local%20friendly-6b7280?style=flat-square)](#)

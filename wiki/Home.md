@@ -1,6 +1,7 @@
 # Cyberdyne Bridge · CBAP
 
-> 这是 **Home 索引**，不是第二份主文档。  
+> **UNOFFICIAL OPEN-SOURCE PROTOCOL** — 与 Mojang/Microsoft/网易/DeepSeek/Qwen/Mindcraft/Voyager/mineflayer-mcp 无官方关联。
+> 这是 **Home 索引**，不是第二份主文档。
 > 协议、安全、发行版的唯一事实源在仓库里，Wiki 只负责导航。
 
 ## 先看什么
@@ -45,7 +46,7 @@ MCP / Minecraft / Device
 
 ## 安全一句话
 
-> Agent 可以自主运行，但 Kernel 不相信 Agent 自带的安全声明。  
+> Agent 可以自主运行，但 Kernel 不相信 Agent 自带的安全声明。
 > 默认普通 read/write/lease 不需要人工逐步审批；高风险审批是 policy 显式配置的例外。
 
 ## 文档边界

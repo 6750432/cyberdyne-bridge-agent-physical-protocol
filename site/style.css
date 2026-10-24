@@ -672,3 +672,16 @@ main, .site-footer {
   html { scroll-behavior: auto; }
   *, *::before, *::after { animation: none !important; transition: none !important; }
 }
+
+.unofficial-tag {
+  display: inline-block;
+  margin: 0 0 1rem;
+  padding: .35rem .55rem;
+  border: 1px solid rgba(243, 201, 105, .45);
+  color: var(--amber);
+  background: rgba(243, 201, 105, .06);
+  font-family: var(--mono);
+  font-size: .68rem;
+  letter-spacing: .12em;
+  line-height: 1.4;
+}
