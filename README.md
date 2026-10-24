@@ -14,7 +14,7 @@
 [![No paid API](https://img.shields.io/badge/LLM-local%20friendly-6b7280?style=flat-square)](#)
 [![License](https://img.shields.io/badge/license-MIT-111827?style=flat-square)](LICENSE)
 
-[架构图](#架构) · [安全边界](#安全边界) · [快速开始](#快速开始) · [发行版](RELEASES.md) · [四个子仓](#四个-agent-子仓) · [协议保证](#协议桥保证什么) · [文档](#文档)
+[架构图](#架构) · [安全边界](#安全边界) · [快速开始](#快速开始) · [发行版](RELEASES.md) · [Wiki](https://github.com/cyberdyne-bridge/cyberdyne-bridge-agent-physical-protocol/wiki) · [四个子仓](#四个-agent-子仓) · [文档](#文档)
 
 </div>
 
