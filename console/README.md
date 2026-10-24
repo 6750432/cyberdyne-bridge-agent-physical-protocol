@@ -15,11 +15,13 @@ the CBAP Unix socket and never opens a driver directly.
 
 ```text
 device list / online state
-current lease owner / expiry
+current lease owner / expiry / fencing token
 pending writes
 health
 last facts
 Kernel audit tail
+pending high-risk approvals
+onboarded MCP manifests / probe status
 ```
 
 ## What it can do
@@ -27,6 +29,10 @@ Kernel audit tail
 ```text
 estop one device
 estop all devices
+release a lease (admin)
+approve / deny a high-risk write (admin)
+scan MCP tools, create an onboarding manifest
+probe an onboarded MCP device
 ```
 
 There is intentionally **no resume endpoint**. The Kernel's estop is latched:
@@ -80,12 +86,13 @@ Login:      POST /api/login with the printed operator token
 CSP:        self only, frame-ancestors none
 No CORS
 No resume
-No arbitrary command endpoint
+MCP onboarding scan starts the operator-supplied argv (local, operator-only)
 ```
 
 The page contains no token. Login attempts are rate-limited. The console is
 still a local-only host; a hostile process running as the same OS user can
-read the process environment or files.
+read the process environment or files. MCP onboarding is deliberately a
+powerful operator action: it can start a local stdio server.
 
 ## Test
 
@@ -99,6 +106,8 @@ python3 -m unittest -v tests.cbap.test_console
 single operator token (no multi-user account system)
 no TLS (localhost only)
 no resume UI
+no dual approval
+no onboarding signature UI (use tools/sign_mcp_manifest.py)
 no historical charts
 no device-specific 3D visualization
 ```

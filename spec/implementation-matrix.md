@@ -120,14 +120,29 @@ removed       not part of the current profile
 | remote ack verification | optional | ack file |
 | resume | removed | explicit E_PERM |
 
-## 8. Test mapping
+## 8. M3 operator productization
+
+| Feature | Status | Notes |
+|---|---|---|
+| lease/fencing view | implemented | `/api/status` |
+| operator release lease | implemented | `admin_release`, audited |
+| approval policy | implemented | `policy.approvals` |
+| approve/deny pending write | implemented | operator only |
+| approval expiry | implemented | `E_TIMEOUT` |
+| MCP scan tools | implemented | local stdio |
+| manifest generation | implemented | `devices/onboarded/` |
+| probe/health | implemented | explicit side effect only |
+| manifest/pin status | implemented | signed/pinned UI fields |
+| dual approval | planned | not implemented |
+
+## 9. Test mapping
 
 ```text
-tools/cbap_conformance.py     96 cases
+tools/cbap_conformance.py     98 cases
 tests/cbap/test_conformance.py 20 core + D1/D4/D5 + security-adjacent
 tests/cbap/test_mcp_device.py  14
 tests/cbap/test_security.py    14
-tests/cbap/test_console.py      3
+tests/cbap/test_console.py       5
 tests/cbap/test_transport.py    2
 ```
 

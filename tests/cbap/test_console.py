@@ -7,12 +7,14 @@ import http.client
 import json
 import os
 import tempfile
+import sys
 import threading
 import time
 import unittest
 
 from console.backend import ConsoleBackend
 from console.server import ConsoleHTTPServer, Handler
+from kernel.legacy_runtime.client import CBAPClient
 from kernel.legacy_runtime.server import KernelServer
 
 
@@ -50,6 +52,12 @@ class ConsoleDriver:
         return True
 
     def send(self, command):
+        if self.on_result:
+            def done():
+                time.sleep(0.01)
+                self.on_result(str((command or {}).get("cmd") or "unknown"),
+                               True, None, {})
+            threading.Thread(target=done, daemon=True).start()
         return True
 
     def map_action(self, frame):
@@ -63,7 +71,11 @@ class ConsoleTest(unittest.TestCase):
         self.audit = os.path.join(self.tmp, "audit.jsonl")
         self.driver = ConsoleDriver()
         self.kernel = KernelServer(
-            self.driver, socket_path=self.sock, audit_path=self.audit)
+            self.driver, socket_path=self.sock, audit_path=self.audit,
+            policy={"approvals": {
+                "devices": ["test://console/light-01"],
+                "ops": ["move"], "ttl_ms": 10000,
+            }})
         self.assertTrue(self.kernel.start())
         self.backend = ConsoleBackend(self.sock, audit_path=self.audit)
         self.operator_token = "console-test-operator"
@@ -157,6 +169,64 @@ class ConsoleTest(unittest.TestCase):
         rows = json.loads(data)["rows"]
         self.assertTrue(any(r.get("event") == "estop" for r in rows))
 
+
+    def test_approve_and_release_lease(self):
+        self.login()
+        agent = CBAPClient(self.sock, agent_id="approval-agent")
+        agent.connect()
+        try:
+            agent.hello(token=self.kernel.token)
+            opened = agent.open("test://console/light-01", mode="rw")
+            fd = opened["payload"]["fd"]
+            agent.lease(fd)
+            rid = agent.request("write", {
+                "fd": fd,
+                "frame": {"channel": "body", "op": "move", "args": {}},
+            })
+            agent.wait_ack(rid, 2)
+            pending = self.backend.approvals()
+            self.assertTrue(pending["ok"], pending)
+            self.assertEqual(len(pending["approvals"]), 1, pending)
+            aid = pending["approvals"][0]["approval_id"]
+            self.assertTrue(self.backend.approve(aid)["ok"])
+            result = agent.wait(rid, 3)
+            self.assertTrue(result.get("ok"), result)
+            self.assertEqual(self.backend.approvals()["approvals"], [])
+            status, data = self.req("POST", "/api/lease/release",
+                                    {"device_id": "test://console/light-01"},
+                                    origin=f"http://127.0.0.1:{self.port}")
+            self.assertEqual(status, 200, data)
+            self.assertTrue(json.loads(data)["ok"])
+            self.assertIn("admin_release",
+                          [r.get("event") for r in self.backend.audit(20)["rows"]])
+        finally:
+            agent.close()
+
+    def test_onboard_scan_create_probe(self):
+        fake = os.path.join(os.path.dirname(__file__), "fake_mcp_server.py")
+        registry = os.path.join(self.tmp, "onboarded")
+        backend = ConsoleBackend(self.sock, audit_path=self.audit,
+                                 registry_dir=registry)
+        try:
+            scan = backend.onboard_scan({"command": [sys.executable, fake]})
+            self.assertTrue(scan["ok"], scan)
+            self.assertIn("status", [t["name"] for t in scan["tools"]])
+            made = backend.onboard_create({
+                "device_id": "mcp://onboard/fake-01",
+                "command": [sys.executable, fake],
+                "tools": [{"cbap_op": "status", "tool": "status"}],
+                "facts": {"source": "tool", "tool": "status"},
+            })
+            self.assertTrue(made["ok"], made)
+            self.assertTrue(os.path.exists(made["path"]))
+            listed = backend.onboard_list()
+            self.assertTrue(any(d["name"] == "mcp:_onboard_fake-01"
+                                for d in listed["devices"]), listed)
+            probed = backend.onboard_probe({"name": "mcp:_onboard_fake-01"})
+            self.assertTrue(probed["ok"], probed)
+            self.assertTrue(probed["health"]["ok"], probed)
+        finally:
+            backend.close()
 
 if __name__ == "__main__":
     unittest.main()

@@ -50,7 +50,7 @@ c.close()
 python3 tools/cbap_conformance.py --target fake
 ```
 
-当前 96 条用例（网关/驱动/适配器/数据/20 条一致性 + D1/D4/D5）：
+当前 98 条用例（网关/驱动/适配器/数据/20 条一致性 + D1/D4/D5）：
 
 - hello/welcome、device_list
 - open/read

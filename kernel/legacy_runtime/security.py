@@ -52,7 +52,7 @@ DEFAULT_POLICY: dict[str, Any] = {
     },
     "agents": {},
 }
-VALID_CAPS = {"read", "write", "lease", "estop"}
+VALID_CAPS = {"read", "write", "lease", "estop", "admin"}
 
 
 class PolicyError(ValueError):
@@ -74,6 +74,15 @@ class CapabilityPolicy:
         self.default_devices = list(default.get("devices") or ["*"])
         self.default_caps = set(default.get("capabilities") or
                                 ["read", "write", "lease"])
+        approvals = data.get("approvals") or {}
+        if not isinstance(approvals, dict):
+            raise PolicyError("approvals must be an object")
+        self.approval_devices = list(approvals.get("devices") or [])
+        self.approval_ops = {str(x) for x in (approvals.get("ops") or [])}
+        try:
+            self.approval_ttl_ms = max(1000, int(approvals.get("ttl_ms") or 60000))
+        except (TypeError, ValueError):
+            raise PolicyError("approvals.ttl_ms must be an integer")
         self.agents: dict[str, dict] = {}
         for name, grant in (data.get("agents") or {}).items():
             if not isinstance(grant, dict):
@@ -93,7 +102,7 @@ class CapabilityPolicy:
     def grant(self, agent_id: str, operator: bool = False) -> dict:
         if operator:
             return {"devices": ["*"],
-                    "capabilities": {"read", "write", "lease", "estop"}}
+                    "capabilities": {"read", "write", "lease", "estop", "admin"}}
         g = self.agents.get(agent_id)
         if g is None:
             return {"devices": list(self.default_devices),
@@ -107,6 +116,11 @@ class CapabilityPolicy:
     @staticmethod
     def device_allowed(device_id: str, patterns: list[str]) -> bool:
         return any(fnmatch.fnmatchcase(device_id, p) for p in patterns)
+
+    def requires_approval(self, device_id: str, op: str) -> bool:
+        return (bool(self.approval_ops) and
+                self.device_allowed(device_id, self.approval_devices or ["*"]) and
+                str(op) in self.approval_ops)
 
 
 # ── audit chain ──────────────────────────────────────────────

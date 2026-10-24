@@ -89,6 +89,7 @@ function renderDevices(devices) {
     const add = (k, v) => { kv.appendChild(el("dt", null, k)); kv.appendChild(el("dd", null, v)); };
     add("fd", d.fd || "—");
     add("lease", leaseText(d.lease));
+    add("fencing", d.lease && d.lease.fencing_token !== undefined ? d.lease.fencing_token : "—");
     add("pending", d.pending === null || d.pending === undefined ? "—" : d.pending);
     add("health", d.health ? (d.health.ok ? "ok" : "not ok") : "—");
     if (d.facts_error) add("state", d.facts_error);
@@ -105,8 +106,78 @@ function renderDevices(devices) {
     stop.disabled = !d.fd || Boolean(d.safe);
     stop.addEventListener("click", () => doEstop(d.fd, d.device_id));
     actions.appendChild(stop);
+    if (d.lease && d.lease.lease_id) {
+      const rel = el("button", "btn", "Release lease");
+      rel.addEventListener("click", () => doRelease(d.device_id, d.lease));
+      actions.appendChild(rel);
+    }
     card.appendChild(actions);
     root.appendChild(card);
+  }
+}
+
+function renderApprovals(rows) {
+  const root = $("approvals");
+  root.replaceChildren();
+  $("approval-count").textContent = `${rows.length} pending`;
+  if (!rows.length) {
+    root.appendChild(el("div", "empty", "No pending high-risk actions."));
+    return;
+  }
+  for (const a of rows) {
+    const row = el("div", "approval-row");
+    const left = el("div", "approval-main");
+    left.appendChild(el("div", "approval-title", `${a.op || "action"} · ${a.device_id}`));
+    left.appendChild(el("div", "muted", `agent=${a.agent_id || "?"} channel=${a.channel || "?"} expires=${fmtTime(a.expires)}`));
+    left.appendChild(el("div", "approval-args", JSON.stringify(a.args || {})));
+    const actions = el("div", "approval-actions");
+    const ok = el("button", "btn", "Approve");
+    ok.addEventListener("click", () => doApproval(a.approval_id, true));
+    const no = el("button", "btn danger", "Deny");
+    no.addEventListener("click", () => doApproval(a.approval_id, false));
+    actions.append(ok, no);
+    row.append(left, actions);
+    root.appendChild(row);
+  }
+}
+
+async function loadApprovals() {
+  try {
+    const res = await api("/api/approvals");
+    renderApprovals(res.approvals || []);
+  } catch (e) {
+    renderApprovals([]);
+  }
+}
+
+async function doApproval(id, approve) {
+  if (!confirm(approve ? "Approve this high-risk action?" : "Deny this high-risk action?")) return;
+  try {
+    const res = await api(approve ? "/api/approvals/approve" : "/api/approvals/deny", {
+      method: "POST", headers: {"Content-Type": "application/json"},
+      body: JSON.stringify({approval_id: id})
+    });
+    renderApprovals(res.approvals || []);
+    toast(approve ? "Approved" : "Denied");
+    await load();
+  } catch (e) {
+    toast("Approval failed: " + (e.message || e), true);
+  }
+}
+
+async function doRelease(deviceId, lease) {
+  if (!confirm(`Release lease on ${deviceId}?\n\nThe agent will need to acquire a new lease.`)) return;
+  try {
+    const res = await api("/api/lease/release", {
+      method: "POST", headers: {"Content-Type": "application/json"},
+      body: JSON.stringify({device_id: deviceId})
+    });
+    toast(`Lease released · canceled=${(res.result || {}).canceled || 0}`);
+    if (res.status) renderDevices(res.status.devices || []);
+    await loadApprovals();
+    await load();
+  } catch (e) {
+    toast("Release failed: " + (e.message || e), true);
   }
 }
 
@@ -140,10 +211,13 @@ async function load() {
   if (loading || !authed) return;
   loading = true;
   try {
-    const [status, audit] = await Promise.all([api("/api/status"), api("/api/audit?limit=80")]);
+    const [status, audit, approvals] = await Promise.all([
+      api("/api/status"), api("/api/audit?limit=80"), api("/api/approvals")
+    ]);
     setConnection(true, "kernel connected");
     renderDevices(status.devices || []);
     renderAudit(audit.rows || []);
+    renderApprovals(approvals.approvals || []);
   } catch (e) {
     setConnection(false, "kernel unavailable");
     toast(String(e.message || e), true);
@@ -175,6 +249,144 @@ async function doEstop(fd, name) {
   }
 }
 
+let obTools = [];
+
+function parseJSONInput(id, fallback) {
+  const raw = $(id).value.trim();
+  if (!raw) return fallback;
+  return JSON.parse(raw);
+}
+
+function renderOnboardTools(tools) {
+  obTools = tools;
+  const root = $("ob-tools");
+  root.replaceChildren();
+  if (!tools.length) {
+    root.appendChild(el("div", "empty", "No tools advertised."));
+    return;
+  }
+  for (const t of tools) {
+    const row = el("div", "tool-row");
+    const label = el("label");
+    const cb = document.createElement("input");
+    cb.type = "checkbox";
+    cb.checked = true;
+    cb.dataset.tool = t.name;
+    label.append(cb, document.createTextNode(" " + t.name));
+    const op = document.createElement("input");
+    op.className = "tool-op";
+    op.value = t.name;
+    op.dataset.tool = t.name;
+    op.title = "CBAP op name";
+    const desc = el("span", "tool-desc", t.description || "");
+    row.append(label, op, desc);
+    root.appendChild(row);
+  }
+  $("ob-options").classList.remove("hidden");
+}
+
+async function onboardScan() {
+  let cmd;
+  try { cmd = parseJSONInput("ob-command", null); }
+  catch (_) { toast("command must be a JSON argv array", true); return; }
+  if (!Array.isArray(cmd) || !cmd.length) { toast("command must be a JSON argv array", true); return; }
+  $("ob-scan-status").textContent = "starting MCP…";
+  try {
+    const res = await api("/api/onboard/scan", {
+      method: "POST", headers: {"Content-Type": "application/json"},
+      body: JSON.stringify({command: cmd, cwd: $("ob-cwd").value.trim() || null})
+    });
+    renderOnboardTools(res.tools || []);
+    $("ob-scan-status").textContent = `${(res.tools || []).length} tools · ${JSON.stringify(res.server || {})}`;
+    toast("MCP scanned");
+  } catch (e) {
+    $("ob-scan-status").textContent = "";
+    toast("Scan failed: " + (e.message || e), true);
+  }
+}
+
+async function onboardCreate() {
+  const selected = [];
+  document.querySelectorAll("#ob-tools .tool-row").forEach((row) => {
+    const cb = row.querySelector("input[type=checkbox]");
+    const op = row.querySelector(".tool-op");
+    if (cb && cb.checked) selected.push({cbap_op: op.value.trim(), tool: cb.dataset.tool, args: {}});
+  });
+  if (!selected.length) { toast("select at least one tool", true); return; }
+  let facts = {};
+  const src = $("ob-facts-source").value;
+  const ref = $("ob-facts-ref").value.trim();
+  if (src === "tool") facts = {source: "tool", tool: ref, independent: false};
+  else if (src === "resource") facts = {source: "resource", uri: ref, independent: false};
+  let estop = {};
+  const et = $("ob-estop-tool").value.trim();
+  if (et) {
+    let expect;
+    try { expect = parseJSONInput("ob-estop-expect", {}); }
+    catch (_) { toast("estop expected JSON is invalid", true); return; }
+    estop = {tool: et, expect};
+  }
+  let cmd;
+  try { cmd = parseJSONInput("ob-command", null); }
+  catch (_) { toast("command must be a JSON argv array", true); return; }
+  if (!Array.isArray(cmd) || !cmd.length) { toast("command must be a JSON argv array", true); return; }
+  try {
+    const res = await api("/api/onboard/create", {
+      method: "POST", headers: {"Content-Type": "application/json"},
+      body: JSON.stringify({
+        device_id: $("ob-device-id").value.trim(),
+        display_name: $("ob-display").value.trim() || $("ob-device-id").value.trim(),
+        command: cmd, cwd: $("ob-cwd").value.trim() || null,
+        tools: selected, facts, estop
+      })
+    });
+    $("ob-create-status").textContent = res.path || "created";
+    toast("Manifest written");
+    await onboardList();
+  } catch (e) {
+    toast("Create failed: " + (e.message || e), true);
+  }
+}
+
+async function onboardList() {
+  try {
+    const res = await api("/api/onboard/list");
+    const sel = $("ob-list");
+    sel.replaceChildren();
+    const none = document.createElement("option");
+    none.value = ""; none.textContent = "none"; sel.appendChild(none);
+    for (const d of res.devices || []) {
+      const o = document.createElement("option");
+      o.value = d.name;
+      o.textContent = `${d.device_id || d.name}${d.signed ? " · signed" : ""}${d.estop ? " · estop" : " · no estop"}`;
+      sel.appendChild(o);
+    }
+  } catch (_) {}
+}
+
+async function onboardProbe() {
+  const name = $("ob-list").value;
+  if (!name) { toast("select an onboarded device", true); return; }
+  $("ob-probe-result").textContent = "probing…";
+  try {
+    const res = await api("/api/onboard/probe", {
+      method: "POST", headers: {"Content-Type": "application/json"},
+      body: JSON.stringify({name})
+    });
+    $("ob-probe-result").textContent = JSON.stringify(res, null, 2);
+    toast(res.ok ? "Probe completed" : "Probe failed", !res.ok);
+  } catch (e) {
+    $("ob-probe-result").textContent = String(e.message || e);
+    toast("Probe failed: " + (e.message || e), true);
+  }
+}
+
+$("ob-scan").addEventListener("click", onboardScan);
+$("ob-create").addEventListener("click", onboardCreate);
+$("ob-refresh-list").addEventListener("click", onboardList);
+$("ob-probe").addEventListener("click", onboardProbe);
+
+$("refresh").addEventListener("click", load);
 $("refresh").addEventListener("click", load);
 $("global-estop").addEventListener("click", () => doEstop(null, "all devices"));
 $("logout").addEventListener("click", async () => {
@@ -204,7 +416,7 @@ $("login-form").addEventListener("submit", async (event) => {
 (async () => {
   try {
     const s = await fetch("/api/session", {credentials: "same-origin"}).then(r => r.json());
-    if (s.authenticated) { hideLogin(); await load(); }
+    if (s.authenticated) { hideLogin(); await load(); await onboardList(); }
     else showLogin();
   } catch (_) {
     showLogin();

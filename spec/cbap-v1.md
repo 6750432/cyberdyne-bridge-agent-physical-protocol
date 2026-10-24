@@ -1,6 +1,6 @@
 # CBAP v1 · Cyberdyne Bridge Agent Protocol
 
-- **状态**：**Implemented profile 1.0**（已实现并通过 96 条测试）；超出 1.0 的能力见 [`implementation-matrix.md`](implementation-matrix.md)
+- **状态**：**Implemented profile 1.0**（已实现并通过 98 条测试）；超出 1.0 的能力见 [`implementation-matrix.md`](implementation-matrix.md)
 - **版本**：1.0.0
 - **日期**：2026-10-24
 - **范围**：Agent ↔ Kernel 的系统调用 ABI（CBAP-U），以及 Kernel ↔ Driver 的驱动 ABI（CBAP-D）
@@ -422,6 +422,55 @@ Kernel 在 `welcome.features` 返回实际授予：
 - 返回 `{"devices":[{"device_id":"...","type":"...","state":"ready"}]}`。
 - 无权限的设备 **MUST NOT** 出现。
 
+### 6.11 `admin_release`（operator）
+
+```json
+{"op":"admin_release","args":{"device_id":"mc://bot/DeepSeek"}}
+```
+
+- 需要 `admin` capability（operator token）；
+- 释放该设备 lease；
+- 取消该设备 pending 和 pending approvals；
+- 不触发 estop；需要停机时单独 `estop`；
+- 返回 `{"released":true,"lease_id":"...","canceled":N}`。
+
+### 6.12 审批操作（operator）
+
+审批策略（可选）：
+
+```json
+{
+  "approvals": {
+    "devices": ["mc://bot/DeepSeek"],
+    "ops": ["dig", "place", "give", "exec"],
+    "ttl_ms": 60000
+  }
+}
+```
+
+命中策略的 `write`：
+
+```text
+ack accepted
+创建 approval
+不立即执行
+```
+
+操作：
+
+```json
+{"op":"approval_list","args":{}}
+{"op":"approval_approve","args":{"approval_id":"ap-..."}}
+{"op":"approval_deny","args":{"approval_id":"ap-..."}}
+```
+
+- 三者都需要 `admin`；
+- `approval_list` 只返回未过期的 pending；
+- `approval_approve` 重新检查 lease 后执行原 write；
+- `approval_deny` 让原请求收到 `E_PERM`；
+- 到期让原请求收到 `E_TIMEOUT`；
+- 审批不绕过 lease、fence、safe mode、rate limit。
+
 ---
 
 ## 7. CBAP-D：驱动 ABI
@@ -535,6 +584,7 @@ Agent 的权限至少包括：
 - `write`：写动作；
 - `lease`：申请写租约；
 - `estop`：急停；1.0 只授予 operator token 持有者，普通 Agent 默认没有；
+- `admin`：operator 的 lease 释放、审批、策略管理；普通 Agent 默认没有；
 - `admin`：恢复、改策略、取消他人请求、加载驱动。
 
 权限在 `welcome.capabilities` 中授予；未授予的调用 → `E_PERM`。
@@ -577,7 +627,7 @@ v1 控制面是 JSON/NDJSON，适合 MC（1–20 Hz）和低频机器人指令�
 
 ## 13. 一致性
 
-实现 **MUST** 通过 `spec/conformance-v1.md` 的当前 96 条用例，才能声明“CBAP v1 compatible”。
+实现 **MUST** 通过 `spec/conformance-v1.md` 的当前 98 条用例，才能声明“CBAP v1 compatible”。
 
 一致性等级：
 

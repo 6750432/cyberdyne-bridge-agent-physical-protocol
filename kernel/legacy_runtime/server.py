@@ -58,6 +58,23 @@ class Fd:
 
 
 @dataclass
+class Approval:
+    id: str
+    request_id: str
+    session: "Session"
+    fd: "Fd"
+    frame: dict
+    legacy: dict
+    cmd: str
+    deadline_ms: int
+    idem_key: tuple | None
+    device_id: str
+    created: float
+    expires: float
+    timer: threading.Timer | None = None
+
+
+@dataclass
 class Pending:
     session: "Session"
     request_id: str
@@ -208,6 +225,7 @@ class KernelServer:
         self._pending: dict[tuple, deque[Pending]] = {}
         self._idem: dict[tuple, dict] = {}
         self._leases: dict[str, dict] = {}
+        self._approvals: dict[str, Approval] = {}
         self._lock = threading.RLock()
         self._seq = 0
         self._event_seq = 0
@@ -677,7 +695,9 @@ class KernelServer:
                          err=protocol.error("E_INVAL", "args must be object"))
             return
         if op not in ("open", "close", "read", "write", "ioctl", "poll",
-                      "lease", "release", "estop", "stat", "device_list", "resume"):
+                      "lease", "release", "estop", "stat", "device_list",
+                      "resume", "approval_list", "approval_approve",
+                      "approval_deny", "admin_release"):
             self._result(session, rid, False,
                          err=protocol.error("E_NOTSUP", f"unknown op: {op}"))
             return
@@ -687,6 +707,8 @@ class KernelServer:
             "write": "write", "close": "write", "ioctl": "read",
             "lease": "lease", "release": "lease",
             "estop": "estop", "resume": "admin",
+            "approval_list": "admin", "approval_approve": "admin",
+            "approval_deny": "admin", "admin_release": "admin",
         }.get(op)
         if required and required not in session.capabilities:
             self._result(session, rid, False,
@@ -718,6 +740,14 @@ class KernelServer:
                 self._op_device_list(session, rid)
             elif op == "resume":
                 self._op_resume(session, rid, args)
+            elif op == "approval_list":
+                self._op_approval_list(session, rid)
+            elif op == "approval_approve":
+                self._op_approval_decision(session, rid, args, True)
+            elif op == "approval_deny":
+                self._op_approval_decision(session, rid, args, False)
+            elif op == "admin_release":
+                self._op_admin_release(session, rid, args)
         except Exception as e:
             self._result(session, rid, False,
                          err=protocol.error(
@@ -897,6 +927,22 @@ class KernelServer:
         session.rate_times.append(now)
         return True
 
+    def _cancel_approvals(self, device_id: str | None = None,
+                          session: "Session" | None = None,
+                          reason: str = "canceled") -> int:
+        with self._lock:
+            chosen = [a for a in self._approvals.values()
+                      if (device_id is None or a.device_id == device_id)
+                      and (session is None or a.session is session)]
+            for a in chosen:
+                self._approvals.pop(a.id, None)
+        for a in chosen:
+            if a.timer:
+                a.timer.cancel()
+            self._send_approval_result(
+                a, False, protocol.error("E_CANCELED", reason))
+        return len(chosen)
+
     def _cancel_device_pending(self, device_id: str, reason: str) -> int:
         with self._lock:
             found = []
@@ -958,6 +1004,35 @@ class KernelServer:
 
         if not self._rate_allow(session):
             raise _OpError("E_BUSY", "write rate limit")
+        action = str(frame.get("op") or cmd)
+        if self.policy.requires_approval(f.device_id, action):
+            await_id = protocol.new_id("ap")
+            expires = time.time() + self.policy.approval_ttl_ms / 1000.0
+            a = Approval(id=await_id, request_id=rid, session=session, fd=f, frame=frame,
+                         legacy=legacy, cmd=cmd, deadline_ms=deadline_ms,
+                         idem_key=key, device_id=f.device_id,
+                         created=time.time(), expires=expires)
+            with self._lock:
+                self._approvals[await_id] = a
+            a.timer = threading.Timer(
+                max(0.1, expires - time.time()),
+                self._expire_approval, args=(a,))
+            a.timer.daemon = True
+            a.timer.start()
+            session.send({"v": protocol.PROTOCOL_VERSION, "type": "ack",
+                          "id": rid, "ts": protocol.now_ms(),
+                          "state": "accepted"})
+            self._audit("approval_request", agent=session.agent_id, id=rid,
+                        approval_id=await_id, fd=f.fd,
+                        device_id=f.device_id, op=frame.get("op"), cmd=cmd)
+            return
+        self._dispatch_write(session, rid, f, frame, legacy, cmd,
+                             deadline_ms, key, lease)
+
+    def _dispatch_write(self, session: Session, rid: str, f: Fd,
+                        frame: dict, legacy: dict, cmd: str,
+                        deadline_ms: int, key: tuple | None,
+                        lease: dict, ack: bool = True) -> None:
         with self._lock:
             if session.inflight >= self.max_inflight:
                 raise _OpError("E_BUSY", "max inflight writes")
@@ -970,21 +1045,129 @@ class KernelServer:
             self._pending.setdefault((f.device_id, cmd), deque()).append(p)
             if key:
                 self._idem[key] = {"state": "pending", "id": rid}
-        # ack first, then execute
-        session.send({"v": protocol.PROTOCOL_VERSION, "type": "ack",
-                      "id": rid, "ts": protocol.now_ms(),
-                      "state": "accepted"})
+        if ack:
+            session.send({"v": protocol.PROTOCOL_VERSION, "type": "ack",
+                          "id": rid, "ts": protocol.now_ms(),
+                          "state": "accepted"})
         p.timer = threading.Timer(deadline_ms / 1000.0, self._expire, args=(p,))
         p.timer.daemon = True
         p.timer.start()
-        ok_send = f.driver.send(legacy)
+        try:
+            ok_send = f.driver.send(legacy)
+        except Exception:
+            ok_send = False
         if not ok_send:
             self._finish_pending(p, False, None, None,
                                  protocol.error("E_IO", "hand is not connected"))
         self._audit("write", agent=session.agent_id, id=rid, fd=f.fd,
                     op=frame.get("op"), cmd=cmd,
                     fencing_token=lease.get("fencing_token"),
-                    idem=bool(idem_key))
+                    idem=bool(key))
+
+    def _expire_approval(self, a: Approval) -> None:
+        with self._lock:
+            if self._approvals.get(a.id) is not a:
+                return
+            self._approvals.pop(a.id, None)
+        if not a.session.closed:
+            a.session.send({
+                "v": protocol.PROTOCOL_VERSION, "type": "result",
+                "id": a.request_id, "ts": protocol.now_ms(), "ok": False,
+                "error": protocol.error("E_TIMEOUT", "approval expired"),
+            })
+        self._audit("approval_expired", approval_id=a.id,
+                    agent=a.session.agent_id)
+
+    def _op_approval_list(self, session: Session, rid: str) -> None:
+        self._require_cap(session, "admin")
+        now = time.time()
+        with self._lock:
+            items = []
+            for a in self._approvals.values():
+                if a.expires <= now:
+                    continue
+                items.append({
+                    "approval_id": a.id,
+                    "agent_id": a.session.agent_id,
+                    "device_id": a.device_id,
+                    "op": a.frame.get("op"),
+                    "channel": a.frame.get("channel"),
+                    "args": a.frame.get("args") or {},
+                    "created": int(a.created * 1000),
+                    "expires": int(a.expires * 1000),
+                })
+        self._result(session, rid, True, payload={"approvals": items})
+
+    def _op_approval_decision(self, session: Session, rid: str,
+                              args: dict, approve: bool) -> None:
+        self._require_cap(session, "admin")
+        aid = args.get("approval_id")
+        if not isinstance(aid, str) or not aid:
+            raise _OpError("E_INVAL", "approval_id required")
+        with self._lock:
+            a = self._approvals.pop(aid, None)
+        if a is None:
+            raise _OpError("E_NOENT", "approval not found")
+        if a.timer:
+            a.timer.cancel()
+        if a.expires <= time.time():
+            self._send_approval_result(a, False,
+                                       protocol.error("E_TIMEOUT", "approval expired"))
+            self._result(session, rid, False,
+                         err=protocol.error("E_TIMEOUT", "approval expired"))
+            return
+        if not approve:
+            self._send_approval_result(
+                a, False, protocol.error("E_PERM", "approval denied by operator"))
+            self._audit("approval_deny", approval_id=aid,
+                        operator=session.agent_id, agent=a.session.agent_id)
+            self._result(session, rid, True, payload={"approved": False})
+            return
+        try:
+            lease = self._lease_for_fd(a.fd)
+            if not lease:
+                raise _OpError("E_BUSY", "lease expired before approval")
+            self._dispatch_write(a.session, a.request_id, a.fd,
+                                 a.frame, a.legacy, a.cmd, a.deadline_ms,
+                                 a.idem_key, lease, ack=False)
+        except Exception as e:
+            self._send_approval_result(
+                a, False, protocol.error(
+                    getattr(e, "code", "E_INTERNAL"),
+                    getattr(e, "message", str(e))))
+        self._audit("approval_approve", approval_id=aid,
+                    operator=session.agent_id, agent=a.session.agent_id)
+        self._result(session, rid, True, payload={"approved": True})
+
+    def _send_approval_result(self, a: Approval, ok: bool,
+                              err: dict | None = None) -> None:
+        if not a.session.closed:
+            a.session.send({
+                "v": protocol.PROTOCOL_VERSION, "type": "result",
+                "id": a.request_id, "ts": protocol.now_ms(),
+                "ok": bool(ok), "error": err,
+            })
+
+    def _op_admin_release(self, session: Session, rid: str, args: dict) -> None:
+        self._require_cap(session, "admin")
+        device_id = args.get("device_id")
+        if not isinstance(device_id, str) or not device_id:
+            raise _OpError("E_INVAL", "device_id required")
+        with self._lock:
+            lease = self._leases.get(device_id)
+            if not lease:
+                raise _OpError("E_NOENT", "no lease")
+            self._leases.pop(device_id, None)
+            self._lease_cv.notify_all()
+        canceled = self._cancel_device_pending(device_id, "operator released lease")
+        canceled += self._cancel_approvals(device_id=device_id,
+                                            reason="operator released lease")
+        self._audit("admin_release", operator=session.agent_id,
+                    device_id=device_id, lease_id=lease.get("lease_id"),
+                    canceled=canceled)
+        self._result(session, rid, True, payload={
+            "released": True, "device_id": device_id,
+            "lease_id": lease.get("lease_id"), "canceled": canceled})
 
     def _op_ioctl(self, session: Session, rid: str, args: dict) -> None:
         f = self._get_fd(session, args)
@@ -1108,6 +1291,8 @@ class KernelServer:
         f = self._get_fd(session, args)
         held = self._release_lease(f)
         canceled = self._cancel_device_pending(f.device_id, "lease released") if held else 0
+        canceled += self._cancel_approvals(device_id=f.device_id,
+                                            reason="lease released") if held else 0
         self._result(session, rid, True, payload={"released": held,
                                                   "canceled": canceled})
         self._audit("release", agent=session.agent_id, id=rid, fd=f.fd,
@@ -1131,6 +1316,8 @@ class KernelServer:
                 self._leases.pop(f.device_id, None)
                 self._lease_cv.notify_all()
             canceled = self._cancel_device_pending(f.device_id, "estop")
+            canceled += self._cancel_approvals(device_id=f.device_id,
+                                                reason="estop")
         else:
             self._safe = True
             targets = list(self.drivers)
@@ -1141,6 +1328,7 @@ class KernelServer:
                 dev_id = d.describe().get("device_id")
                 if dev_id:
                     canceled += self._cancel_device_pending(dev_id, "global estop")
+            canceled += self._cancel_approvals(reason="global estop")
         oks = []
         safe_state = "idle"
         for d in targets:
@@ -1249,8 +1437,29 @@ class KernelServer:
                         break
                 if found:
                     break
+        approval = None
+        approval_other = False
+        with self._lock:
+            for a in list(self._approvals.values()):
+                if a.request_id == target:
+                    if a.session is not session:
+                        approval_other = True
+                        continue
+                    approval = a
+                    self._approvals.pop(a.id, None)
+                    break
+        if approval is not None:
+            if approval.timer:
+                approval.timer.cancel()
+            self._send_approval_result(
+                approval, False,
+                protocol.error("E_CANCELED", "canceled by agent"))
+            self._result(session, rid, True, payload={"canceled": True})
+            self._audit("approval_cancel", approval_id=approval.id,
+                        agent=session.agent_id)
+            return
         if not found:
-            if found_other:
+            if found_other or approval_other:
                 self._result(session, rid, False,
                              err=protocol.error("E_PERM",
                                                 "cannot cancel another session"))
@@ -1424,6 +1633,7 @@ class KernelServer:
             session.sock.close()
         except OSError:
             pass
+        self._cancel_approvals(session=session, reason="session closed")
         self._audit("session_end", agent=session.agent_id,
                     session=session.session_id, fds=len(fds))
 

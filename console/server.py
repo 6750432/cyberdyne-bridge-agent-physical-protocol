@@ -139,6 +139,16 @@ class Handler(BaseHTTPRequestHandler):
                 return
             self._json(200, self.server.backend.refresh())
             return
+        if self.path == "/api/approvals":
+            if not self._api_guard():
+                return
+            self._json(200, self.server.backend.approvals())
+            return
+        if self.path.startswith("/api/onboard/"):
+            if not self._api_guard():
+                return
+            self._onboard_get()
+            return
         if self.path.startswith("/api/audit"):
             if not self._api_guard():
                 return
@@ -156,7 +166,7 @@ class Handler(BaseHTTPRequestHandler):
 
     def _read_json(self) -> dict:
         n = int(self.headers.get("Content-Length") or "0")
-        if n <= 0 or n > 8192:
+        if n <= 0 or n > 256 * 1024:
             raise ValueError("bad body size")
         body = json.loads(self.rfile.read(n).decode("utf-8"))
         if not isinstance(body, dict):
@@ -170,7 +180,11 @@ class Handler(BaseHTTPRequestHandler):
         if self.path == "/api/logout":
             self._logout()
             return
-        if self.path != "/api/estop":
+        routes = {"/api/estop", "/api/approvals/approve",
+                  "/api/approvals/deny", "/api/lease/release",
+                  "/api/onboard/scan", "/api/onboard/create",
+                  "/api/onboard/probe"}
+        if self.path not in routes:
             self._json(404, {"ok": False, "error": "not found"})
             return
         if not self._api_guard():
@@ -180,13 +194,45 @@ class Handler(BaseHTTPRequestHandler):
         except Exception as e:
             self._json(400, {"ok": False, "error": str(e)})
             return
-        fd = body.get("fd")
-        if fd is not None and not isinstance(fd, str):
-            self._json(400, {"ok": False, "error": "fd must be a string or null"})
-            return
-        reason = str(body.get("reason") or "console")[:200]
-        res = self.server.backend.estop(fd, reason=reason)
+        if self.path == "/api/estop":
+            fd = body.get("fd")
+            if fd is not None and not isinstance(fd, str):
+                self._json(400, {"ok": False, "error": "fd must be a string or null"})
+                return
+            reason = str(body.get("reason") or "console")[:200]
+            res = self.server.backend.estop(fd, reason=reason)
+        elif self.path in ("/api/approvals/approve", "/api/approvals/deny"):
+            aid = body.get("approval_id")
+            if not isinstance(aid, str) or not aid:
+                self._json(400, {"ok": False, "error": "approval_id required"})
+                return
+            res = (self.server.backend.approve(aid)
+                   if self.path.endswith("/approve")
+                   else self.server.backend.deny(aid))
+        elif self.path == "/api/lease/release":
+            dev = body.get("device_id")
+            if not isinstance(dev, str) or not dev:
+                self._json(400, {"ok": False, "error": "device_id required"})
+                return
+            res = self.server.backend.release_lease(dev)
+        else:
+            res = self._onboard_post(body)
         self._json(200 if res.get("ok") else 500, res)
+
+    def _onboard_get(self) -> None:
+        if self.path == "/api/onboard/list":
+            self._json(200, self.server.backend.onboard_list())
+            return
+        self._json(404, {"ok": False, "error": "not found"})
+
+    def _onboard_post(self, body: dict) -> dict:
+        if self.path == "/api/onboard/scan":
+            return self.server.backend.onboard_scan(body)
+        if self.path == "/api/onboard/create":
+            return self.server.backend.onboard_create(body)
+        if self.path == "/api/onboard/probe":
+            return self.server.backend.onboard_probe(body)
+        return {"ok": False, "error": "not found"}
 
     def _login(self) -> None:
         if not self._host_ok() or not self._origin_ok():

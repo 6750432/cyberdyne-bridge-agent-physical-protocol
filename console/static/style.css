@@ -118,3 +118,63 @@ pre {
 }
 .login-card input:focus { outline: 1px solid var(--teal); }
 .login-error { min-height: 18px; color: var(--red) !important; }
+
+/* ── approvals ───────────────────────────────────────────── */
+.approval-list { display: grid; gap: 8px; }
+.approval-row {
+  display: flex; justify-content: space-between; gap: 12px;
+  border: 1px solid #7f1d1d; background: #1b1113; border-radius: 8px;
+  padding: 10px 12px;
+}
+.approval-main { min-width: 0; }
+.approval-title { font-weight: 700; color: #fecdd3; }
+.approval-args {
+  margin-top: 4px; color: var(--muted); font: 11px/1.4 "Noto Sans Mono CJK SC", monospace;
+  white-space: pre-wrap; word-break: break-word;
+}
+.approval-actions { display: flex; gap: 8px; align-items: flex-start; }
+
+/* ── onboarding ──────────────────────────────────────────── */
+.warning {
+  margin: 0 0 10px; padding: 7px 9px; border-left: 3px solid var(--amber);
+  background: #241d0b; color: #fde68a; font-size: 12px;
+}
+.onboard-grid {
+  display: grid; grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+}
+.onboard-grid label { display: grid; gap: 4px; color: var(--muted); font-size: 12px; }
+.onboard-grid label.wide, .onboard-grid .wide { grid-column: 1 / -1; }
+.onboard-grid input, .onboard-grid textarea, .onboard-grid select,
+.probe-row select {
+  width: 100%; background: #091014; border: 1px solid var(--line);
+  color: var(--text); padding: 8px; border-radius: 6px; font: inherit;
+  font-size: 12px;
+}
+.onboard-grid textarea { resize: vertical; font-family: "Noto Sans Mono CJK SC", monospace; }
+.row-actions { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+.tool-list { display: grid; gap: 6px; margin: 12px 0; }
+.tool-row {
+  display: grid; grid-template-columns: minmax(160px, 1.2fr) minmax(120px, .7fr) 2fr;
+  gap: 8px; align-items: center; border: 1px solid var(--line);
+  border-radius: 7px; padding: 7px 9px; background: #0e171c;
+}
+.tool-row label { display: flex; gap: 6px; align-items: center; color: var(--text); }
+.tool-op {
+  background: #091014; border: 1px solid var(--line); color: var(--teal);
+  padding: 5px 7px; border-radius: 5px; font: 11px "Noto Sans Mono CJK SC", monospace;
+}
+.tool-desc { color: var(--muted); font-size: 11px; overflow: hidden; text-overflow: ellipsis; }
+.probe-row {
+  display: grid; grid-template-columns: 1fr auto auto; gap: 10px;
+  align-items: end; margin-top: 12px;
+}
+.probe-row label { display: grid; gap: 4px; color: var(--muted); font-size: 12px; }
+.probe-result { max-height: 280px; }
+.hidden { display: none !important; }
+@media (max-width: 760px) {
+  .onboard-grid { grid-template-columns: 1fr; }
+  .tool-row { grid-template-columns: 1fr; }
+  .probe-row { grid-template-columns: 1fr; }
+  .approval-row { flex-direction: column; }
+}

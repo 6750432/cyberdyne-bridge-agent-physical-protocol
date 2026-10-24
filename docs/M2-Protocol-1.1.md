@@ -2,7 +2,7 @@
 
 **状态**：first slice implemented  
 **日期**：2026-10-24  
-**基线**：CBAP 96/96 tests  
+**基线**：CBAP 98/98 tests
 **原则**：只实现有明确消费方的协议能力；不为了“草案完整”加字段。
 
 ---
@@ -164,7 +164,7 @@ mTLS 不等于硬件安全
 [x] TCP token round trip
 [x] TLS/mTLS round trip
 [x] missing client cert rejected
-[x] 96/96 tests
+[x] 98/98 tests
 ```
 
 已完成软件项；部署项：

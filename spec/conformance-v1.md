@@ -5,7 +5,7 @@
 - **Specification**: [`cbap-v1.md`](cbap-v1.md)
 - **Implementation matrix**: [`implementation-matrix.md`](implementation-matrix.md)
 - **Command**: `python3 tools/cbap_conformance.py --target fake`
-- **Current suite**: **96 tests, 0 failures**
+- **Current suite**: **98 tests, 0 failures**
 
 ## Levels
 
@@ -59,14 +59,14 @@ D2/D3 driver-level physical proof remain hardware/implementation limits
 ```text
 tests/cbap/test_mcp_device.py   14  MCP facts/pin/estop/sandbox
 tests/cbap/test_security.py     14  token/uid/policy/audit/fencing/limits
-tests/cbap/test_console.py       3  login/Host+Origin/estop/audit
+tests/cbap/test_console.py       5  login/Host+Origin/estop/audit
 tests/cbap/test_transport.py     2  TCP/TLS/mTLS
 ```
 
 ## Current status
 
 ```text
-CBAP conformance: 96/96 passed
+CBAP conformance: 98/98 passed
 ```
 
 Not claimed as passed:

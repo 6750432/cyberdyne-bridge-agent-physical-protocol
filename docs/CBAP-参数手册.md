@@ -509,7 +509,27 @@ estop 锁存；实现没有 resume 路径（`resume` 永远 `E_PERM`）。
 {"devices":[{"device_id":"...","type":"...","state":"ready"}]}
 ```
 
-### 4.12 `resume`
+### 4.12 `approval_list` / `approval_approve` / `approval_deny`
+
+需要 `admin`（operator token）。
+
+```json
+{"op":"approval_list","args":{}}
+{"op":"approval_approve","args":{"approval_id":"ap-..."}}
+{"op":"approval_deny","args":{"approval_id":"ap-..."}}
+```
+
+`approval_list` 返回未过期 pending；approve 会重新检查 lease 后执行原 `write`；deny/expire 让原请求收到 `E_PERM` / `E_TIMEOUT`。
+
+### 4.13 `admin_release`
+
+```json
+{"op":"admin_release","args":{"device_id":"mc://bot/DeepSeek"}}
+```
+
+需要 `admin`；释放 lease、取消 pending/approvals，但不触发 estop。
+
+### 4.14 `resume`
 
 ```json
 {"op":"resume","args":{}}
@@ -742,14 +762,28 @@ operator token：read/write/lease/estop
 | 字段 | 类型 | 说明 |
 |---|---|---|
 | `default.devices` | string[] | fnmatch 模式 |
-| `default.capabilities` | string[] | `read/write/lease/estop` |
+| `default.capabilities` | string[] | `read/write/lease`（可选 `estop/admin`） |
 | `agents.<id>.devices` | string[] | 覆盖默认 |
-| `agents.<id>.capabilities` | string[] | 覆盖默认 |
+| `agents.<id>.capabilities` | string[] | 覆盖默认；`read/write/lease/estop/admin` |
 | `agents.<id>.uids` | int[] | 为空不限制 |
 | `agents.<id>.token_sha256` | hex | 为空不要求 agent token |
 
 `token_sha256` 对应 `hello.auth.agent_token` 的 SHA-256 hex。  
-operator 走独立 token，不受 policy 限制。
+operator 走独立 token，不受 policy 限制，并自动获得 `admin`。
+
+可选审批策略：
+
+```json
+{
+  "approvals": {
+    "devices": ["mc://bot/DeepSeek"],
+    "ops": ["dig", "place", "give", "exec"],
+    "ttl_ms": 60000
+  }
+}
+```
+
+只有 `ops` 非空才启用；命中后 `write` 先进入审批，不立即执行。
 
 ### 7.6 限流/异常
 
@@ -1205,6 +1239,14 @@ python3 console/server.py \
 | GET | `/api/status` | cookie | 设备/租约/facts |
 | GET | `/api/audit?limit=80` | cookie | 审计，limit 1..500 |
 | POST | `/api/estop` | cookie | `{fd:string|null,reason:string}` |
+| GET | `/api/approvals` | cookie | pending approvals |
+| POST | `/api/approvals/approve` | cookie | `{approval_id}` |
+| POST | `/api/approvals/deny` | cookie | `{approval_id}` |
+| POST | `/api/lease/release` | cookie | `{device_id}` |
+| GET | `/api/onboard/list` | cookie | onboarded manifests |
+| POST | `/api/onboard/scan` | cookie | `{command:string[],cwd?}` |
+| POST | `/api/onboard/create` | cookie | manifest payload |
+| POST | `/api/onboard/probe` | cookie | `{name,op?,args?,expect?}` |
 
 `/api/status` 返回：
 
@@ -1251,6 +1293,22 @@ python3 console/server.py \
 estop 走 Kernel
 没有 resume endpoint
 ```
+
+### 11.5 Onboarding 参数
+
+| 参数 | 说明 |
+|---|---|
+| `registry_dir` | 默认 `devices/onboarded/`，0700 |
+| `device_id` | 会成为安全化文件名 |
+| `command` | JSON argv；不经过 shell |
+| `cwd` | 可选 |
+| `tools` | `{cbap_op, tool, args}` 数组 |
+| `facts` | `source/tool/uri/command` |
+| `estop` | 必须有 `tool` + `expect` |
+| `overwrite` | 默认 false |
+| 文件权限 | `0600` |
+
+Onboarding scan 会启动 MCP 命令；只有 operator 能调用，仍然要使用可信 command。
 
 ---
 
@@ -1323,7 +1381,7 @@ Console audit limit       80 default / 500 max
 | hello capabilities | 请求权限 | 以 policy 授予为准 |
 | global state | 推送 | 只推给持有该设备 fd 的会话 |
 | `write` 前置失败 | result | 无 ack；`CBAPClient.write` 可能表现为超时 |
-| spec 用例数 | 20 条 | 当前 96 条实现测试 |
+| spec 用例数 | 20 条 | 当前 98 条实现测试 |
 
 ---
 
@@ -1350,8 +1408,8 @@ python3 tools/mcp_device_probe.py drivers/mcp_device/examples/light.json \
 当前状态：
 
 ```text
-CBAP conformance: 96/96
-console tests:    3
+CBAP conformance: 98/98
+console tests:    5
 transport tests:  2
 security tests:   14
 MCP device tests: 14

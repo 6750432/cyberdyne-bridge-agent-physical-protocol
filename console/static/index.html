@@ -36,6 +36,62 @@
 
     <section class="panel">
       <div class="section-head">
+        <h2>Approvals</h2>
+        <span id="approval-count" class="muted">0 pending</span>
+      </div>
+      <div id="approvals" class="approval-list">
+        <div class="empty">No pending high-risk actions.</div>
+      </div>
+    </section>
+
+    <section class="panel">
+      <div class="section-head">
+        <h2>MCP onboarding</h2>
+        <span class="muted">operator-only · local MCP stdio</span>
+      </div>
+      <p class="warning">Scanning starts the MCP command you enter. Only use manifests and commands you trust.</p>
+      <div class="onboard-grid">
+        <label>Device ID <input id="ob-device-id" placeholder="mcp://lab/light-01"></label>
+        <label>Display name <input id="ob-display" placeholder="Lab light"></label>
+        <label class="wide">Command (JSON argv array)
+          <textarea id="ob-command" rows="2" spellcheck="false">["python3", "server.py"]</textarea>
+        </label>
+        <label>Working directory (optional) <input id="ob-cwd" placeholder="/path/to/server"></label>
+        <div class="wide row-actions">
+          <button id="ob-scan" class="btn">Scan MCP tools</button>
+          <span id="ob-scan-status" class="muted"></span>
+        </div>
+      </div>
+      <div id="ob-tools" class="tool-list"></div>
+      <div id="ob-options" class="onboard-grid hidden">
+        <label>Facts source
+          <select id="ob-facts-source">
+            <option value="">none (unverifiable)</option>
+            <option value="tool">tool</option>
+            <option value="resource">resource</option>
+            <option value="command">command</option>
+          </select>
+        </label>
+        <label>Facts tool / URI <input id="ob-facts-ref" placeholder="get_state"></label>
+        <label>Estop tool <input id="ob-estop-tool" placeholder="turn_off"></label>
+        <label>Estop expected JSON <input id="ob-estop-expect" placeholder='{"on":false}'></label>
+        <div class="wide row-actions">
+          <button id="ob-create" class="btn">Create manifest</button>
+          <span id="ob-create-status" class="muted"></span>
+        </div>
+      </div>
+      <div class="probe-row">
+        <label>Onboarded device
+          <select id="ob-list"><option value="">none</option></select>
+        </label>
+        <button id="ob-probe" class="btn">Probe / health</button>
+        <button id="ob-refresh-list" class="btn">Refresh list</button>
+      </div>
+      <pre id="ob-probe-result" class="probe-result">No probe yet.</pre>
+    </section>
+
+    <section class="panel">
+      <div class="section-head">
         <h2>Audit</h2>
         <span class="muted">latest 80 events</span>
       </div>
