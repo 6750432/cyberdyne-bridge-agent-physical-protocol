@@ -228,7 +228,7 @@ Agent → Kernel：
 }
 ```
 
-实现中 `seq` 目前固定为 `0`（`protocol.event` 默认值），不要依赖它判丢帧；状态用 `state.seq`。
+实现的 `event.seq` 由 Kernel 单调递增；`state.seq` 也是独立递增。两者不要混用。
 
 ### 3.9 `cancel`
 
@@ -1297,7 +1297,7 @@ Console audit limit       80 default / 500 max
 | `poll` | `fds`/`events` | 只读 `timeout_ms`，返回 session 事件 |
 | `lease.mode` | 有 | 忽略 |
 | `progress` | 有 | 不发送 |
-| `event.seq` | 单调递增 | 固定 `0` |
+| `event.seq` | 单调递增 | 当前实现已单调递增。 |
 | `estop` 权限 | MUST 总是允许 | 必须 operator token；普通 Agent `E_PERM` |
 | `cancel` 他人 | admin 可取消 | 当前 `E_PERM` |
 | `resume` | admin 可恢复 | 未实现，固定 `E_PERM` |
@@ -1306,7 +1306,7 @@ Console audit limit       80 default / 500 max
 | hello capabilities | 请求权限 | 以 policy 授予为准 |
 | global state | 推送 | 只推给持有该设备 fd 的会话 |
 | `write` 前置失败 | result | 无 ack；`CBAPClient.write` 可能表现为超时 |
-| spec 用例数 | 20 条 | 当前 89 条实现测试 |
+| spec 用例数 | 20 条 | 当前 90 条实现测试 |
 
 ---
 
@@ -1333,7 +1333,7 @@ python3 tools/mcp_device_probe.py drivers/mcp_device/examples/light.json \
 当前状态：
 
 ```text
-CBAP conformance: 89/89
+CBAP conformance: 90/90
 console tests:    3
 security tests:   14
 MCP device tests: 11

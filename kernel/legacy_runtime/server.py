@@ -183,6 +183,7 @@ class KernelServer:
         self._leases: dict[str, dict] = {}
         self._lock = threading.RLock()
         self._seq = 0
+        self._event_seq = 0
         self._safe = False
         self._safe_devices: set[str] = set()
         self._fd_counter = 0
@@ -1219,11 +1220,14 @@ class KernelServer:
                    if k not in ("type", "kind", "t", "bot")}
         payload.setdefault("device_id",
                            driver.describe().get("device_id") if driver else None)
-        msg = protocol.event(kind, payload)
         with self._lock:
+            self._event_seq += 1
+            event_seq = self._event_seq
             sessions = [s for s in self._sessions if s.agent_id and not s.closed]
+        msg = protocol.event(kind, payload, seq=event_seq)
         for s in sessions:
-            s.push_event({"kind": kind, "payload": payload, "ts": msg["ts"]})
+            s.push_event({"kind": kind, "payload": payload, "ts": msg["ts"],
+                          "seq": event_seq})
 
     def _on_disconnect(self, driver, reason: str) -> None:
         self._on_event(driver, {"type": "event", "kind": "device_offline",

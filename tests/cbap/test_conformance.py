@@ -408,6 +408,22 @@ class ConformanceTest(unittest.TestCase):
         self.assertEqual(msg["type"], "pong")
         s.close()
 
+    # 21
+    def test_21_event_seq_increases(self):
+        self.h = Harness()
+        fd = self.h.open()
+        self.h.client.lease(fd)
+        for text in ("a", "b"):
+            _, _, r = self.h.client.write(fd, {
+                "channel": "chat", "op": "say", "args": {"text": text}})
+            self.assertTrue(r.get("ok"), r)
+            time.sleep(0.1)
+        events = self.h.client.poll(timeout_ms=1000)["payload"]["events"]
+        seqs = [e.get("seq") for e in events if e.get("kind") == "chat"]
+        self.assertGreaterEqual(len(seqs), 2, events)
+        self.assertEqual(seqs, sorted(seqs))
+        self.assertEqual(len(seqs), len(set(seqs)))
+
     # 20 + D1/D4/D5
     def test_20_driver_safety_and_health(self):
         self.h = Harness()

@@ -1,10 +1,13 @@
 # CBAP v1 · Cyberdyne Bridge Agent Protocol
 
-- **状态**：Draft（规范草案，未实现）
+- **状态**：**Implemented profile 1.0**（已实现并通过 90 条测试）；超出 1.0 的能力见 [`implementation-matrix.md`](implementation-matrix.md)
 - **版本**：1.0.0
-- **日期**：2026-10-23
+- **日期**：2026-10-24
 - **范围**：Agent ↔ Kernel 的系统调用 ABI（CBAP-U），以及 Kernel ↔ Driver 的驱动 ABI（CBAP-D）
 - **不包含**：Minecraft 动作语义、驱动实现、包管理器、具体调度算法
+
+> 本文中与当前实现不同的条目，统一以 [`implementation-matrix.md`](implementation-matrix.md) 为准。
+> 未出现在 1.0 矩阵中的功能，不得用于 “CBAP v1 compatible” 声明。
 
 > 本文用 RFC 2119 的关键词：**MUST / MUST NOT / SHOULD / SHOULD NOT / MAY**。
 
@@ -67,7 +70,7 @@
 v1 **MUST** 支持：
 
 - Unix domain socket（默认）；
-- TCP `127.0.0.1` + token（可选，跨容器/Windows 时用）。
+- TCP `127.0.0.1` + token：**1.0 未实现**，列为 v1.1 extension。
 
 v1 **MAY** 支持：共享内存、串口、CAN、ROS 2/DDS（作为 v1.x 扩展）。
 
@@ -77,7 +80,7 @@ v1 **MAY** 支持：共享内存、串口、CAN、ROS 2/DDS（作为 v1.x 扩展
 - 单行 **MUST NOT** 超过 64 KiB；超过 → `E_FRAME`，丢弃该行。
 - 空行 **MUST** 忽略。
 - 解析失败 **MUST** 返回 `E_PROTOCOL`，且 **MUST NOT** 崩溃。
-- 二进制/高频数据面 **MAY** 使用 CBOR / Protobuf / 共享内存；必须在 `hello` 中协商 `encoding`。
+- CBOR / Protobuf / 共享内存：**1.0 未实现**；`encoding` 只接受 `json`，其他值不改变实现。
 
 ### 3.3 连接与重连
 
@@ -143,7 +146,9 @@ v1 **MAY** 支持：共享内存、串口、CAN、ROS 2/DDS（作为 v1.x 扩展
 ```
 
 - `agent_id` **MUST** 稳定且唯一；同一 agent 重连可复用。
-- `auth.token` 在 TCP 下 **MUST**；UDS 下 **MAY**（用 peer credentials）。
+- `auth.token`：1.0 的 UDS 实现生成 `<socket>.token` 并要求携带；`CBAPClient` 自动读取。
+- `auth.operator_token`：匹配 `<socket>.operator` 才授予 `estop`；普通 Agent 没有。
+- `auth.agent_token`：policy 配置 `token_sha256` 时使用。
 - `capabilities` 是请求的权限，不是授予；kernel 在 `welcome` 中返回实际权限。
 
 ### 5.2 `welcome`（Kernel → Agent）
@@ -197,14 +202,14 @@ v1 **MAY** 支持：共享内存、串口、CAN、ROS 2/DDS（作为 v1.x 扩展
 - `ack` 只表示“受理”，**不代表完成**。
 - 需要终态的调用 **MUST** 再发 `result`。
 
-### 5.5 `progress`（Kernel → Agent）
+### 5.5 `progress`（Kernel → Agent；1.0 reserved）
 
 ```json
 {"v":"1.0","type":"progress","id":"r-42","ts":1700000000100,"progress":0.4,"detail":{"step":"walking"}}
 ```
 
-- `progress` 是 0..1 的浮点数；未知时可省略。
-- 高频进度 **SHOULD** 合并/限流。
+- 当前 Kernel **不发送** `progress`；1.0 中它是 reserved 消息。
+- 实现若发送，`progress` 是 0..1 的浮点数；高频进度 **SHOULD** 合并/限流。
 
 ### 5.6 `result`（Kernel → Agent）
 
@@ -262,7 +267,8 @@ v1 **MAY** 支持：共享内存、串口、CAN、ROS 2/DDS（作为 v1.x 扩展
 ```
 
 - `cancel` 是幂等的；已完成的请求返回 `ok:true`，不报错。
-- 取消别人发起的请求 **MUST** 需要 `admin` 权限，否则 `E_PERM`。
+- 1.0 只允许取消**本 session** 的 pending；跨 session 当前返回 `E_PERM`。
+- 未来若增加 admin 取消，必须走独立 operator 权限并审计。
 
 ### 5.10 `error`
 
@@ -330,19 +336,21 @@ v1 **MAY** 支持：共享内存、串口、CAN、ROS 2/DDS（作为 v1.x 扩展
 ### 6.6 `poll`
 
 ```json
-{"op":"poll","args":{"fds":["fd-7"],"events":["readable","event"],"timeout_ms":1000}}
+{"op":"poll","args":{"timeout_ms":1000}}
 ```
 
-- 返回 `{"events":[{"fd":"fd-7","kind":"readable"}]}`。
+- 1.0 实现只读取 `timeout_ms`；`fds` / `events` 过滤属于 v1.1。
+- 返回 `{"events":[{"kind":"...","payload":{...}}]}`。
 - 超时无事件 → `ok:true` + 空数组（不是错误）。
 
 ### 6.7 `lease`
 
 ```json
-{"op":"lease","args":{"fd":"fd-7","mode":"write","ttl_ms":30000}}
+{"op":"lease","args":{"fd":"fd-7","ttl_ms":30000,"wait_ms":0}}
 ```
 
-- 返回 `{"lease_id":"l-1","expires_at":1700000030000}`。
+- 1.0 的 `mode` 固定为 write；不要传 `mode`，实现会忽略它。
+- 返回 `{"lease_id":"l-1","fencing_token":1,"expires_at":1700000030000}`。
 - 同一 actuator 同时只能有一个写租约；冲突且未请求等待 → `E_BUSY`。
 - 可选 `wait_ms`：冲突时进入 FIFO 等待队列；`release`、estop 或租约过期后交给队首；超时 → `E_TIMEOUT`。
 - 租约过期 **MUST** 自动释放；未续租的 writer **MUST NOT** 继续写。
@@ -363,9 +371,9 @@ v1 **MAY** 支持：共享内存、串口、CAN、ROS 2/DDS（作为 v1.x 扩展
 {"op":"estop","args":{"fd":"fd-7","reason":"operator"}}
 ```
 
-- **MUST** 总是允许（安全优先），不受租约/权限限制；但 **MUST** 审计。
-- 返回 `{"safe_state":"idle"}`。
-- `estop` 后恢复写 **MUST** 需要 `admin` 权限或重新 `open`（由内核策略决定）。
+- 1.0 **要求 operator token**；普通 Agent 默认 `E_PERM`。这是安全收紧，不退回“所有 Agent 可急停”。
+- 返回 `{"safe_state":"off","driver_ok":true,"canceled":0}`。
+- estop 锁存；1.0 没有 resume 路径（`resume` 固定 `E_PERM`）。
 - 设备驱动 **MUST** 在收到 `estop` 后进入安全状态；不能只回 `ok:true`。
 
 ### 6.9 `stat`
@@ -390,19 +398,17 @@ v1 **MAY** 支持：共享内存、串口、CAN、ROS 2/DDS（作为 v1.x 扩展
 
 ## 7. CBAP-D：驱动 ABI
 
-驱动 **MUST** 实现以下方法（进程内库或独立进程均可；v1 推荐独立进程）：
+1.0 的驱动是 **Kernel 进程内对象**；下列方法是实际 ABI。独立进程 CBAP-D 见 §7.1，属于 v1.1。
 
 | 方法 | 输入 | 输出 | 说明 |
 |---|---|---|---|
 | `describe()` | — | `device.json` | 设备描述符；启动时注册 |
-| `open(channel, mode)` | channel, mode | handle | 打开通道 |
-| `read(handle, timeout)` | handle, timeout | frame | 读状态；可 `E_AGAIN` |
-| `write(handle, frame, deadline)` | handle, frame, deadline | result | 下发动作 |
-| `ioctl(handle, request, args)` | handle, request, args | payload | 设备特有操作 |
-| `poll(handles, timeout)` | handles, timeout | events | 事件 |
-| `estop()` | — | safe_state | 安全状态；必须幂等 |
-| `health()` | — | `{ok, detail}` | 健康检查 |
-| `watchdog(heartbeat_ms)` | heartbeat_ms | — | 心跳；超时进安全状态 |
+| `health()` | — | `{ok, state_age_ms, ...}` | 健康检查 |
+| `wait_state(timeout_s)` | 秒 | state dict / None | Kernel 读状态；可 `E_AGAIN` |
+| `send(command)` | dict | bool | Kernel 下发动作 |
+| `map_action(frame)` | frame | `{cmd, ...}` | 动作映射 |
+| `estop()` | — | bool | 安全状态；必须幂等 |
+| callbacks | `on_state/on_result/on_event/on_disconnect` | — | Kernel 挂接 |
 
 要求：
 
@@ -416,8 +422,8 @@ v1 **MAY** 支持：共享内存、串口、CAN、ROS 2/DDS（作为 v1.x 扩展
 
 v1 允许两种绑定：
 
-1. **进程内**：驱动是 Kernel 加载的库；适合可信驱动、快速原型。
-2. **独立进程**：驱动通过 CBAP-D socket 连接 Kernel；适合不可信/多语言驱动。
+1. **进程内**：驱动是 Kernel 加载的库；**1.0 实际支持**。
+2. **独立进程**：驱动通过 CBAP-D socket 连接 Kernel；**1.0 未实现，列为 v1.1**。
 
 独立进程 handshake：
 
@@ -500,7 +506,7 @@ Agent 的权限至少包括：
 - `read`：读状态/事件；
 - `write`：写动作；
 - `lease`：申请写租约；
-- `estop`：急停（默认授予所有已认证 Agent）；
+- `estop`：急停；1.0 只授予 operator token 持有者，普通 Agent 默认没有；
 - `admin`：恢复、改策略、取消他人请求、加载驱动。
 
 权限在 `welcome.capabilities` 中授予；未授予的调用 → `E_PERM`。
@@ -543,13 +549,14 @@ v1 控制面是 JSON/NDJSON，适合 MC（1–20 Hz）和低频机器人指令�
 
 ## 13. 一致性
 
-实现 **MUST** 通过 `spec/conformance-v1.md` 的 20 条用例，才能声明“CBAP v1 compatible”。
+实现 **MUST** 通过 `spec/conformance-v1.md` 的当前 90 条用例，才能声明“CBAP v1 compatible”。
 
 一致性等级：
 
 - **Core**：hello/welcome、open/close、read/write、error、state、estop；
 - **Full**：Core + ioctl/poll/lease/stat/device_list/cancel；
-- **Driver**：Full + CBAP-D 的 describe/watchdog/health。
+- **Driver**：Full + CBAP-D 的 describe/watchdog/health；
+- **Security**：token/operator/policy/audit/fencing/limits（1.0 新增）。
 
 ---
 

@@ -132,7 +132,7 @@ and imports a factory on explicit request.
 ## Verification (2026-10-24)
 
 ```text
-CBAP conformance: 89/89 passed
+CBAP conformance: 90/90 passed
 console tests:    3 passed (login / Host+Origin / estop+audit)
 security tests:   14 passed (socket/token/policy/audit/fencing/limits)
 MCP device tests: 11 passed

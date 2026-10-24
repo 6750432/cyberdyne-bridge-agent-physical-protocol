@@ -249,7 +249,7 @@ no ML/anomaly service; these are deterministic fail-closed rules.
 ## Verification
 
 ```text
-CBAP conformance: 89/89
+CBAP conformance: 90/90
 security tests:   14
 MCP device tests: 11
 console tests:    3

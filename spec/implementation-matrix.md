@@ -1,0 +1,111 @@
+# CBAP v1 implementation matrix
+
+**Status**: 1.0 implemented profile  
+**Date**: 2026-10-24  
+**Rule**: a feature may be called “CBAP v1 compatible” only if it is marked
+`implemented` here and has a test in `tools/cbap_conformance.py`.
+
+## Status vocabulary
+
+```text
+implemented   present and covered by the test suite
+reserved      wire shape exists, but no producer/consumer in 1.0
+planned       accepted direction, not in 1.0
+deprecated    accepted for compatibility, no new use
+removed       not part of the current profile
+```
+
+## 1. Transport and envelope
+
+| Feature | Status | 1.0 notes | Evidence |
+|---|---|---|---|
+| Unix socket NDJSON | implemented | `AF_UNIX`, 64 KiB frame | conformance |
+| TCP + token | planned | v1.1 transport | — |
+| CBOR / Protobuf | planned | v1.1 encoding | — |
+| `hello` / `welcome` | implemented | token + policy | test_conformance |
+| `ping` / `pong` | implemented | implementation extension | test_gateway |
+| `progress` | reserved | Kernel does not emit | — |
+| `event.seq` | implemented | monotonic per Kernel | conformance/event |
+| `cancel` | implemented | same session only | test_conformance |
+| `error` / errno | implemented | 16 codes | test_conformance |
+
+## 2. CBAP-U syscalls
+
+| Syscall | Status | 1.0 notes |
+|---|---|---|
+| `open` / `close` | implemented | mode `r/rw/exclusive` |
+| `read` | implemented | `E_AGAIN` / `E_TIMEOUT` |
+| `write` | implemented | lease + optional fencing token |
+| `ioctl` | implemented | scan/watch/watch_items/furnace_watch |
+| `poll` | implemented, narrowed | only `timeout_ms`; `fds/events` planned |
+| `lease` / `release` | implemented | TTL, FIFO `wait_ms`, fence |
+| `estop` | implemented, tightened | operator token required |
+| `stat` | implemented | health/lease/security/pending |
+| `device_list` | implemented | policy-filtered |
+| `resume` | planned | currently `E_PERM` |
+| `cancel` other session | removed from 1.0 | current `E_PERM` |
+
+## 3. Driver ABI
+
+| Feature | Status | Notes |
+|---|---|---|
+| in-process driver | implemented | `describe/health/wait_state/send/estop` |
+| independent CBAP-D process | planned | v1.1 |
+| MC driver | implemented | 21 ops, full legacy hand surface |
+| dataflow driver | implemented | external MC Agent |
+| MCP device driver | implemented | stdio, facts, pin, estop |
+| MCP sandbox `bwrap/nsjail` | optional | fail-closed when requested/unavailable |
+| manifest HMAC | implemented | `CBAP_MANIFEST_KEY` |
+| tool/instruction pinning | implemented | optional manifest pins |
+| independent fact command | implemented | `facts.source=command` |
+
+## 4. Security profile
+
+| Feature | Status | Notes |
+|---|---|---|
+| socket 0600 + peer uid | implemented | `SO_PEERCRED` |
+| token file | implemented | `<socket>.token`, 0600, O_NOFOLLOW |
+| operator token | implemented | `<socket>.operator`, estop only |
+| per-agent uid/token | implemented | policy `uids`, `token_sha256` |
+| capability policy | implemented | device fnmatch + 4 caps |
+| pre-auth connection cap | implemented | 128 default, 2s hello |
+| max sessions/inflight/rate | implemented | defaults in manual |
+| per-uid rate | implemented | 50/s default |
+| audit hash chain | implemented | seq/prev/hash |
+| audit checkpoint | implemented | detects tail truncation |
+| audit HMAC/remote sink | optional | best-effort remote |
+| watchdog | implemented | software; 1s scan |
+| estop fact verification | implemented | manifest `expect` |
+| hardware estop hook | implemented | software-triggered relay command |
+| physical certified estop | not software | hardware/infrastructure |
+| TPM/HSM | planned | infrastructure |
+| mTLS remote transport | planned | no remote transport in 1.0 |
+
+## 5. Agent adapters
+
+| Adapter | Status | Notes |
+|---|---|---|
+| Cyberdyne MC hand | implemented | `drivers/mc` |
+| MCP Mineflayer | implemented | 9 ops |
+| Mindcraft | implemented | state/prompt/stop |
+| Voyager | implemented | forward/exec/say/stop |
+| Alice Forge | archived | source only, not built |
+
+## 6. Test mapping
+
+```text
+tools/cbap_conformance.py     90 cases
+tests/cbap/test_conformance.py 20 core + D1/D4/D5 + security-adjacent
+tests/cbap/test_mcp_device.py  11
+tests/cbap/test_security.py    14
+tests/cbap/test_console.py     3
+```
+
+## 7. Change rule
+
+```text
+A normative MUST without a test is not part of 1.0.
+A planned feature must not be advertised in welcome.
+A security tightening updates the spec; it does not silently keep the
+weaker draft behavior.
+```
