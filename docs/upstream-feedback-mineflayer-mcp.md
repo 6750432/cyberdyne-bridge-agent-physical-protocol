@@ -13,9 +13,11 @@ No issue was posted anywhere else. I did not bypass the archive or send email
 without an explicit channel.
 
 ```text
-repo:      swaynos/mineflayer-mcp
-archived:  true
-last push: 2026-05-08T02:26:09Z
+repo:        swaynos/mineflayer-mcp
+archived:    true
+last push:   2026-05-08T02:26:09Z
+forks_count: 0
+network_count: 0
 ```
 
 ## Prepared issue
@@ -67,6 +69,15 @@ Thanks.
 - Do not put exploit details in a public issue.
 - Do not email the maintainer without an explicit request.
 - Do not reopen the same text on an unrelated fork as if it reached upstream.
+
+## Fork check
+
+GitHub API reports `forks_count = 0` and `network_count = 0` for the original
+repository. A GitHub search found active *alternatives* such as
+`G0Osey99/awesome-mineflayer-mcp`, but that project is not a GitHub fork of
+the original and already exposes `stop_pathfinding`, `pvp_stop`, and
+`cancel_task`. It is therefore not an appropriate target for this no-stop
+feedback.
 
 ## Next possible channels
 
