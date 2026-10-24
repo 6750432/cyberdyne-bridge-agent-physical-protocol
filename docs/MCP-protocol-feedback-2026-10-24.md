@@ -28,3 +28,18 @@ https://github.com/modelcontextprotocol/modelcontextprotocol/discussions/3215#di
 
 Scope: protocol-level completion facts and stop semantics. Not a report against
 a specific MCP server, and not a security vulnerability disclosure.
+
+---
+
+## 2026-10-24 · SEP #3452 scope question
+
+Posted:
+
+https://github.com/modelcontextprotocol/modelcontextprotocol/issues/3452#issuecomment-6380825635
+
+Question: should tool-definition integrity also cover
+`server/discover.instructions`? The comment asks whether to extend SEP #3452
+or keep it tool-only and open a separate scope. No vulnerability claim and no
+duplicate issue were made.
+
+Next: wait for maintainer direction before opening anything else.
