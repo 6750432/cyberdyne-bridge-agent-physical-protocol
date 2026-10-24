@@ -126,7 +126,7 @@ and imports a factory on explicit request.
 ## Verification (2026-10-24)
 
 ```text
-CBAP conformance: 114/114 passed
+CBAP conformance: 118/118 passed
 console tests:    5 passed (login / approvals / onboarding / history)
 console TLS:      1 passed (mTLS operator identity)
 registry hotplug: 1 passed (load / disable / unload)

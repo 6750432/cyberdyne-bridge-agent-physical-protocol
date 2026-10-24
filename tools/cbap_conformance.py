@@ -39,6 +39,7 @@ MODULES = [
     "tests.cbap.test_security",
     "tests.cbap.test_device_contract",
     "tests.cbap.test_host_device_conformance",
+    "tests.cbap.test_host_bridge_hardening",
 ]
 
 

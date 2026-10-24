@@ -51,6 +51,8 @@ def main(argv: list[str] | None = None) -> int:
                    help="optional TCP bind host; token still required")
     p.add_argument("--tcp-port", type=int, default=None,
                    help="optional TCP port (0 = ephemeral)")
+    p.add_argument("--allow-public-bind", action="store_true",
+                   help="explicitly allow non-loopback TCP bind (high risk)")
     p.add_argument("--tls-cert", default=None)
     p.add_argument("--tls-key", default=None)
     p.add_argument("--tls-ca", default=None)
@@ -105,6 +107,7 @@ def main(argv: list[str] | None = None) -> int:
         tls_cert=a.tls_cert, tls_key=a.tls_key, tls_ca=a.tls_ca,
         tls_require_client_cert=a.tls_require_client_cert,
         mcp_registry=a.mcp_registry,
+        allow_public_bind=a.allow_public_bind,
     )
     if not server.start():
         print("[cbap] cannot start CBAP server", file=sys.stderr)

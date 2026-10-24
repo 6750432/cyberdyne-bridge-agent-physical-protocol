@@ -7,7 +7,7 @@
 **把异构 Minecraft Agent，变成同一个协议下的外设。**
 
 [![CBAP](https://img.shields.io/badge/CBAP-v1-0f766e?style=flat-square)](spec/README.md)
-[![Release](https://img.shields.io/badge/release-v1.7.2-0f766e?style=flat-square)](https://github.com/cyberdyne-bridge/cyberdyne-bridge-agent-physical-protocol/releases)
+[![Release](https://img.shields.io/badge/release-v1.7.3-0f766e?style=flat-square)](https://github.com/cyberdyne-bridge/cyberdyne-bridge-agent-physical-protocol/releases)
 [![Conformance](https://img.shields.io/badge/conformance-114%2F114-14b8a6?style=flat-square)](tools/cbap_conformance.py)
 [![Python](https://img.shields.io/badge/Python-3.10%2B-3776AB?style=flat-square&logo=python&logoColor=white)](kernel/)
 [![Transport](https://img.shields.io/badge/CBAP--U-Unix%20socket-334155?style=flat-square)](spec/README.md)
@@ -67,7 +67,7 @@ python3 tools/cbap_conformance.py --target fake
 当前：
 
 ```text
-114/114 tests passed
+118/118 tests passed
 ```
 
 四个 Agent 子仓各自有独立 smoke：
@@ -131,7 +131,7 @@ CBAP 不假设 Agent 可信，也不假设“命令发出去了”等于完成�
 | **事实校验** | `facts.source="command"` 可接独立进程；`facts.independent`；Kernel 可开 `require_independent_facts`；MCP tool 回执不能代替事实 |
 | **Console** | 默认只绑定 `127.0.0.1`；operator token 登录；HttpOnly SameSite cookie；Host/Origin 校验；CSP；登录限速；页面不嵌 token；远程 bind 必须 TLS，可选 mTLS，证书 CN 作为 operator 身份 |
 | **操作审批** | 默认不拦普通动作；只有 policy 显式配置 `approvals.ops` 才拦截；可选 `required_approvals=2` 双人审批；SLA 通知 / 可选 webhook；lease 可被 operator 释放 |
-| **供应链 / 回归** | 114 条可执行测试；实现矩阵区分 implemented / optional / planned；安全测试覆盖 token、symlink、audit 截断、fencing、MCP pin、mTLS、resume |
+| **供应链 / 回归** | 118 条可执行测试；实现矩阵区分 implemented / optional / planned；安全测试覆盖 token、symlink、audit 截断、fencing、MCP pin、mTLS、resume |
 
 ### 正常自主运行不需要一步步点击
 
@@ -193,8 +193,8 @@ python3 tools/cbap_conformance.py --target fake
 你会看到：
 
 ```text
-CBAP v1 conformance · target=fake · cases=114
-Ran 114 tests
+CBAP v1 conformance · target=fake · cases=118
+Ran 118 tests
 
 OK
 ```
@@ -266,7 +266,7 @@ archive/      Alice 归档
 ## 当前状态
 
 ```text
-CBAP conformance       114/114
+CBAP conformance       118/118
 活跃 Agent 子仓        4
 Alice                  源码归档，未构建
 CBAP OS 0.1            live ISO / 版本选择 / host bridge 实测
@@ -282,6 +282,7 @@ Host device surface    5 个 device_id / 输入默认关闭
 当前源码发行版：
 
 ```text
+v1.7.3  Technical Hardening    118/118
 v1.7.2  Detailed Legal Pack    114/114
 v1.7.1  Legal & Notices        114/114
 v1.7.0  Device Parity P0–P6  114/114
@@ -298,7 +299,7 @@ Release 页面：
 
 - https://github.com/cyberdyne-bridge/cyberdyne-bridge-agent-physical-protocol/releases
 
-v1.7.2 / v1.7.1 / v1.7.0 / v1.6.0 / v1.5.0 / v1.4.0 附带 `CBAP-parameters-zh.pdf`。
+v1.7.3 / v1.7.2 / v1.7.1 / v1.7.0 / v1.6.0 / v1.5.0 / v1.4.0 附带 `CBAP-parameters-zh.pdf`。
 版本边界和兼容性见 [`RELEASES.md`](RELEASES.md)。
 
 ## 文档

@@ -183,7 +183,8 @@ class KernelServer:
                  tls_require_client_cert: bool = False,
                  mcp_registry: str | None = None,
                  require_isolated_input: bool = False,
-                 strict_contracts: bool = False):
+                 strict_contracts: bool = False,
+                 allow_public_bind: bool = False):
         # 多设备：drivers=[legacy, dataflow...]；旧单驱动参数仍然兼容。
         if drivers is None:
             drivers = [driver] if driver is not None else []
@@ -193,6 +194,11 @@ class KernelServer:
         self.device_contracts: dict[str, dict] = {}
         self.require_isolated_input = bool(require_isolated_input)
         self.strict_contracts = bool(strict_contracts)
+        self.allow_public_bind = bool(allow_public_bind)
+        if tcp_host is not None and not _is_loopback_host(str(tcp_host)) and                 not self.allow_public_bind:
+            raise ValueError(
+                "E_SAFETY: tcp_host must be loopback; use allow_public_bind=True "
+                "only for an explicitly authorized network")
         self._refresh_contracts()
         self.driver = self.drivers[0]  # 兼容旧代码/旧测试
         self.socket_path = os.path.abspath(socket_path or DEFAULT_CBAP_SOCKET)
@@ -1987,6 +1993,17 @@ class KernelServer:
             # Audit is security-critical: if it cannot be written, fail closed.
             self._security_degraded = True
             self._safe = True
+
+
+def _is_loopback_host(host: str) -> bool:
+    h = str(host).strip().lower()
+    if h in {"localhost", "127.0.0.1", "::1"}:
+        return True
+    try:
+        import ipaddress
+        return ipaddress.ip_address(h).is_loopback
+    except ValueError:
+        return False
 
 
 class _OpError(Exception):

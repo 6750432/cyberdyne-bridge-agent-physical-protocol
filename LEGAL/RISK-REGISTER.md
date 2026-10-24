@@ -12,9 +12,9 @@
 
 | # | 风险 | 严重度 | 可能性 | 现有控制 | 残余风险 / 待办 |
 |---|---|---|---|---|---|
-| R1 | host bridge 被暴露公网，变成远控入口 | C | 1–2 | 默认 127.0.0.1；token；文档警告 | 用户仍可错误配置；需启动时拒绝非 loopback，除非显式 `--allow-public`（未实现） |
-| R2 | 固定测试 token 被复用 | H | 2 | 文档标注 test-only | 默认值仍公开；生产应随机/必填轮换 |
-| R3 | 输入设备被用于未授权操作 | C | 1–2 | 默认关闭；`--enable-input`；审批；estop | X11 后端未隔离；需 portal/受控 broker |
+| R1 | host bridge 被暴露公网，变成远控入口 | C | 1–2 | 默认 127.0.0.1；Kernel 拒绝非 loopback；host bridge 需显式 `--allow-public` | 显式 flag 仍可绕过；需要网络/主机层防护 |
+| R2 | 固定测试 token 被复用 | H | 2 | host bridge 默认随机生成；不写入公开 status；token 文件 0600 | CBAP OS 示例配置仍可能使用测试值；生产必须轮换 |
+| R3 | 输入设备被用于未授权操作 | C | 1–2 | 默认关闭；裸 X11 默认拒绝；portal/隔离输入；审批；estop | 显式 `--allow-unisolated-input` 仍可绕过；需网络/主机层防护 |
 | R4 | 文件接口路径逃逸 / symlink | H | 1 | allowlist；resolve；symlink 拒绝；64K | TOCTOU/平台差异；需持续测试 |
 | R5 | 截图包含敏感信息 | H | 2 | 只写 allowlist；不自动上传 | 用户可能截图含密码/聊天；需提示与清理 |
 | R6 | 公共 Minecraft 服务器违规/封号 | H | 3 | 文档禁止；本地测试 | 无法技术阻止；用户责任 |

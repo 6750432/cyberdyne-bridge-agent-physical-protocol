@@ -35,18 +35,30 @@ small, explicit action surface.
 python3 tools/cbap_host_bridge.py \
   --root "$HOME/Desktop/CBAP-Host-Test" \
   --socket /tmp/cbap-host-test/cbap.sock \
-  --tcp-port 18765 \
-  --token cbap-host-test-2026
+  --tcp-port 18765
 ```
 
-TCP binds `127.0.0.1` only. The token is a **test-only shared token** injected
-into the CBAP OS ISO; do not reuse it outside this local test.
+If `--token` is omitted, the bridge generates a random token and writes it to
+the Kernel token file (`<socket>.token`, mode 0600). It is **not printed** in
+the status JSON. Read it locally when configuring the guest.
+
+TCP binds `127.0.0.1` by default. A non-loopback `--tcp-host` is refused unless
+`--allow-public` is explicitly supplied; that flag is for an authorized lab
+network only, never for the public internet.
+
+Bare X11 input is refused unless `--allow-unisolated-input` is explicit. The
+native path is:
+
+```bash
+--enable-input --input-backend portal --require-isolated-input
+```
 
 ## Device IDs
 
 Kernel welcome lists:
 
 ```text
+token file            <socket>.token (0600)
 host://desktop         filesystem compatibility API
 host://fs              allowlisted filesystem
 host://display         read-only Wayland screenshot into allowlist

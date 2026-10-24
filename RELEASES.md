@@ -5,6 +5,7 @@ CBAP 目前是**源码发行版**，没有预编译服务端/客户端二进制�
 
 | 版本 | 主题 | Git 快照 | 关键内容 |
 |---|---|---|---|
+| **v1.7.3** | Technical Hardening | `v1.7.3` | 随机 token、默认 loopback、裸 X11 拒绝、118/118 |
 | **v1.7.2** | Detailed Legal Pack | `v1.7.2` | TERMS/AUP/Privacy/Abuse/IR/Risk/AI/Export/Counsel/FAQ、官网法律页、114/114 |
 | **v1.7.1** | Legal & Notices | `v1.7.1` | MIT carve-out、第三方/GPL 边界、免责声明、Security/Contributing、官网法律页、114/114 |
 | **v1.7.0** | Device Parity P0–P6 | `v1.7.0` | device contract、默认拒绝、配额、trust facts、safe_state、portal、114/114 |
@@ -29,6 +30,7 @@ v1.6.0  host://display / fs / 受控 mouse + keyboard device_id
 v1.7.0  P0–P6：contract / default-deny / quotas / trust / safe / portal
 v1.7.1  Legal & Notices：MIT carve-out / third-party / disclaimer
 v1.7.2  Detailed Legal Pack：TERMS / AUP / Privacy / Abuse / Risk
+v1.7.3  Technical Hardening：random token / loopback / isolated input
 ```
 
 “CBAP v1” 是协议版本；`v1.x` 是仓库源码发行版。  
@@ -43,7 +45,7 @@ Source code (zip)
 Source code (tar.gz)
 ```
 
-v1.7.2 / v1.7.1 / v1.7.0 / v1.6.0 / v1.5.0 / v1.4.0 同时附带：
+v1.7.3 / v1.7.2 / v1.7.1 / v1.7.0 / v1.6.0 / v1.5.0 / v1.4.0 同时附带：
 
 ```text
 docs/CBAP-参数手册.pdf
@@ -69,7 +71,7 @@ python3 tools/cbap_conformance.py --target fake
 当前主分支：
 
 ```text
-114/114
+118/118
 ```
 
 历史版本的测试数量以该 tag 下的 README / conformance 记录为准。

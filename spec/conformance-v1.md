@@ -69,7 +69,7 @@ tests/cbap/test_transport.py     2  TCP/TLS/mTLS
 ## Current status
 
 ```text
-CBAP conformance: 114/114 passed
+CBAP conformance: 118/118 passed
 ```
 
 Not claimed as passed:
