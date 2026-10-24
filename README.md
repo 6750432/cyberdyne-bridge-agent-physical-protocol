@@ -13,7 +13,7 @@
 [![No paid API](https://img.shields.io/badge/LLM-local%20friendly-6b7280?style=flat-square)](#)
 [![License](https://img.shields.io/badge/license-MIT-111827?style=flat-square)](LICENSE)
 
-[架构图](#架构) · [快速开始](#快速开始) · [四个子仓](#四个-agent-子仓) · [协议保证](#协议桥保证什么) · [文档](#文档)
+[架构图](#架构) · [安全边界](#安全边界) · [快速开始](#快速开始) · [四个子仓](#四个-agent-子仓) · [协议保证](#协议桥保证什么) · [文档](#文档)
 
 </div>
 
@@ -114,13 +114,57 @@ done
 | **审计** | 每次动作有账可查，失败也有证据 |
 | **Agent 隔离** | 具体 Agent 不进入 Kernel，adapter 可替换 |
 
+## 安全边界
+
+CBAP 不假设 Agent 可信，也不假设“命令发出去了”等于完成。安全是分层控制，不是一句“已加密”。
+
+| 层 | 已实现 |
+|---|---|
+| **身份 / 文件** | Unix socket `0600` + `SO_PEERCRED`；token 文件 `0600`、`O_NOFOLLOW`；全局 token 与独立 operator token 分离；policy 可按 agent 限制 `uids`、`token_sha256` |
+| **权限** | per-device allowlist；`read/write/lease/estop/admin` 能力；普通 Agent 默认没有 estop/admin；operator token 才能 estop、释放租约、审批、resume、reload registry |
+| **并发 / 租约** | 每设备单 writer；FIFO waiter；lease TTL；fencing token；显式 `release`；断线/close/estop 取消 pending |
+| **限流 / 资源** | 认证前连接上限、hello 超时；session 上限；inflight 上限；per-session 与 per-uid 写速率；单帧上限 |
+| **审计** | JSONL hash chain + `seq`；checkpoint 检测尾部截断；可选 HMAC；本地 mirror；远程 NDJSON sink；`CBAP_AUDIT_REQUIRE_ACK=1` 时要求远程 seq/hash ack；审计写失败 fail closed |
+| **Watchdog / 安全态** | Kernel 周期性检查驱动状态；超时自动调用 driver estop；estop 锁存；resume 必须 operator + reason + `confirm=RESUME`，且 lease/pending/approval 清空、health 正常 |
+| **MCP 设备** | env allowlist（默认不继承完整环境）；rlimits；进程组终止；stdout/stderr 输出上限；manifest HMAC 签名工具（可强制）；tool/instruction pin（首次 TOFU，之后强制）；estop 必须有 safe-state 证据；可选独立 UID/GID 与 bwrap/nsjail |
+| **事实校验** | `facts.source="command"` 可接独立进程；`facts.independent`；Kernel 可开 `require_independent_facts`；MCP tool 回执不能代替事实 |
+| **Console** | 默认只绑定 `127.0.0.1`；operator token 登录；HttpOnly SameSite cookie；Host/Origin 校验；CSP；登录限速；页面不嵌 token；远程 bind 必须 TLS，可选 mTLS，证书 CN 作为 operator 身份 |
+| **操作审批** | 默认不拦普通动作；只有 policy 显式配置 `approvals.ops` 才拦截；可选 `required_approvals=2` 双人审批；SLA 通知 / 可选 webhook；lease 可被 operator 释放 |
+| **供应链 / 回归** | 101 条可执行测试；实现矩阵区分 implemented / optional / planned；安全测试覆盖 token、symlink、audit 截断、fencing、MCP pin、mTLS、resume |
+
+### 正常自主运行不需要一步步点击
+
+默认 policy 不启用 approvals：
+
+```text
+read / write / lease 正常执行
+Console 可以关闭
+Agent 仍可 headless 运行
+```
+
+审批只用于显式配置的高风险动作；estop 不需要审批，resume 是故障后的人工恢复。
+
+### 仍然不能承诺什么
+
+```text
+同一 OS uid / root 仍可读 token、ptrace、改内存
+恶意 MCP server 仍可能伪造自己的 facts；独立事实源也不能证明物理世界
+bwrap/nsjail、独立 UID、manifest 签名强制都是部署配置，不是默认全开
+Console mTLS 终止在 Console；Kernel 本地 UDS 不是端到端远程 mTLS
+SLA webhook 是 best-effort；通知 feed 仍是内存
+resume 是单 operator 流程，没有双人 resume
+没有认证的物理急停、TPM/HSM 或形式化验证
+```
+
+完整控制项和残余风险见 [`docs/SECURITY-HARDENING.md`](docs/SECURITY-HARDENING.md)、[`docs/M1-Trust-Boundary.md`](docs/M1-Trust-Boundary.md)、[`docs/M2-Protocol-1.1.md`](docs/M2-Protocol-1.1.md)、[`docs/M3-Operator-Productization.md`](docs/M3-Operator-Productization.md)。
+
 ## 四个 Agent 子仓
 
 主仓不把 Agent 写死。四个活跃子仓各自拥有 adapter、`device.json` / `mapping.json`、工具和 smoke：
 
 | 子仓 | 归属 | 设备 | 控制面 |
 |---|---|---|---|
-| [`agents/cyberdyne`](agents/cyberdyne/) | 我们自己的 MC Agent | `mc://bot/DeepSeek` | 旧脑 / 手直连；手可被 `McDriver` 包成 CBAP 设备 |
+| [`agents/cyberdyne`](agents/cyberdyne/) | 我们自己的 MC Agent | `mc://bot/DeepSeek` | 旧脑经 `bridge_cbap.py` 走 CBAP；旧直连已冻结 |
 | [`agents/mcp-mineflayer`](agents/mcp-mineflayer/) | 外部 | `mcp://mc/MCPBody` | MCP stdio JSON-RPC |
 | [`agents/mindcraft`](agents/mindcraft/) | 外部 | `mc://mind/Mindy` | state / prompt / stop |
 | [`agents/voyager`](agents/voyager/) | 外部 | `mc://voyager/bot` | state / exec / forward / say / stop |
@@ -148,8 +192,8 @@ python3 tools/cbap_conformance.py --target fake
 你会看到：
 
 ```text
-CBAP v1 conformance · target=fake · cases=65
-Ran 61 tests
+CBAP v1 conformance · target=fake · cases=101
+Ran 101 tests
 
 OK
 ```
@@ -185,15 +229,21 @@ python3 console/server.py --socket ./cbap.sock --audit ./logs/cbap-audit.jsonl
 http://127.0.0.1:8765/
 ```
 
-它只做两件写操作：
+它现在支持：
 
 ```text
-单设备 estop
-全局 estop
+单设备 / 全局 estop
+lease 查看与 operator 释放
+高风险 write 审批（可选双人）
+MCP onboarding / probe / 签名 / registry enable-disable
+registry_reload 热插拔
+resume（operator + reason + confirm=RESUME）
+持久化历史图
+SLA 通知 / 可选 webhook
 ```
 
-没有 resume。Kernel 的 estop 是 latched，必须由操作员重启 Kernel 才能解除。
-控制台只绑 `127.0.0.1`，校验 Host / Origin；登录使用独立的 operator token，页面里不嵌 token。
+默认只绑 `127.0.0.1`，校验 Host / Origin；登录使用独立 operator token，页面里不嵌 token。
+远程 bind 必须 TLS，可选 mTLS。Kernel 的 estop 仍然锁存，resume 必须显式确认。
 
 ![CBAP Operator Console](docs/diagrams/cbap-console.jpg)
 

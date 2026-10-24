@@ -7,7 +7,7 @@
   <meta name="description" content="CBAP v1：Agent ↔ 物理世界的参考协议桥。主仓只放协议、Kernel、租约、安全和审计；四个 Agent 子仓各自接入。Minecraft 只是低成本物理沙盒。">
   <meta name="theme-color" content="#070a0f">
   <meta property="og:title" content="Cyberdyne Bridge · CBAP 协议桥">
-  <meta property="og:description" content="Agent ↔ 物理世界协议：服务端事实校验、每设备租约、fail-closed、可替换 Agent 子仓。">
+  <meta property="og:description" content="Agent ↔ 物理世界协议：服务端事实校验、每设备租约、审计锚点、MCP 最小权限、operator 急停与显式恢复。">
   <meta property="og:type" content="website">
   <meta property="og:url" content="https://www.cyberdyne-bridge.com/">
   <link rel="canonical" href="https://www.cyberdyne-bridge.com/">
@@ -26,6 +26,7 @@
       <a href="#what">概览</a>
       <a href="#architecture">架构</a>
       <a href="#principles">协议</a>
+      <a href="#security">安全</a>
       <a href="#agents">Agent 子仓</a>
       <a class="nav-cta" href="https://github.com/6750432/cyberdyne-bridge-agent-physical-protocol" target="_blank" rel="noopener">GitHub <span aria-hidden="true">↗</span></a>
     </nav>
@@ -163,9 +164,57 @@
       </ol>
     </section>
 
+    <section class="section section-arch" id="security">
+      <div class="section-head">
+        <p class="kicker">04 / TRUST BOUNDARY</p>
+        <div>
+          <h2>先关信任边界，<br>再让 AI 跑。</h2>
+          <p class="section-lede">Agent 可以自主运行，但 Kernel 不相信它自带的安全声明。身份、租约、审计、MCP 子进程和 operator 动作各自有边界；失败默认关闭。</p>
+        </div>
+      </div>
+
+      <div class="cards cards-six">
+        <article class="card card-small card-accent">
+          <span class="card-num">01 / IDENTITY</span>
+          <h3>身份与权限</h3>
+          <p>UDS 0600 + SO_PEERCRED；token 文件 0600、O_NOFOLLOW；per-agent uid/token；设备级 allowlist；普通 Agent 没有 estop/admin。</p>
+        </article>
+        <article class="card card-small">
+          <span class="card-num">02 / EXECUTION</span>
+          <h3>租约与 fencing</h3>
+          <p>每设备单 writer、FIFO、TTL、fencing token；release / estop / cancel 语义分离；inflight、session 和 UID 速率限制。</p>
+        </article>
+        <article class="card card-small">
+          <span class="card-num">03 / EVIDENCE</span>
+          <h3>审计锚点</h3>
+          <p>JSONL seq + hash chain；checkpoint 检测尾部截断；可选 HMAC；远程 sink 可要求 seq/hash ack；审计失败进入安全态。</p>
+        </article>
+        <article class="card card-small">
+          <span class="card-num">04 / MCP</span>
+          <h3>子进程最小权限</h3>
+          <p>env allowlist、rlimits、进程组终止、输出上限；manifest HMAC（可强制）、tool/instruction pin；estop 必须有 safe-state 证据；可选独立 UID 与 bwrap/nsjail。</p>
+        </article>
+        <article class="card card-small">
+          <span class="card-num">05 / OPERATOR</span>
+          <h3>人能看见，人能停</h3>
+          <p>本地优先 Console；HttpOnly session、Host/Origin、CSP、登录限速；lease 释放、双人审批、SLA 通知、registry reload、显式 resume；远程 bind 必须 TLS，mTLS 可选。</p>
+        </article>
+        <article class="card card-small">
+          <span class="card-num">06 / RESIDUAL</span>
+          <h3>不冒充物理安全</h3>
+          <p>同 UID/root、恶意 MCP facts、未认证的物理急停、TPM/HSM 和形式化验证仍是边界外；console mTLS 不等于 Kernel 端到端 mTLS。</p>
+        </article>
+      </div>
+
+      <div class="arch-note">
+        <strong>默认不按每个动作审批。</strong> 普通 read / write / lease 直接执行；只有 policy 显式配置 <code>approvals.ops</code> 才拦高风险动作。estop 不需要审批；resume 是故障后 operator 的人工确认。
+        <a href="https://github.com/6750432/cyberdyne-bridge-agent-physical-protocol/blob/main/docs/SECURITY-HARDENING.md" target="_blank" rel="noopener">读完整安全边界 ↗</a>
+      </div>
+    </section>
+
     <section class="section section-status" id="status">
       <div class="section-head">
-        <p class="kicker">04 / CURRENT STATE</p>
+        <p class="kicker">05 / CURRENT STATE</p>
         <div>
           <h2>四个活跃子仓，<br>一个归档。</h2>
           <p class="section-lede">CBAP 控制面已通过 101 项 conformance；Alice 的 Forge bridge 源码保留，但未编译、未跑真实服务端，所以不算活跃子仓。</p>
@@ -185,7 +234,8 @@
             <li>4 个活跃子仓</li>
             <li>101/101 CBAP</li>
             <li>Alice 未构建</li>
-            <li>旧套件有已知红项</li>
+            <li>旧套件已归档</li>
+            <li>mTLS 可选</li>
           </ul>
           <p class="status-note">不把源码当成已验证。</p>
         </div>
@@ -194,7 +244,7 @@
 
     <section class="section" id="agents">
       <div class="section-head">
-        <p class="kicker">05 / AGENT SUBREPOS</p>
+        <p class="kicker">06 / AGENT SUBREPOS</p>
         <div>
           <h2>同样的协议，<br>不同的身体。</h2>
           <p class="section-lede">每个子仓拥有自己的 adapter、device / mapping、工具和 smoke test。主仓只负责接口与 conformance。</p>
@@ -207,7 +257,7 @@
         <div><strong>0.2ms</strong><span>控制面 p50</span></div>
       </div>
       <div class="cards cards-six">
-        <article class="card card-small card-accent"><span class="card-num">OURS</span><h3>Cyberdyne</h3><p>我们自己的旧脑 / 手直连栈。手可以被 McDriver 包成 CBAP 设备；旧协议仍在子链。</p></article>
+        <article class="card card-small card-accent"><span class="card-num">OURS</span><h3>Cyberdyne</h3><p>旧脑保留，默认经 <code>bridge_cbap.py</code> 走 CBAP；root 直连 shim 已移除，旧源码冻结归档。</p></article>
         <article class="card card-small"><span class="card-num">MCP</span><h3>MCP Mineflayer</h3><p>真实 MCP body。公开 MCP tools → CBAP read / write / poll / estop，MCPDriver 走 stdio JSON-RPC。</p></article>
         <article class="card card-small"><span class="card-num">AUTONOMOUS</span><h3>Mindcraft</h3><p>Mindy 自带规划器。CBAP 观察状态、投递 prompt、停止；不冒充低层动作驱动。</p></article>
         <article class="card card-small"><span class="card-num">BRIDGE</span><h3>Voyager</h3><p>只接 Mineflayer bridge：state / exec / forward / say / stop。Voyager 的自治规划器和课程还没接。</p></article>
