@@ -143,6 +143,8 @@ matches. Without `expect`/`verify`, `safe_state` is `unknown`.
 
 ### Independent facts
 
+Same MCP server:
+
 ```json
 "facts": {
   "source": "tool",
@@ -150,6 +152,19 @@ matches. Without `expect`/`verify`, `safe_state` is `unknown`.
   "independent": true
 }
 ```
+
+Separate command/sensor (preferred when the MCP server is not trusted):
+
+```json
+"facts": {
+  "source": "command",
+  "command": ["python3", "/opt/sensor/read.py"],
+  "independent": true
+}
+```
+
+The command is argv-only (no shell), gets a small environment allowlist, and
+must print one JSON value. `source: "resource"` is also supported.
 
 `independent` is a declaration, not a proof. Use a separate device/sensor
 channel when the MCP server itself is untrusted. A Kernel started with

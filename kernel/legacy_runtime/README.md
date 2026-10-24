@@ -50,7 +50,7 @@ c.close()
 python3 tools/cbap_conformance.py --target fake
 ```
 
-当前 81 条用例（网关/驱动/适配器/数据/20 条一致性 + D1/D4/D5）：
+当前 82 条用例（网关/驱动/适配器/数据/20 条一致性 + D1/D4/D5）：
 
 - hello/welcome、device_list
 - open/read
@@ -63,7 +63,7 @@ python3 tools/cbap_conformance.py --target fake
 - `接线口` 形状 adapter：move/dig/say 全通
 - adapter 的 `scan_environment` / `watch_blocks`（走 ioctl）全通
 - adapter 对不支持的命令 fail-closed（回一条 `ok:false`）
-- MCP driver：真实 stdio MCP server 的 initialize/tools/list/tools/call；fake MCP 4 条通过
+- MCP driver：真实 stdio MCP server 的 initialize/tools/list/tools/call；fake MCP 9 条通过
 
 ## v0 已知限制（照实写）
 

@@ -43,6 +43,7 @@ import hashlib
 import hmac
 import json
 import os
+import subprocess
 import threading
 import time
 from pathlib import Path
@@ -238,6 +239,24 @@ class MCPDeviceDriver:
                 return None
             text = contents[0].get("text") if isinstance(contents[0], dict) else None
             value = self._parse_tool_result(text)
+        elif spec.get("source") == "command":
+            cmd = spec.get("command")
+            if not isinstance(cmd, list) or not cmd:
+                raise MCPDeviceError("E_INVAL", "facts.command must be an argv list")
+            base = Path(self.manifest_path).parent
+            cwd = spec.get("cwd")
+            cwd = str((base / cwd).resolve()) if cwd else str(base)
+            allow = spec.get("env_allowlist") or ["PATH", "HOME", "LANG", "TMPDIR"]
+            env = {k: os.environ[k] for k in allow if k in os.environ}
+            env.update({str(k): str(v) for k, v in (spec.get("env") or {}).items()})
+            proc = subprocess.run(
+                [str(x) for x in cmd], cwd=cwd, env=env,
+                capture_output=True, text=True, timeout=self.connect_timeout,
+                shell=False, check=False,
+            )
+            if proc.returncode != 0:
+                raise MCPDeviceError("E_IO", f"facts command failed: {proc.stderr[-300:]}")
+            value = self._parse_tool_result(proc.stdout.strip())
         else:
             tool = spec.get("tool")
             if not tool:

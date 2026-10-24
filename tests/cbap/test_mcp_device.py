@@ -90,6 +90,24 @@ class MCPDeviceDriverTest(unittest.TestCase):
         finally:
             driver.close()
 
+    def test_independent_command_fact_source(self):
+        path = self._manifest()
+        manifest = json.loads(path.read_text(encoding="utf-8"))
+        manifest["facts"] = {
+            "source": "command", "independent": True,
+            "command": [sys.executable, "-c",
+                        "import json; print(json.dumps({'on': False}))"],
+        }
+        path.write_text(json.dumps(manifest), encoding="utf-8")
+        driver = MCPDeviceDriver(path)
+        try:
+            self.assertTrue(driver.connect())
+            result = driver.verify({"on": False})
+            self.assertTrue(result["ok"], result)
+            self.assertTrue(result["independent"])
+        finally:
+            driver.close()
+
     def test_tool_definition_pin_rejects_drift(self):
         path = self._manifest()
         manifest = json.loads(path.read_text(encoding="utf-8"))
