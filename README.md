@@ -11,7 +11,7 @@
 **把异构 Minecraft Agent，变成同一个协议下的外设。**
 
 [![CBAP](https://img.shields.io/badge/CBAP-v1-0f766e?style=flat-square)](spec/README.md)
-[![Release](https://img.shields.io/badge/release-v1.7.3-0f766e?style=flat-square)](https://github.com/cyberdyne-bridge/cyberdyne-bridge-agent-physical-protocol/releases)
+[![Release](https://img.shields.io/badge/release-v1.7.4-0f766e?style=flat-square)](https://github.com/cyberdyne-bridge/cyberdyne-bridge-agent-physical-protocol/releases)
 [![Conformance](https://img.shields.io/badge/conformance-118%2F118-14b8a6?style=flat-square)](tools/cbap_conformance.py)
 [![Python](https://img.shields.io/badge/Python-3.10%2B-3776AB?style=flat-square&logo=python&logoColor=white)](kernel/)
 [![Transport](https://img.shields.io/badge/CBAP--U-Unix%20socket-334155?style=flat-square)](spec/README.md)
@@ -61,18 +61,25 @@ Minecraft 服务端（事实源）
 
 这也是为什么主仓只保留 CBAP、Kernel、租约、安全、审计和 conformance；具体 Agent 放进独立子仓，不写死进内核。
 
-## 30 秒看懂
+## 10 分钟跑通
 
 ```bash
-# 不需要 Minecraft、不需要 LLM、不需要付费 API
+# 干净 clone 后，不需要 Minecraft / Node / LLM / root
 python3 tools/cbap_conformance.py --target fake
+./tools/quickstart_host_demo.sh
 ```
 
-当前：
+实测：
 
 ```text
-118/118 tests passed
+clone 7s + conformance 118s + host demo <2s
 ```
+
+完整步骤与验收标准见 [`docs/START-10MIN.md`](docs/START-10MIN.md)。
+
+## 30 秒读懂定位
+
+> Agent 可以换，身体可以换，验收判据不能换。
 
 四个 Agent 子仓各自有独立 smoke：
 
@@ -286,6 +293,7 @@ Host device surface    5 个 device_id / 输入默认关闭
 当前源码发行版：
 
 ```text
+v1.7.4  10-Minute Path         118/118
 v1.7.3  Technical Hardening    118/118
 v1.7.2  Detailed Legal Pack    114/114
 v1.7.1  Legal & Notices        114/114
@@ -303,7 +311,7 @@ Release 页面：
 
 - https://github.com/cyberdyne-bridge/cyberdyne-bridge-agent-physical-protocol/releases
 
-v1.7.3 / v1.7.2 / v1.7.1 / v1.7.0 / v1.6.0 / v1.5.0 / v1.4.0 附带 `CBAP-parameters-zh.pdf`。
+v1.7.4 / v1.7.3 / v1.7.2 / v1.7.1 / v1.7.0 / v1.6.0 / v1.5.0 / v1.4.0 附带 `CBAP-parameters-zh.pdf`。
 版本边界和兼容性见 [`RELEASES.md`](RELEASES.md)。
 
 ## 文档
@@ -330,6 +338,7 @@ docs/M3-Operator-Productization.md     M3 lease / 审批 / MCP onboarding / prob
 docs/M4-Legacy-Decision.md             M4 legacy bridge freeze / CBAP wrapper
 docs/CBAP-OS-Host-Bridge.md            CBAP OS VM -> host allowlisted CBAP test
 docs/DEVICE-PARITY.md                  Device Contract / policy / quotas / trust / portal
+docs/START-10MIN.md                    10 分钟跑通 / 实测耗时 / 验收标准
 RELEASES.md                            源码发行版与版本边界
 docs/releases/                         各版本 release notes
 agents/*/docs/                         各 Agent 自己的接入文档
