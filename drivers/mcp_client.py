@@ -28,6 +28,8 @@ class MCPError(RuntimeError):
 
 
 class MCPStdioClient:
+    MAX_LINE = 8 * 1024 * 1024
+
     def __init__(self, command: list[str], cwd: str | None = None,
                  env: dict | None = None, timeout: float = 30.0,
                  inherit_env: bool = True,
@@ -77,8 +79,18 @@ class MCPStdioClient:
 
     def _read_stdout(self) -> None:
         assert self.proc is not None and self.proc.stdout is not None
-        for raw in iter(self.proc.stdout.readline, b""):
+        while True:
             if self._stop.is_set():
+                break
+            raw = self.proc.stdout.readline(self.MAX_LINE + 1)
+            if not raw:
+                break
+            if len(raw) > self.MAX_LINE:
+                self.last_error = "MCP stdout line too large"
+                try:
+                    self.proc.kill()
+                except Exception:
+                    pass
                 break
             line = raw.decode("utf-8", "replace").strip()
             if not line:
@@ -108,8 +120,13 @@ class MCPStdioClient:
 
     def _read_stderr(self) -> None:
         assert self.proc is not None and self.proc.stderr is not None
-        for raw in iter(self.proc.stderr.readline, b""):
+        while True:
+            raw = self.proc.stderr.readline(self.MAX_LINE + 1)
+            if not raw:
+                break
             line = raw.decode("utf-8", "replace").rstrip()
+            if len(line) > 4096:
+                line = line[:4096] + "…[truncated]"
             if line:
                 self.stderr_tail.append(line)
                 if len(self.stderr_tail) > 80:

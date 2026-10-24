@@ -90,6 +90,18 @@ class MCPDeviceDriverTest(unittest.TestCase):
         finally:
             driver.close()
 
+    def test_sandbox_wrapper_is_opt_in_and_fails_closed(self):
+        from drivers.mcp_device.sandbox import SandboxUnavailable, wrap_command
+        base = ["python3", "server.py"]
+        self.assertEqual(wrap_command(base, None, "."), base)
+        self.assertEqual(wrap_command(base, {"type": "none"}, "."), base)
+        if __import__("shutil").which("bwrap") is None:
+            with self.assertRaises(SandboxUnavailable):
+                wrap_command(base, {"type": "bwrap"}, ".")
+        else:
+            wrapped = wrap_command(base, {"type": "bwrap"}, ".")
+            self.assertIn("bwrap", wrapped[0])
+
     def test_independent_command_fact_source(self):
         path = self._manifest()
         manifest = json.loads(path.read_text(encoding="utf-8"))

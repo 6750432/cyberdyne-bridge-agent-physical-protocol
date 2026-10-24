@@ -107,6 +107,34 @@ class SecurityTest(unittest.TestCase):
         viewer.close()
         operator.close()
 
+    def test_per_agent_token_and_uid(self):
+        import hashlib
+        tok = "agent-secret"
+        h = hashlib.sha256(tok.encode()).hexdigest()
+        policy = {"agents": {"viewer": {
+            "devices": ["test://security/light-01"],
+            "capabilities": ["read", "write", "lease"],
+            "uids": [os.getuid()],
+            "token_sha256": h,
+        }}}
+        k = KernelServer(
+            SecurityDriver(), socket_path=os.path.join(self.tmp, "a.sock"),
+            audit_path=os.path.join(self.tmp, "a-audit.jsonl"), policy=policy)
+        self.assertTrue(k.start())
+        try:
+            sock = os.path.join(self.tmp, "a.sock")
+            bad = CBAPClient(sock, agent_id="viewer")
+            bad.connect()
+            with self.assertRaises(Exception):
+                bad.hello(agent_token="wrong")
+            bad.close()
+            good = CBAPClient(sock, agent_id="viewer")
+            good.connect()
+            self.assertTrue(good.hello(agent_token=tok).get("session_id"))
+            good.close()
+        finally:
+            k.stop()
+
     def test_device_allowlist(self):
         k = KernelServer(
             SecurityDriver(), socket_path=os.path.join(self.tmp, "p.sock"),
@@ -145,6 +173,44 @@ class SecurityTest(unittest.TestCase):
             c.close()
         finally:
             k.stop()
+
+    def test_audit_truncation_is_detected(self):
+        from kernel.legacy_runtime.security import AuditChain
+        path = os.path.join(self.tmp, "trunc.jsonl")
+        a = AuditChain(path, signing_key="k")
+        a.append("one"); a.append("two")
+        lines = open(path, encoding="utf-8").read().splitlines()
+        open(path, "w", encoding="utf-8").write("\n".join(lines[:-1]) + "\n")
+        ok, why = AuditChain(path, signing_key="k").verify()
+        self.assertFalse(ok, why)
+
+    def test_preauth_connection_cap(self):
+        import socket
+        k = KernelServer(
+            SecurityDriver(), socket_path=os.path.join(self.tmp, "c.sock"),
+            audit_path=os.path.join(self.tmp, "c-audit.jsonl"),
+            max_connections=1)
+        self.assertTrue(k.start())
+        a = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
+        b = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
+        try:
+            a.connect(os.path.join(self.tmp, "c.sock"))
+            time.sleep(0.2)
+            b.settimeout(1)
+            b.connect(os.path.join(self.tmp, "c.sock"))
+            self.assertEqual(b.recv(1), b"")
+        finally:
+            a.close(); b.close(); k.stop()
+
+    def test_symlink_token_target_is_rejected(self):
+        from kernel.legacy_runtime.security import TokenFile
+        target = os.path.join(self.tmp, "target")
+        open(target, "w").write("do not touch")
+        token_path = os.path.join(self.tmp, "symlink.sock") + ".token"
+        os.symlink(target, token_path)
+        with self.assertRaises(OSError):
+            TokenFile(os.path.join(self.tmp, "symlink.sock")).write()
+        self.assertEqual(open(target).read(), "do not touch")
 
     def test_audit_chain_verifies(self):
         c = self.client("viewer")

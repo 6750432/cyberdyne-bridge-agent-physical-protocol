@@ -36,8 +36,11 @@ def main(argv: list[str] | None = None) -> int:
     p.add_argument("--allowed-uid", type=int, action="append", default=None,
                    help="allowed local peer uid (repeatable; default current uid)")
     p.add_argument("--max-sessions", type=int, default=64)
+    p.add_argument("--max-connections", type=int, default=128)
+    p.add_argument("--hello-timeout", type=float, default=2.0)
     p.add_argument("--max-inflight", type=int, default=4)
     p.add_argument("--rate-hz", type=int, default=10)
+    p.add_argument("--uid-rate-hz", type=int, default=50)
     p.add_argument("--lease-ttl-ms", type=int, default=30000)
     p.add_argument("--audit", default=os.path.join(root, "logs", "cbap-audit.jsonl"))
     p.add_argument("--audit-mirror", default=None)
@@ -67,8 +70,10 @@ def main(argv: list[str] | None = None) -> int:
         driver, socket_path=a.cbap_socket, token=a.token,
         lease_ttl_ms=a.lease_ttl_ms, audit_path=a.audit,
         policy=a.policy, allowed_uids=set(a.allowed_uid) if a.allowed_uid else None,
-        max_sessions=a.max_sessions, max_inflight=a.max_inflight,
-        rate_hz=a.rate_hz, audit_mirror_path=a.audit_mirror,
+        max_sessions=a.max_sessions, max_connections=a.max_connections,
+        hello_timeout=a.hello_timeout, max_inflight=a.max_inflight,
+        rate_hz=a.rate_hz, uid_rate_hz=a.uid_rate_hz,
+        audit_mirror_path=a.audit_mirror,
         audit_remote_url=a.audit_remote_url,
         require_independent_facts=a.require_independent_facts,
     )

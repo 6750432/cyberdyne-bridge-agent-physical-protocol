@@ -22,6 +22,7 @@ Known v0 limits (documented, not hidden):
 
 from __future__ import annotations
 
+import hashlib
 import hmac
 import json
 import os
@@ -83,6 +84,7 @@ class Session:
         self.events: list[dict] = []
         self.event_cv = threading.Condition()
         self.closed = False
+        self.created_at = time.monotonic()
         self.session_id = protocol.new_id("s")
 
     def send(self, msg: dict) -> bool:
@@ -119,8 +121,11 @@ class KernelServer:
                  policy: str | dict | None = None,
                  allowed_uids: set[int] | list[int] | None = None,
                  max_sessions: int = 64,
+                 max_connections: int = 128,
+                 hello_timeout: float = 2.0,
                  max_inflight: int = 4,
                  rate_hz: int = 10,
+                 uid_rate_hz: int = 50,
                  watchdog: bool = True,
                  audit_mirror_path: str | None = None,
                  audit_signing_key: str | None = None,
@@ -151,8 +156,12 @@ class KernelServer:
         self.policy = CapabilityPolicy(policy)
         self.allowed_uids = set(allowed_uids or {os.getuid()})
         self.max_sessions = max(1, int(max_sessions))
+        self.max_connections = max(1, int(max_connections))
+        self.hello_timeout = max(0.5, float(hello_timeout))
         self.max_inflight = max(1, int(max_inflight))
         self.rate_hz = max(1, int(rate_hz))
+        self.uid_rate_hz = max(1, int(uid_rate_hz))
+        self._uid_rates: dict[int, deque] = {}
         self.watchdog = bool(watchdog)
         self.require_independent_facts = bool(require_independent_facts)
         self.audit = AuditChain(
@@ -165,6 +174,8 @@ class KernelServer:
         self.monitor = AnomalyMonitor()
 
         self._sessions: set[Session] = set()
+        self._connections = 0
+        self._conn_lock = threading.Lock()
         self._fds: dict[str, Fd] = {}
         self._pending: dict[tuple, deque[Pending]] = {}
         self._idem: dict[tuple, dict] = {}
@@ -307,6 +318,22 @@ class KernelServer:
     # ── session loop ──────────────────────────────────────────
 
     def _handle_session(self, sock: socket.socket, addr: Any) -> None:
+        with self._conn_lock:
+            if self._connections >= self.max_connections:
+                self._audit("auth_failure", reason="max_connections")
+                try:
+                    sock.close()
+                except OSError:
+                    pass
+                return
+            self._connections += 1
+        try:
+            self._handle_session_body(sock, addr)
+        finally:
+            with self._conn_lock:
+                self._connections = max(0, self._connections - 1)
+
+    def _handle_session_body(self, sock: socket.socket, addr: Any) -> None:
         peer = peer_credentials(sock)
         if peer is not None and int(peer["uid"]) not in self.allowed_uids:
             self._audit("auth_failure", reason="peer_uid",
@@ -330,6 +357,10 @@ class KernelServer:
         buf = b""
         try:
             while not self._stop.is_set() and not session.closed:
+                if (not session.agent_id and
+                        time.monotonic() - session.created_at > self.hello_timeout):
+                    self._audit("auth_failure", reason="hello_timeout")
+                    break
                 try:
                     chunk = sock.recv(65536)
                 except socket.timeout:
@@ -431,6 +462,31 @@ class KernelServer:
         session.role = "operator" if is_operator else "agent"
         session.agent_id = agent_id
         grant = self.policy.grant(agent_id, operator=is_operator)
+        if grant.get("uids"):
+            uid = (session.peer or {}).get("uid")
+            if uid is None or int(uid) not in grant["uids"]:
+                self._audit("auth_failure", reason="agent_uid",
+                            agent=agent_id[:128], uid=uid)
+                session.send({
+                    "v": protocol.PROTOCOL_VERSION, "type": "error",
+                    "id": rid, "ts": protocol.now_ms(),
+                    "error": protocol.error("E_AUTH", "agent uid not allowed"),
+                })
+                return False
+        expected = grant.get("token_sha256")
+        if expected:
+            supplied_agent = auth.get("agent_token")
+            got = (hashlib.sha256(str(supplied_agent).encode("utf-8")).hexdigest()
+                   if isinstance(supplied_agent, str) else "")
+            if not hmac.compare_digest(got, str(expected)):
+                self._audit("auth_failure", reason="agent_token",
+                            agent=agent_id[:128])
+                session.send({
+                    "v": protocol.PROTOCOL_VERSION, "type": "error",
+                    "id": rid, "ts": protocol.now_ms(),
+                    "error": protocol.error("E_AUTH", "agent token required"),
+                })
+                return False
         session.capabilities = set(grant["capabilities"])
         session.allowed_devices = list(grant["devices"])
         with self._lock:
@@ -455,6 +511,7 @@ class KernelServer:
             "limits": {"max_frame": protocol.MAX_FRAME,
                        "max_inflight": self.max_inflight,
                        "rate_hz": self.rate_hz,
+                       "uid_rate_hz": self.uid_rate_hz,
                        "max_sessions": self.max_sessions},
             "devices": devices,
         })
@@ -712,6 +769,14 @@ class KernelServer:
             session.rate_times.popleft()
         if len(session.rate_times) >= self.rate_hz:
             return False
+        uid = (session.peer or {}).get("uid")
+        if uid is not None:
+            q = self._uid_rates.setdefault(int(uid), deque())
+            while q and q[0] < now - 1.0:
+                q.popleft()
+            if len(q) >= self.uid_rate_hz:
+                return False
+            q.append(now)
         session.rate_times.append(now)
         return True
 

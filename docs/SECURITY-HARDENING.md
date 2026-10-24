@@ -11,10 +11,11 @@ Implemented:
 
 ```text
 socket mode 0600 after bind
-parent directory not widened by CBAP
 SO_PEERCRED uid/gid/pid check
 default allowed uid = current uid
 --allowed-uid can add explicit operators
+per-agent uid and token_sha256 in policy
+agent_token is checked in addition to the global token
 ```
 
 Residual:
@@ -30,7 +31,7 @@ Implemented:
 
 ```text
 Kernel generates a token if none is supplied
-token file <socket>.token, mode 0600
+token file <socket>.token, mode 0600, O_NOFOLLOW
 CBAPClient auto-loads it for local clients
 raw clients must present it in hello
 wrong tokens are audited
@@ -118,8 +119,11 @@ Implemented:
 
 ```text
 SHA-256 hash chain: prev + hash on every row
+monotonic seq on every row
+signed checkpoint (<audit>.checkpoint) with seq/hash
+checkpoint mismatch detects tail truncation
 optional HMAC with CBAP_AUDIT_KEY
-0600 audit files
+0600 audit files, O_NOFOLLOW
 local mirror path
 optional remote NDJSON POST sink
 AuditChain.verify() detects edits/truncation of the chain
@@ -150,7 +154,9 @@ Residual:
 
 ```text
 this is process hygiene, not a container or seccomp sandbox.
-For hostile MCP servers use a separate UID/container/VM.
+Optional `transport.sandbox: {"type": "bwrap"|"nsjail"}` wraps the child
+when that binary is installed; absence is a hard failure, not a fallback.
+For hostile MCP servers still use a separate UID/container/VM.
 ```
 
 ## 9. Session, inflight, rate, and frame limits
@@ -158,10 +164,15 @@ For hostile MCP servers use a separate UID/container/VM.
 Implemented:
 
 ```text
+max_connections pre-auth (default 128)
+2s hello handshake timeout
 max_sessions (default 64)
 max_inflight per session (default 4)
 rate_hz per session (default 10 writes/s)
+uid_rate_hz per local uid (default 50/s)
 existing protocol.MAX_FRAME
+MCP stdout line cap 8 MB, stderr line cap 4 KB
+facts command output cap 1 MB
 limits advertised in welcome
 ```
 
@@ -238,9 +249,9 @@ no ML/anomaly service; these are deterministic fail-closed rules.
 ## Verification
 
 ```text
-CBAP conformance: 82/82
-security tests:   9
-MCP device tests: 9
+CBAP conformance: 87/87
+security tests:   13
+MCP device tests: 10
 console tests:    3
 ```
 

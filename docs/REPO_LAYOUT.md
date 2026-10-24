@@ -132,10 +132,10 @@ and imports a factory on explicit request.
 ## Verification (2026-10-24)
 
 ```text
-CBAP conformance: 82/82 passed
+CBAP conformance: 87/87 passed
 console tests:    3 passed (login / Host+Origin / estop+audit)
-security tests:   9 passed (socket/token/policy/audit/fencing/limits)
-MCP device tests: 9 passed
+security tests:   13 passed (socket/token/policy/audit/fencing/limits)
+MCP device tests: 10 passed
 brain launcher:   bash tools/启动大脑.sh --help  -> ok
 launcher syntax:  bash -n on all three root launch shims -> ok
 Alice probe:      archive/alice/tools/alice_bridge_probe.py --help -> ok

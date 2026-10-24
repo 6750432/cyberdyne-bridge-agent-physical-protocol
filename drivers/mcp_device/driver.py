@@ -50,6 +50,7 @@ from pathlib import Path
 from typing import Any
 
 from drivers.mcp_client import MCPError, MCPStdioClient
+from drivers.mcp_device.sandbox import SandboxUnavailable, wrap_command
 
 
 class MCPDeviceError(RuntimeError):
@@ -108,8 +109,13 @@ class MCPDeviceDriver:
         cwd = transport.get("cwd")
         cwd = str((base / cwd).resolve()) if cwd else str(base)
         env = dict(transport.get("env") or {})
+        try:
+            command = wrap_command([str(x) for x in transport["command"]],
+                                   transport.get("sandbox"), cwd)
+        except SandboxUnavailable as e:
+            raise MCPDeviceError("E_SAFETY", str(e))
         self.client = MCPStdioClient(
-            [str(x) for x in transport["command"]],
+            command,
             cwd=cwd, env=env, timeout=self.connect_timeout,
             inherit_env=bool(transport.get("inherit_env", False)),
             env_allowlist=transport.get("env_allowlist"),
@@ -256,6 +262,8 @@ class MCPDeviceDriver:
             )
             if proc.returncode != 0:
                 raise MCPDeviceError("E_IO", f"facts command failed: {proc.stderr[-300:]}")
+            if len(proc.stdout) > 1024 * 1024:
+                raise MCPDeviceError("E_IO", "facts command output too large")
             value = self._parse_tool_result(proc.stdout.strip())
         else:
             tool = spec.get("tool")

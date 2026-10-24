@@ -177,7 +177,8 @@ class CBAPClient:
 
     def hello(self, capabilities: list[str] | None = None,
               token: str | None = None, timeout: float = 3.0,
-              operator_token: str | None = None) -> dict:
+              operator_token: str | None = None,
+              agent_token: str | None = None) -> dict:
         if token is None:
             try:
                 with open(self.socket_path + ".token", encoding="ascii") as f:
@@ -199,6 +200,8 @@ class CBAPClient:
             auth["token"] = token
         if operator_token:
             auth["operator_token"] = operator_token
+        if agent_token:
+            auth["agent_token"] = agent_token
         if auth:
             msg["auth"] = auth
         self.send(msg)
