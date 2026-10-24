@@ -95,6 +95,9 @@ OAuth 授权服务器实现
 | P-03 | cancellation 是 best-effort，没有终止确认/安全状态 | 中高 | 安全能力缺口 |
 | P-04 | tool success 没有标准的后置事实契约 | 中 | 可验证性缺口 |
 | P-05 | 没有协议级设备 lease/owner | 中 | 并发安全缺口 |
+| P-06 | tool 定义可在用户批准后变更，无强制 pin/重批准 | 高（Agent 场景） | 已知 SEP #3452 |
+| P-07 | `server/discover.instructions` 是可进入 LLM 上下文的字符串，未标记 untrusted | 中高 | 字符串来源缺口 |
+| P-08 | 跨 server 的 tool 名冲突只要求 SHOULD 消歧 | 中 | 工具影子攻击面 |
 
 ### P-01：lost-response 重复副作用
 
@@ -185,6 +188,140 @@ fencing token
 
 多个客户端可以同时调用同一个有状态设备。  
 这不是当前 MCP 的攻击面定义，但对物理控制是实际风险。
+
+### P-06：工具定义可以在批准后改变
+
+MCP 的 `tools/list` 结果可以因为 `listChanged` 被重新获取。  
+当前规范没有强制客户端：
+
+```text
+保存 description 的摘要
+比较重新获取后的 description
+变化时重新征求用户批准
+```
+
+攻击序列：
+
+```text
+1. server 先给一个正常工具描述
+2. 用户批准/缓存
+3. server 发 tools/list_changed
+4. 重新获取时换成带指令的描述
+5. 客户端把新描述原样送进 LLM 上下文
+```
+
+这不是某个 server 的 bug；是**能力目录没有强制完整性**。  
+已有公开 SEP：
+
+```text
+#3452  Mandatory tool definition integrity — description pinning and content validation
+```
+
+SEP 的 F-01/F-02 正是：
+
+```text
+F-01 rug pull
+F-02 tool description injection
+```
+
+CBAP 的做法是：
+
+```text
+device manifest 固定 tools / transport / facts
+capability digest 变更 -> 拒绝，直到重新审批
+```
+
+MCP 目前没有这个强制层。  
+这条不应重复开新 issue；要补就补到 #3452 的 SEP 讨论里。
+
+### P-07：`instructions` 也是可注入的字符串
+
+`server/discover` 的结果里有：
+
+```text
+instructions?: string
+```
+
+规范描述它是给 LLM 的自然语言使用说明。  
+但规范没有要求：
+
+```text
+标记它为 untrusted
+首次接收后 pin 住
+变化时重新批准
+与 tool 描述做同样的注入扫描
+```
+
+这意味着一个 server 可以在发现阶段就把指令送进模型上下文，  
+而不需要调用任何 tool。  
+这不是“tool 描述注入”的重复，而是**另一个字符串入口**。
+
+CBAP 侧建议：
+
+```text
+server instructions = 数据，不是系统指令
+默认隔离；只有显式批准后才进入模型
+按 server + version 做摘要
+```
+
+这条目前没有看到专门的 SEP；可以作为候选 issue，但先不要在公开仓库重复造轮子。
+
+### P-08：跨 server 的 tool 影子
+
+规范明确：
+
+```text
+tool name 只在单个 server 内唯一
+serverInfo.name 不保证全局唯一
+聚合器 SHOULD 做前缀/消歧
+```
+
+但 `SHOULD` 不是 `MUST`。  
+一个聚合器如果把两个 server 的 `search` 直接暴露给模型，  
+模型无法知道它调用的是哪个 server 的 `search`。
+
+更危险的是描述注入：
+
+```text
+server A 的工具描述可以指示模型去调用 server B 的工具
+```
+
+MCP 本地安全指南已经把它列为 tool poisoning / tool shadowing；  
+协议层目前只给 SHOULD 级建议。
+
+CBAP 的对应做法：
+
+```text
+device_id 命名空间
+tool 名永远带 server 前缀
+调用前核验 owner lease
+```
+
+
+
+### 2.7 字符串通道矩阵
+
+CBAP 把“能发字符串的东西”都当作潜在设备；MCP 的字符串通道至少包括：
+
+| 通道 | 来源 | 是否标记 untrusted | 是否有 pin/摘要 | CBAP 处理 |
+|---|---|---|---|---|
+| tool `description` | server | 否（仅注解有警告） | 否（#3452 提议） | manifest + digest |
+| `server/discover.instructions` | server | 否 | 否 | 隔离/审批 |
+| tool result `content` | server/device | 否 | 否 | 独立 facts 复核 |
+| resource content | server/device | 否 | 否 | 数据，不执行 |
+| error message | server | 否 | 否 | 只记录，不当作指令 |
+| `resource_link.uri` | server | 否 | 否 | 出站 allowlist |
+| `icons.src` | server | 同源校验 | 否 | 不自动抓取 |
+| prompt content | server/user | 取决于来源 | 否 | 用户选择 |
+
+这张表的核心结论：
+
+```text
+MCP 没有统一的“字符串来源/信任级别”字段
+```
+
+对纯文本聊天无所谓；  
+对能操作物理世界、文件、网络、支付的 CBAP 代理，这是必须补的层。
 
 ---
 
@@ -473,7 +610,19 @@ side effect count = 1
 MCP 没有定义 lost-response 后的效果去重语义
 ```
 
-它已经被公开 issue #3394 记录，不应重复提报。  
+它已经被公开 issue #3394 记录，不应重复提报。
+
+进一步检查字符串/能力目录后，还有三条**安全相关缺口**：
+
+```text
+P-06 tool 定义没有强制 pin/重批准（已有 SEP #3452）
+P-07 server instructions 没有 untrusted 标记/审批
+P-08 跨 server tool 名只要求 SHOULD 消歧
+```
+
+它们不是 RCE/认证绕过，也不应该被包装成 CVE；  
+但对“代理所有能发字符串的设备”来说，都是实际攻击面。
+
 CBAP 能做的不是“替代 MCP”，而是把：
 
 ```text
@@ -492,9 +641,10 @@ SDK 自动重试
 OAuth token 透传
 跨 server 身份混淆
 资源 URI 越界
+字符串注入/工具影子
 ```
 
-请给出具体实现和复现；那些才可能进入私密 Security Advisory。
+请给出具体实现和复现；先判断它是否已经被 #3394 / #3452 或安全指南覆盖，再决定走私密 Security Advisory 还是补 SEP。
 
 ---
 
