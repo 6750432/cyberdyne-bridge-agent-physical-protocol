@@ -269,8 +269,8 @@ main, .site-footer {
 
 .stats {
   display: grid;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
-  gap: 1rem;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  gap: .8rem;
   margin: 2.7rem 0 0;
   padding-top: 1.1rem;
   border-top: 1px solid var(--line);

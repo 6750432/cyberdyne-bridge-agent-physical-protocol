@@ -5,7 +5,7 @@ CBAP 目前是**源码发行版**，没有预编译服务端/客户端二进制�
 
 | 版本 | 主题 | Git 快照 | 关键内容 |
 |---|---|---|---|
-| **v1.4.0** | Legacy Boundary | current | M4、root shim 移除、CBAP brain wrapper、101/101 tests |
+| **v1.4.0** | Legacy Boundary | `c6022e2` | M4、root shim 移除、CBAP brain wrapper、101/101 tests |
 | **v1.3.0** | Operator Infrastructure | `0b7cbe7` | Kernel hotplug、持久化历史、SLA、Console mTLS、resume、100/100 |
 | **v1.2.0** | Operator Productization | `5728973` | lease/approval、MCP onboarding、registry、dual approval、98/98 |
 | **v1.1.0** | Protocol 1.1 | `05d18d8` | poll filter、TCP/TLS、mTLS、96/96 |

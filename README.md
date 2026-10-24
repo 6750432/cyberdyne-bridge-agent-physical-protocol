@@ -7,13 +7,14 @@
 **把异构 Minecraft Agent，变成同一个协议下的外设。**
 
 [![CBAP](https://img.shields.io/badge/CBAP-v1-0f766e?style=flat-square)](spec/README.md)
+[![Release](https://img.shields.io/badge/release-v1.4.0-0f766e?style=flat-square)](https://github.com/6750432/cyberdyne-bridge-agent-physical-protocol/releases)
 [![Conformance](https://img.shields.io/badge/conformance-101%2F101-14b8a6?style=flat-square)](tools/cbap_conformance.py)
 [![Python](https://img.shields.io/badge/Python-3.10%2B-3776AB?style=flat-square&logo=python&logoColor=white)](kernel/)
 [![Transport](https://img.shields.io/badge/CBAP--U-Unix%20socket-334155?style=flat-square)](spec/README.md)
 [![No paid API](https://img.shields.io/badge/LLM-local%20friendly-6b7280?style=flat-square)](#)
 [![License](https://img.shields.io/badge/license-MIT-111827?style=flat-square)](LICENSE)
 
-[架构图](#架构) · [安全边界](#安全边界) · [快速开始](#快速开始) · [四个子仓](#四个-agent-子仓) · [协议保证](#协议桥保证什么) · [文档](#文档)
+[架构图](#架构) · [安全边界](#安全边界) · [快速开始](#快速开始) · [发行版](RELEASES.md) · [四个子仓](#四个-agent-子仓) · [协议保证](#协议桥保证什么) · [文档](#文档)
 
 </div>
 
@@ -273,6 +274,25 @@ Alice                  源码归档，未构建
 ```
 
 旧套件已移到 `archive/legacy-bridge/跑全部.sh`，不再属于主 CI；旧直连路径已冻结，默认脑入口是 CBAP wrapper。详见 [`docs/REPO_LAYOUT.md`](docs/REPO_LAYOUT.md) 和 [`docs/M4-Legacy-Decision.md`](docs/M4-Legacy-Decision.md)。
+
+## 发行版
+
+当前源码发行版：
+
+```text
+v1.4.0  Legacy Boundary      101/101
+v1.3.0  Operator Infra       100/100
+v1.2.0  Operator Product      98/98
+v1.1.0  Protocol 1.1          96/96
+v1.0.0  Security Baseline     82/82
+```
+
+Release 页面：
+
+- https://github.com/6750432/cyberdyne-bridge-agent-physical-protocol/releases
+
+v1.4.0 附带 `CBAP-parameters-zh.pdf`。
+版本边界和兼容性见 [`RELEASES.md`](RELEASES.md)。
 
 ## 文档
 
