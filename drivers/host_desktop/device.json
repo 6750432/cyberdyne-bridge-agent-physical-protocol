@@ -1,0 +1,8 @@
+{
+  "device_id": "host://desktop",
+  "type": "host-desktop",
+  "name": "CBAP Host Desktop Test",
+  "transport": "local-allowlist",
+  "actions": ["write_file", "list", "stat", "ping"],
+  "safety": {"estop": true, "watchdog_ms": 10000, "safe_state": "on"}
+}
