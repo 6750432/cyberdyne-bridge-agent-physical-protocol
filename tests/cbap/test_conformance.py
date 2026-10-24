@@ -87,14 +87,15 @@ class Harness:
         if start_client:
             self.client = self.new_client("cbap-operator", operator=True)
 
-    def new_client(self, agent_id="cbap-operator", operator=False):
+    def new_client(self, agent_id="cbap-operator", operator=False,
+                   features=None):
         c = CBAPClient(self.cbap_sock, agent_id=agent_id)
         c.connect()
         op = None
         if operator:
             with open(self.cbap_sock + ".operator", encoding="ascii") as f:
                 op = f.read().strip()
-        c.hello(token=None, operator_token=op)
+        c.hello(token=None, operator_token=op, features=features)
         return c
 
     def open(self, client=None, mode="rw"):
@@ -423,6 +424,30 @@ class ConformanceTest(unittest.TestCase):
         self.assertGreaterEqual(len(seqs), 2, events)
         self.assertEqual(seqs, sorted(seqs))
         self.assertEqual(len(seqs), len(set(seqs)))
+
+    # 22
+    def test_22_poll_filters_and_feature_negotiation(self):
+        self.h = Harness()
+        c = self.h.new_client("filtered", operator=True,
+                              features=["poll_filter"])
+        self.assertIn("poll_filter", c.welcome.get("features", []))
+        fd = self.h.open(c)
+        c.lease(fd)
+        _, _, r = c.write(fd, {"channel": "chat", "op": "say",
+                               "args": {"text": "filtered"}})
+        self.assertTrue(r.get("ok"), r)
+        events = c.poll(timeout_ms=1000, fds=[fd], events=["chat"])["payload"]["events"]
+        self.assertTrue(events, events)
+        self.assertTrue(all(e.get("kind") == "chat" for e in events), events)
+        self.assertTrue(all(fd in (e.get("fds") or []) for e in events), events)
+        r = c.poll(timeout_ms=0, fds=["fd-does-not-exist"])
+        self.assertEqual(r.get("error", {}).get("code"), "E_NOENT")
+        c.close()
+        plain = self.h.new_client("no-filter-feature", operator=True, features=[])
+        fd2 = self.h.open(plain)
+        r = plain.poll(timeout_ms=0, fds=[fd2])
+        self.assertEqual(r.get("error", {}).get("code"), "E_NOTSUP")
+        plain.close()
 
     # 20 + D1/D4/D5
     def test_20_driver_safety_and_health(self):

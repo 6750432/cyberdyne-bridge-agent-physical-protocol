@@ -4,21 +4,44 @@
   "title": "CBAP v1 agent message",
   "description": "CBAP-U (agent-facing) message, one JSON object per NDJSON line. CBAP-D driver messages reuse the same envelope but are defined in spec/cbap-v1.md §7.1.",
   "oneOf": [
-    { "$ref": "#/$defs/hello" },
-    { "$ref": "#/$defs/welcome" },
-    { "$ref": "#/$defs/request" },
-    { "$ref": "#/$defs/ack" },
-    { "$ref": "#/$defs/progress" },
-    { "$ref": "#/$defs/result" },
-    { "$ref": "#/$defs/event" },
-    { "$ref": "#/$defs/state" },
-    { "$ref": "#/$defs/cancel" },
-    { "$ref": "#/$defs/error" }
+    {
+      "$ref": "#/$defs/hello"
+    },
+    {
+      "$ref": "#/$defs/welcome"
+    },
+    {
+      "$ref": "#/$defs/request"
+    },
+    {
+      "$ref": "#/$defs/ack"
+    },
+    {
+      "$ref": "#/$defs/progress"
+    },
+    {
+      "$ref": "#/$defs/result"
+    },
+    {
+      "$ref": "#/$defs/event"
+    },
+    {
+      "$ref": "#/$defs/state"
+    },
+    {
+      "$ref": "#/$defs/cancel"
+    },
+    {
+      "$ref": "#/$defs/error"
+    }
   ],
   "$defs": {
     "error_info": {
       "type": "object",
-      "required": ["code", "message"],
+      "required": [
+        "code",
+        "message"
+      ],
       "properties": {
         "code": {
           "type": "string",
@@ -41,21 +64,43 @@
             "E_INTERNAL"
           ]
         },
-        "message": { "type": "string", "minLength": 1 },
-        "retryable": { "type": "boolean" },
-        "detail": { "type": "object" }
+        "message": {
+          "type": "string",
+          "minLength": 1
+        },
+        "retryable": {
+          "type": "boolean"
+        },
+        "detail": {
+          "type": "object"
+        }
       },
       "additionalProperties": true
     },
     "device_ref": {
       "type": "object",
-      "required": ["device_id", "type", "state"],
+      "required": [
+        "device_id",
+        "type",
+        "state"
+      ],
       "properties": {
-        "device_id": { "type": "string", "minLength": 3 },
-        "type": { "type": "string", "minLength": 1 },
+        "device_id": {
+          "type": "string",
+          "minLength": 3
+        },
+        "type": {
+          "type": "string",
+          "minLength": 1
+        },
         "state": {
           "type": "string",
-          "enum": ["ready", "busy", "offline", "error"]
+          "enum": [
+            "ready",
+            "busy",
+            "offline",
+            "error"
+          ]
         }
       },
       "additionalProperties": true
@@ -63,34 +108,84 @@
     "limits": {
       "type": "object",
       "properties": {
-        "max_frame": { "type": "integer", "minimum": 1024 },
-        "max_inflight": { "type": "integer", "minimum": 1 },
-        "rate_hz": { "type": "number", "exclusiveMinimum": 0 }
+        "max_frame": {
+          "type": "integer",
+          "minimum": 1024
+        },
+        "max_inflight": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "rate_hz": {
+          "type": "number",
+          "exclusiveMinimum": 0
+        }
       },
       "additionalProperties": true
     },
     "hello": {
       "type": "object",
-      "required": ["v", "type", "ts", "agent_id", "role"],
+      "required": [
+        "v",
+        "type",
+        "ts",
+        "agent_id",
+        "role"
+      ],
       "properties": {
-        "v": { "const": "1.0" },
-        "type": { "const": "hello" },
-        "id": { "type": "string" },
-        "ts": { "type": "integer", "minimum": 0 },
-        "agent_id": { "type": "string", "minLength": 1 },
-        "role": { "const": "agent" },
+        "v": {
+          "const": "1.0"
+        },
+        "type": {
+          "const": "hello"
+        },
+        "id": {
+          "type": "string"
+        },
+        "ts": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "agent_id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "role": {
+          "const": "agent"
+        },
         "auth": {
           "type": "object",
-          "properties": { "token": { "type": "string" } },
+          "properties": {
+            "token": {
+              "type": "string"
+            }
+          },
           "additionalProperties": true
         },
-        "encoding": { "type": "string", "enum": ["json", "cbor"] },
+        "encoding": {
+          "type": "string",
+          "enum": [
+            "json",
+            "cbor"
+          ]
+        },
         "capabilities": {
           "type": "array",
-          "items": { "type": "string" },
+          "items": {
+            "type": "string"
+          },
           "uniqueItems": true
         },
-        "limits": { "$ref": "#/$defs/limits" }
+        "limits": {
+          "$ref": "#/$defs/limits"
+        },
+        "features": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "uniqueItems": true
+        }
       },
       "additionalProperties": true
     },
@@ -105,132 +200,352 @@
         "session_id"
       ],
       "properties": {
-        "v": { "const": "1.0" },
-        "type": { "const": "welcome" },
-        "id": { "type": "string" },
-        "ts": { "type": "integer", "minimum": 0 },
-        "kernel_id": { "type": "string", "minLength": 1 },
-        "protocol": { "type": "string", "pattern": "^1\\.[0-9]+$" },
-        "session_id": { "type": "string", "minLength": 1 },
-        "encoding": { "type": "string", "enum": ["json", "cbor"] },
+        "v": {
+          "const": "1.0"
+        },
+        "type": {
+          "const": "welcome"
+        },
+        "id": {
+          "type": "string"
+        },
+        "ts": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "kernel_id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "protocol": {
+          "type": "string",
+          "pattern": "^1\\.[0-9]+$"
+        },
+        "session_id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "encoding": {
+          "type": "string",
+          "enum": [
+            "json",
+            "cbor"
+          ]
+        },
         "capabilities": {
           "type": "array",
-          "items": { "type": "string" },
+          "items": {
+            "type": "string"
+          },
           "uniqueItems": true
         },
-        "limits": { "$ref": "#/$defs/limits" },
+        "limits": {
+          "$ref": "#/$defs/limits"
+        },
         "devices": {
           "type": "array",
-          "items": { "$ref": "#/$defs/device_ref" }
+          "items": {
+            "$ref": "#/$defs/device_ref"
+          }
+        },
+        "features": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "uniqueItems": true
         }
       },
       "additionalProperties": true
     },
     "request": {
       "type": "object",
-      "required": ["v", "type", "id", "ts", "op", "args"],
+      "required": [
+        "v",
+        "type",
+        "id",
+        "ts",
+        "op",
+        "args"
+      ],
       "properties": {
-        "v": { "const": "1.0" },
-        "type": { "const": "request" },
-        "id": { "type": "string", "minLength": 1 },
-        "ts": { "type": "integer", "minimum": 0 },
-        "op": { "type": "string", "minLength": 1 },
-        "args": { "type": "object" },
-        "deadline_ms": { "type": "integer", "minimum": 0 },
-        "idempotency_key": { "type": "string", "minLength": 1 }
+        "v": {
+          "const": "1.0"
+        },
+        "type": {
+          "const": "request"
+        },
+        "id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "ts": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "op": {
+          "type": "string",
+          "minLength": 1
+        },
+        "args": {
+          "type": "object"
+        },
+        "deadline_ms": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "idempotency_key": {
+          "type": "string",
+          "minLength": 1
+        }
       },
       "additionalProperties": true
     },
     "ack": {
       "type": "object",
-      "required": ["v", "type", "id", "ts", "state"],
+      "required": [
+        "v",
+        "type",
+        "id",
+        "ts",
+        "state"
+      ],
       "properties": {
-        "v": { "const": "1.0" },
-        "type": { "const": "ack" },
-        "id": { "type": "string", "minLength": 1 },
-        "ts": { "type": "integer", "minimum": 0 },
-        "state": { "type": "string", "enum": ["accepted", "running"] }
+        "v": {
+          "const": "1.0"
+        },
+        "type": {
+          "const": "ack"
+        },
+        "id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "ts": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "state": {
+          "type": "string",
+          "enum": [
+            "accepted",
+            "running"
+          ]
+        }
       },
       "additionalProperties": true
     },
     "progress": {
       "type": "object",
-      "required": ["v", "type", "id", "ts", "progress"],
+      "required": [
+        "v",
+        "type",
+        "id",
+        "ts",
+        "progress"
+      ],
       "properties": {
-        "v": { "const": "1.0" },
-        "type": { "const": "progress" },
-        "id": { "type": "string", "minLength": 1 },
-        "ts": { "type": "integer", "minimum": 0 },
-        "progress": { "type": "number", "minimum": 0, "maximum": 1 },
-        "detail": { "type": "object" }
+        "v": {
+          "const": "1.0"
+        },
+        "type": {
+          "const": "progress"
+        },
+        "id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "ts": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "progress": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 1
+        },
+        "detail": {
+          "type": "object"
+        }
       },
       "additionalProperties": true
     },
     "result": {
       "type": "object",
-      "required": ["v", "type", "id", "ts", "ok"],
+      "required": [
+        "v",
+        "type",
+        "id",
+        "ts",
+        "ok"
+      ],
       "properties": {
-        "v": { "const": "1.0" },
-        "type": { "const": "result" },
-        "id": { "type": "string", "minLength": 1 },
-        "ts": { "type": "integer", "minimum": 0 },
-        "ok": { "type": "boolean" },
-        "payload": { "type": "object" },
-        "facts": { "type": "object" },
-        "error": { "$ref": "#/$defs/error_info" }
+        "v": {
+          "const": "1.0"
+        },
+        "type": {
+          "const": "result"
+        },
+        "id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "ts": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "ok": {
+          "type": "boolean"
+        },
+        "payload": {
+          "type": "object"
+        },
+        "facts": {
+          "type": "object"
+        },
+        "error": {
+          "$ref": "#/$defs/error_info"
+        }
       },
       "additionalProperties": true
     },
     "event": {
       "type": "object",
-      "required": ["v", "type", "seq", "ts", "kind"],
+      "required": [
+        "v",
+        "type",
+        "seq",
+        "ts",
+        "kind"
+      ],
       "properties": {
-        "v": { "const": "1.0" },
-        "type": { "const": "event" },
-        "id": { "type": "string" },
-        "seq": { "type": "integer", "minimum": 0 },
-        "ts": { "type": "integer", "minimum": 0 },
-        "kind": { "type": "string", "minLength": 1 },
-        "payload": { "type": "object" }
+        "v": {
+          "const": "1.0"
+        },
+        "type": {
+          "const": "event"
+        },
+        "id": {
+          "type": "string"
+        },
+        "seq": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "ts": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "kind": {
+          "type": "string",
+          "minLength": 1
+        },
+        "payload": {
+          "type": "object"
+        }
       },
       "additionalProperties": true
     },
     "state": {
       "type": "object",
-      "required": ["v", "type", "seq", "ts", "device_id", "payload"],
+      "required": [
+        "v",
+        "type",
+        "seq",
+        "ts",
+        "device_id",
+        "payload"
+      ],
       "properties": {
-        "v": { "const": "1.0" },
-        "type": { "const": "state" },
-        "seq": { "type": "integer", "minimum": 0 },
-        "ts": { "type": "integer", "minimum": 0 },
-        "t_mono": { "type": "integer", "minimum": 0 },
-        "device_id": { "type": "string", "minLength": 3 },
-        "payload": { "type": "object" }
+        "v": {
+          "const": "1.0"
+        },
+        "type": {
+          "const": "state"
+        },
+        "seq": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "ts": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "t_mono": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "device_id": {
+          "type": "string",
+          "minLength": 3
+        },
+        "payload": {
+          "type": "object"
+        }
       },
       "additionalProperties": true
     },
     "cancel": {
       "type": "object",
-      "required": ["v", "type", "id", "ts", "target"],
+      "required": [
+        "v",
+        "type",
+        "id",
+        "ts",
+        "target"
+      ],
       "properties": {
-        "v": { "const": "1.0" },
-        "type": { "const": "cancel" },
-        "id": { "type": "string", "minLength": 1 },
-        "ts": { "type": "integer", "minimum": 0 },
-        "target": { "type": "string", "minLength": 1 },
-        "reason": { "type": "string" }
+        "v": {
+          "const": "1.0"
+        },
+        "type": {
+          "const": "cancel"
+        },
+        "id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "ts": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "target": {
+          "type": "string",
+          "minLength": 1
+        },
+        "reason": {
+          "type": "string"
+        }
       },
       "additionalProperties": true
     },
     "error": {
       "type": "object",
-      "required": ["v", "type", "id", "ts", "error"],
+      "required": [
+        "v",
+        "type",
+        "id",
+        "ts",
+        "error"
+      ],
       "properties": {
-        "v": { "const": "1.0" },
-        "type": { "const": "error" },
-        "id": { "type": "string", "minLength": 1 },
-        "ts": { "type": "integer", "minimum": 0 },
-        "error": { "$ref": "#/$defs/error_info" }
+        "v": {
+          "const": "1.0"
+        },
+        "type": {
+          "const": "error"
+        },
+        "id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "ts": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "error": {
+          "$ref": "#/$defs/error_info"
+        }
       },
       "additionalProperties": true
     }

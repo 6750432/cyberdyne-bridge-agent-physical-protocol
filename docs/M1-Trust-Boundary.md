@@ -2,7 +2,7 @@
 
 **状态**：software controls implemented；物理/基础设施项明确标注  
 **日期**：2026-10-24  
-**基线**：CBAP 93/93 tests
+**基线**：CBAP 96/96 tests
 
 M1 的目标不是增加协议功能，而是让第三方 MCP 设备、审计和恢复路径的信任边界可配置、可验证、失败关闭。
 
@@ -174,7 +174,7 @@ operator token
 [x] remote audit ack 可选并可验证
 [x] 删除审计尾部会被检出
 [x] resume 明确不可用
-[x] 93/93 tests 全绿
+[x] 96/96 tests 全绿
 
 部署项（必须由环境打开）：
 [ ] 生产使用独立 UID 或 sandbox

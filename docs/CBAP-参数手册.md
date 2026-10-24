@@ -113,6 +113,7 @@ Agent → Kernel：
 | `auth.agent_token` | 若 policy 配置 `token_sha256`，必须提供；Kernel 比较 SHA-256 |
 | `capabilities` | **请求值**，不保证授予；实际以 `welcome.capabilities` 为准 |
 | `encoding` | 实现只处理 JSON；CBOR 未实现 |
+| `features` | 可选特性请求；当前支持 `poll_filter` |
 | `limits` | 当前忽略 |
 
 ### 3.2 `welcome`
@@ -390,10 +391,10 @@ ack accepted
 ### 4.6 `poll`
 
 ```json
-{"op":"poll","args":{"timeout_ms":1000}}
+{"op":"poll","args":{"timeout_ms":1000,"fds":["fd-1"],"events":["chat"]}}
 ```
 
-**当前实现只读取 `timeout_ms`**，草案里的 `fds` / `events` 参数被忽略。  
+`fds` / `events` 需要 `hello.features` 授予 `poll_filter`；未知 fd -> `E_NOENT`。
 返回 session 事件队列：
 
 ```json
@@ -644,6 +645,12 @@ security_degrade, session_end
 | `audit_remote_url` | str/null | env | 远程 NDJSON |
 | `audit_remote_token` | str/null | env | Bearer token |
 | `require_independent_facts` | bool | `False` | 拒绝未标记 independent 的结果 |
+| `tcp_host` | str/null | 无 | 可选 TCP bind host |
+| `tcp_port` | int/null | 无 | 可选 TCP port；0=临时端口 |
+| `tls_cert` | str/null | 无 | 服务端证书 |
+| `tls_key` | str/null | 无 | 服务端私钥 |
+| `tls_ca` | str/null | 无 | 客户端信任 CA |
+| `tls_require_client_cert` | bool | `False` | mTLS 必需 |
 
 ### 7.2 Kernel CLI
 
@@ -671,6 +678,12 @@ python3 -m kernel.legacy_runtime [options]
 | `--audit-mirror` | 无 | |
 | `--audit-remote-url` | 无 | |
 | `--require-independent-facts` | false | |
+| `--tcp-host` | 无 | 可选 TCP bind host |
+| `--tcp-port` | 无 | 可选 TCP port |
+| `--tls-cert` | 无 | 服务端证书 |
+| `--tls-key` | 无 | 服务端私钥 |
+| `--tls-ca` | 无 | 客户端 CA |
+| `--tls-require-client-cert` | false | mTLS |
 | `--check` | — | 连接 hand、打印 health 后退出 |
 
 ### 7.3 Token 文件
@@ -1296,9 +1309,9 @@ Console audit limit       80 default / 500 max
 
 | 项 | `spec/cbap-v1.md` | 当前实现 |
 |---|---|---|
-| TCP | 可选支持 | 未实现，只有 UDS |
+| TCP | 可选支持 | 可选 Tokened TCP；TLS/mTLS 可选 |
 | CBOR | hello 可协商 | 未实现 |
-| `poll` | `fds`/`events` | 只读 `timeout_ms`，返回 session 事件 |
+| `poll` | `fds`/`events` | 已支持，需协商 `poll_filter` |
 | `lease.mode` | 有 | 忽略 |
 | `progress` | 有 | 不发送 |
 | `event.seq` | 单调递增 | 当前实现已单调递增。 |
@@ -1310,7 +1323,7 @@ Console audit limit       80 default / 500 max
 | hello capabilities | 请求权限 | 以 policy 授予为准 |
 | global state | 推送 | 只推给持有该设备 fd 的会话 |
 | `write` 前置失败 | result | 无 ack；`CBAPClient.write` 可能表现为超时 |
-| spec 用例数 | 20 条 | 当前 93 条实现测试 |
+| spec 用例数 | 20 条 | 当前 96 条实现测试 |
 
 ---
 
@@ -1337,8 +1350,9 @@ python3 tools/mcp_device_probe.py drivers/mcp_device/examples/light.json \
 当前状态：
 
 ```text
-CBAP conformance: 93/93
+CBAP conformance: 96/96
 console tests:    3
+transport tests:  2
 security tests:   14
 MCP device tests: 14
 ```

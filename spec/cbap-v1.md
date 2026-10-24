@@ -1,6 +1,6 @@
 # CBAP v1 · Cyberdyne Bridge Agent Protocol
 
-- **状态**：**Implemented profile 1.0**（已实现并通过 93 条测试）；超出 1.0 的能力见 [`implementation-matrix.md`](implementation-matrix.md)
+- **状态**：**Implemented profile 1.0**（已实现并通过 96 条测试）；超出 1.0 的能力见 [`implementation-matrix.md`](implementation-matrix.md)
 - **版本**：1.0.0
 - **日期**：2026-10-24
 - **范围**：Agent ↔ Kernel 的系统调用 ABI（CBAP-U），以及 Kernel ↔ Driver 的驱动 ABI（CBAP-D）
@@ -70,7 +70,8 @@
 v1 **MUST** 支持：
 
 - Unix domain socket（默认）；
-- TCP `127.0.0.1` + token：**1.0 未实现**，列为 v1.1 extension。
+- TCP `127.0.0.1` + token：**可选实现**；用 `tcp_host/tcp_port` 打开，token 仍必需。
+- TLS/mTLS：可选；`tls_cert/tls_key/tls_ca/tls_require_client_cert`。
 
 v1 **MAY** 支持：共享内存、串口、CAN、ROS 2/DDS（作为 v1.x 扩展）。
 
@@ -80,13 +81,32 @@ v1 **MAY** 支持：共享内存、串口、CAN、ROS 2/DDS（作为 v1.x 扩展
 - 单行 **MUST NOT** 超过 64 KiB；超过 → `E_FRAME`，丢弃该行。
 - 空行 **MUST** 忽略。
 - 解析失败 **MUST** 返回 `E_PROTOCOL`，且 **MUST NOT** 崩溃。
-- CBOR / Protobuf / 共享内存：**1.0 未实现**；`encoding` 只接受 `json`，其他值不改变实现。
+- CBOR / Protobuf / 共享内存：**未实现**；`encoding` 只接受 `json`。
 
 ### 3.3 连接与重连
 
 - Agent 连接后 **MUST** 先发 `hello`；否则 kernel **MUST** 返回 `E_PROTOCOL` 并关闭。
 - Kernel **MUST** 在 `welcome` 中返回 `protocol`、`kernel_id`、`limits`、`devices`。
 - 断线重连 **MUST** 使用新的 `session_id`；`state.seq` 由 Kernel 单调递增，Agent 用它判断丢帧。
+
+### 3.4 Feature negotiation（1.0 additive）
+
+`hello.features` 可请求：
+
+```json
+{"features":["poll_filter"]}
+```
+
+Kernel 在 `welcome.features` 返回实际授予：
+
+```json
+{"features":["poll_filter"]}
+```
+
+- 未知 feature 忽略；
+- 未协商 `poll_filter` 时，传 `poll.fds/events` 返回 `E_NOTSUP`；
+- 协商后支持过滤；
+- 当前只定义 `poll_filter`。
 - 重连后 **MUST NOT** 自动重放未确认的 `write`；需要重放时用 `idempotency_key`。
 
 ---
@@ -336,11 +356,19 @@ v1 **MAY** 支持：共享内存、串口、CAN、ROS 2/DDS（作为 v1.x 扩展
 ### 6.6 `poll`
 
 ```json
-{"op":"poll","args":{"timeout_ms":1000}}
+{"op":"poll","args":{"timeout_ms":1000,"fds":["fd-7"],"events":["chat"]}}
 ```
 
-- 1.0 实现只读取 `timeout_ms`；`fds` / `events` 过滤属于 v1.1。
-- 返回 `{"events":[{"kind":"...","payload":{...}}]}`。
+- `fds` / `events` 需要 `hello.features` 授予 `poll_filter`；
+- 未授予就传过滤参数 -> `E_NOTSUP`；
+- 未知 fd -> `E_NOENT`；
+- 返回：
+
+```json
+{"events":[{"kind":"chat","fd":"fd-7","fds":["fd-7"],"payload":{},"seq":4}]}
+```
+
+- 过滤不匹配的事件保留在队列中；
 - 超时无事件 → `ok:true` + 空数组（不是错误）。
 
 ### 6.7 `lease`
@@ -549,7 +577,7 @@ v1 控制面是 JSON/NDJSON，适合 MC（1–20 Hz）和低频机器人指令�
 
 ## 13. 一致性
 
-实现 **MUST** 通过 `spec/conformance-v1.md` 的当前 93 条用例，才能声明“CBAP v1 compatible”。
+实现 **MUST** 通过 `spec/conformance-v1.md` 的当前 96 条用例，才能声明“CBAP v1 compatible”。
 
 一致性等级：
 

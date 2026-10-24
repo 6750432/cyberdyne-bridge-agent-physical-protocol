@@ -21,8 +21,17 @@ class CBAPError(Exception):
 
 
 class CBAPClient:
-    def __init__(self, socket_path: str, agent_id: str = "cbap-client"):
-        self.socket_path = socket_path
+    def __init__(self, socket_path: str | None = None,
+                 agent_id: str = "cbap-client",
+                 tcp_host: str | None = None,
+                 tcp_port: int | None = None,
+                 tls_context=None,
+                 tls_server_hostname: str | None = None):
+        self.socket_path = socket_path or ""
+        self.tcp_host = tcp_host
+        self.tcp_port = int(tcp_port) if tcp_port is not None else None
+        self.tls_context = tls_context
+        self.tls_server_hostname = tls_server_hostname
         self.agent_id = agent_id
         self._sock: socket.socket | None = None
         self._reader: threading.Thread | None = None
@@ -44,9 +53,16 @@ class CBAPClient:
     # ── lifecycle ──────────────────────────────────────────────
 
     def connect(self, timeout: float = 3.0) -> bool:
-        s = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
-        s.settimeout(timeout)
-        s.connect(self.socket_path)
+        if self.tcp_host:
+            s = socket.create_connection((self.tcp_host, self.tcp_port or 0),
+                                         timeout=timeout)
+            if self.tls_context is not None:
+                s = self.tls_context.wrap_socket(
+                    s, server_hostname=self.tls_server_hostname or self.tcp_host)
+        else:
+            s = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
+            s.settimeout(timeout)
+            s.connect(self.socket_path)
         s.settimeout(0.5)
         self._sock = s
         self._connected = True
@@ -178,8 +194,9 @@ class CBAPClient:
     def hello(self, capabilities: list[str] | None = None,
               token: str | None = None, timeout: float = 3.0,
               operator_token: str | None = None,
-              agent_token: str | None = None) -> dict:
-        if token is None:
+              agent_token: str | None = None,
+              features: list[str] | None = None) -> dict:
+        if token is None and not self.tcp_host:
             try:
                 with open(self.socket_path + ".token", encoding="ascii") as f:
                     token = f.read().strip()
@@ -195,6 +212,10 @@ class CBAPClient:
             "role": "agent",
             "capabilities": capabilities or ["read", "write", "lease", "estop"],
         }
+        if features is None:
+            features = ["poll_filter"]
+        if features:
+            msg["features"] = list(features)
         auth = {}
         if token:
             auth["token"] = token
@@ -239,8 +260,15 @@ class CBAPClient:
         result = self.wait(rid, timeout)
         return rid, ack, result
 
-    def poll(self, timeout_ms: int = 0, timeout: float = 5.0) -> dict:
-        return self.call("poll", {"timeout_ms": timeout_ms}, timeout)
+    def poll(self, timeout_ms: int = 0, timeout: float = 5.0,
+             fds: list[str] | None = None,
+             events: list[str] | None = None) -> dict:
+        args: dict = {"timeout_ms": timeout_ms}
+        if fds is not None:
+            args["fds"] = list(fds)
+        if events is not None:
+            args["events"] = list(events)
+        return self.call("poll", args, timeout)
 
     def estop(self, fd: str | None = None, reason: str = "client",
               timeout: float = 5.0) -> dict:

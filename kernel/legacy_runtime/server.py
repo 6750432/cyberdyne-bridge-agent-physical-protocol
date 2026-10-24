@@ -27,6 +27,7 @@ import hmac
 import json
 import os
 import socket
+import ssl
 import threading
 import time
 import traceback
@@ -87,6 +88,7 @@ class Session:
         self.closed = False
         self.created_at = time.monotonic()
         self.session_id = protocol.new_id("s")
+        self.features: set[str] = set()
 
     def send(self, msg: dict) -> bool:
         if self.closed:
@@ -108,6 +110,22 @@ class Session:
         with self.event_cv:
             out, self.events = self.events, []
             return out
+
+    def take_events(self, fds: set[str] | None = None,
+                    kinds: set[str] | None = None) -> list[dict]:
+        with self.event_cv:
+            picked, left = [], []
+            for ev in self.events:
+                ev_fds = set(ev.get("fds") or ([ev["fd"]] if ev.get("fd") else []))
+                if fds and not (ev_fds & fds):
+                    left.append(ev)
+                    continue
+                if kinds and str(ev.get("kind")) not in kinds:
+                    left.append(ev)
+                    continue
+                picked.append(ev)
+            self.events = left
+            return picked
 
 
 class KernelServer:
@@ -133,7 +151,13 @@ class KernelServer:
                  audit_remote_url: str | None = None,
                  audit_remote_token: str | None = None,
                  audit_require_remote_ack: bool = False,
-                 require_independent_facts: bool = False):
+                 require_independent_facts: bool = False,
+                 tcp_host: str | None = None,
+                 tcp_port: int | None = None,
+                 tls_cert: str | None = None,
+                 tls_key: str | None = None,
+                 tls_ca: str | None = None,
+                 tls_require_client_cert: bool = False):
         # 多设备：drivers=[legacy, dataflow...]；旧单驱动参数仍然兼容。
         if drivers is None:
             drivers = [driver] if driver is not None else []
@@ -196,6 +220,33 @@ class KernelServer:
         self._lease_waiters: dict[str, deque] = {}
 
         self._server: socket.socket | None = None
+        self.tcp_host = tcp_host
+        self.tcp_port = int(tcp_port) if tcp_port is not None else None
+        self.tls_cert = tls_cert
+        self.tls_key = tls_key
+        self.tls_ca = tls_ca
+        self.tls_require_client_cert = bool(tls_require_client_cert)
+        self._tcp_server: socket.socket | None = None
+        self._tcp_thread: threading.Thread | None = None
+        self._tcp_ready = threading.Event()
+        self._tcp_error: str | None = None
+        self._tls_context: ssl.SSLContext | None = None
+        if self.tcp_port is not None:
+            if bool(tls_cert) != bool(tls_key):
+                raise ValueError("E_INVAL: tls_cert and tls_key must be paired")
+            if self.tls_require_client_cert and not tls_cert:
+                raise ValueError("E_INVAL: tls_require_client_cert requires tls_cert")
+            if tls_cert:
+                ctx = ssl.SSLContext(ssl.PROTOCOL_TLS_SERVER)
+                ctx.minimum_version = ssl.TLSVersion.TLSv1_2
+                ctx.load_cert_chain(tls_cert, tls_key)
+                if tls_ca:
+                    ctx.load_verify_locations(tls_ca)
+                    ctx.verify_mode = (ssl.CERT_REQUIRED if
+                                       self.tls_require_client_cert else ssl.CERT_OPTIONAL)
+                elif self.tls_require_client_cert:
+                    raise ValueError("E_INVAL: tls_require_client_cert requires tls_ca")
+                self._tls_context = ctx
         self._stop = threading.Event()
         self._ready = threading.Event()
         self._thread: threading.Thread | None = None
@@ -219,6 +270,13 @@ class KernelServer:
             target=self.serve_forever, name="cbap-kernel", daemon=True)
         self._thread.start()
         ok = self._ready.wait(timeout)
+        if ok and self.tcp_port is not None:
+            self._tcp_thread = threading.Thread(
+                target=self._serve_tcp, name="cbap-tcp", daemon=True)
+            self._tcp_thread.start()
+            if not self._tcp_ready.wait(timeout) or self._tcp_error:
+                self.stop()
+                return False
         if ok and self.watchdog and not (self._watchdog_thread and
                                          self._watchdog_thread.is_alive()):
             self._watchdog_thread = threading.Thread(
@@ -277,11 +335,15 @@ class KernelServer:
         self._watchdog_thread = None
         srv = self._server
         self._server = None
-        try:
-            if srv:
-                srv.close()
-        except OSError:
-            pass
+        for listener in (srv, self._tcp_server):
+            try:
+                if listener:
+                    listener.close()
+            except OSError:
+                pass
+        self._tcp_server = None
+        if self._tcp_thread and self._tcp_thread.is_alive():
+            self._tcp_thread.join(timeout=1.0)
         with self._lock:
             sessions = list(self._sessions)
         for s in sessions:
@@ -292,6 +354,49 @@ class KernelServer:
             s.closed = True
         if self._thread and self._thread.is_alive():
             self._thread.join(timeout=1.0)
+
+    def _serve_tcp(self) -> None:
+        srv = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        srv.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+        self._tcp_server = srv
+        try:
+            srv.bind((self.tcp_host or "127.0.0.1", self.tcp_port or 0))
+            self.tcp_port = int(srv.getsockname()[1])
+            srv.listen(16)
+            srv.settimeout(0.5)
+            self._tcp_ready.set()
+            self._audit("kernel_tcp_start", host=self.tcp_host or "127.0.0.1",
+                        port=self.tcp_port, tls=bool(self._tls_context),
+                        mtls=bool(self.tls_require_client_cert))
+            while not self._stop.is_set():
+                try:
+                    conn, addr = srv.accept()
+                except socket.timeout:
+                    continue
+                except OSError:
+                    break
+                try:
+                    if self._tls_context is not None:
+                        conn = self._tls_context.wrap_socket(conn, server_side=True)
+                except (ssl.SSLError, OSError):
+                    try:
+                        conn.close()
+                    except OSError:
+                        pass
+                    continue
+                t = threading.Thread(
+                    target=self._handle_session, args=(conn, addr),
+                    name="cbap-tcp-session", daemon=True)
+                t.start()
+        except OSError as e:
+            self._tcp_error = str(e)
+            self._audit("kernel_error", error=f"tcp: {e}")
+            self._tcp_ready.set()
+        finally:
+            try:
+                srv.close()
+            except OSError:
+                pass
 
     def _watchdog_loop(self) -> None:
         """Best-effort software watchdog; hardware kill is still external."""
@@ -339,7 +444,8 @@ class KernelServer:
                 self._connections = max(0, self._connections - 1)
 
     def _handle_session_body(self, sock: socket.socket, addr: Any) -> None:
-        peer = peer_credentials(sock)
+        peer = (peer_credentials(sock)
+                if getattr(sock, "family", None) == socket.AF_UNIX else None)
         if peer is not None and int(peer["uid"]) not in self.allowed_uids:
             self._audit("auth_failure", reason="peer_uid",
                         uid=peer.get("uid"), gid=peer.get("gid"),
@@ -492,6 +598,11 @@ class KernelServer:
                     "error": protocol.error("E_AUTH", "agent token required"),
                 })
                 return False
+        requested_features = msg.get("features") or []
+        if not isinstance(requested_features, list):
+            requested_features = []
+        session.features = {str(x) for x in requested_features
+                            if str(x) in protocol.SUPPORTED_FEATURES}
         session.capabilities = set(grant["capabilities"])
         session.allowed_devices = list(grant["devices"])
         with self._lock:
@@ -513,6 +624,7 @@ class KernelServer:
             "protocol": protocol.PROTOCOL_VERSION,
             "session_id": session.session_id,
             "capabilities": sorted(session.capabilities),
+            "features": sorted(session.features),
             "limits": {"max_frame": protocol.MAX_FRAME,
                        "max_inflight": self.max_inflight,
                        "rate_hz": self.rate_hz,
@@ -1088,14 +1200,33 @@ class KernelServer:
         timeout_ms = args.get("timeout_ms", 0)
         if not isinstance(timeout_ms, int) or timeout_ms < 0:
             raise _OpError("E_INVAL", "timeout_ms must be a non-negative int")
+        fds = args.get("fds")
+        kinds = args.get("events")
+        if fds is not None:
+            if not isinstance(fds, list) or not all(isinstance(x, str) for x in fds):
+                raise _OpError("E_INVAL", "fds must be a list of strings")
+            fds = set(fds)
+            unknown = fds - set(session.fds)
+            if unknown:
+                raise _OpError("E_NOENT", f"unknown fd: {sorted(unknown)[0]}")
+        if kinds is not None:
+            if not isinstance(kinds, list) or not all(isinstance(x, str) for x in kinds):
+                raise _OpError("E_INVAL", "events must be a list of strings")
+            kinds = set(kinds)
+        if ("poll_filter" not in session.features and
+                (fds is not None or kinds is not None)):
+            raise _OpError("E_NOTSUP", "poll filters require negotiated feature")
         deadline = time.monotonic() + timeout_ms / 1000.0
-        with session.event_cv:
-            while not session.events and not session.closed:
+        events = []
+        while not session.closed:
+            events = session.take_events(fds, kinds)
+            if events:
+                break
+            with session.event_cv:
                 left = deadline - time.monotonic()
                 if left <= 0:
                     break
                 session.event_cv.wait(min(left, 0.1))
-            events, session.events = session.events, []
         self._result(session, rid, True, payload={"events": events})
 
     def _handle_cancel(self, session: Session, msg: dict) -> None:
@@ -1226,11 +1357,14 @@ class KernelServer:
         with self._lock:
             self._event_seq += 1
             event_seq = self._event_seq
-            sessions = [s for s in self._sessions if s.agent_id and not s.closed]
+            sessions = [(s, [f.fd for f in s.fds.values()
+                             if f.device_id == payload.get("device_id")])
+                        for s in self._sessions if s.agent_id and not s.closed]
         msg = protocol.event(kind, payload, seq=event_seq)
-        for s in sessions:
+        for s, fds in sessions:
             s.push_event({"kind": kind, "payload": payload, "ts": msg["ts"],
-                          "seq": event_seq})
+                          "seq": event_seq, "fd": fds[0] if len(fds) == 1 else None,
+                          "fds": fds})
 
     def _on_disconnect(self, driver, reason: str) -> None:
         self._on_event(driver, {"type": "event", "kind": "device_offline",

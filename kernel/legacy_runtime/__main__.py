@@ -47,6 +47,14 @@ def main(argv: list[str] | None = None) -> int:
     p.add_argument("--audit-remote-url", default=None)
     p.add_argument("--audit-require-ack", action="store_true")
     p.add_argument("--require-independent-facts", action="store_true")
+    p.add_argument("--tcp-host", default=None,
+                   help="optional TCP bind host; token still required")
+    p.add_argument("--tcp-port", type=int, default=None,
+                   help="optional TCP port (0 = ephemeral)")
+    p.add_argument("--tls-cert", default=None)
+    p.add_argument("--tls-key", default=None)
+    p.add_argument("--tls-ca", default=None)
+    p.add_argument("--tls-require-client-cert", action="store_true")
     p.add_argument("--check", action="store_true",
                    help="connect to the hand, print health, then exit")
     a = p.parse_args(argv)
@@ -78,6 +86,9 @@ def main(argv: list[str] | None = None) -> int:
         audit_remote_url=a.audit_remote_url,
         audit_require_remote_ack=a.audit_require_ack,
         require_independent_facts=a.require_independent_facts,
+        tcp_host=a.tcp_host, tcp_port=a.tcp_port,
+        tls_cert=a.tls_cert, tls_key=a.tls_key, tls_ca=a.tls_ca,
+        tls_require_client_cert=a.tls_require_client_cert,
     )
     if not server.start():
         print("[cbap] cannot start CBAP server", file=sys.stderr)

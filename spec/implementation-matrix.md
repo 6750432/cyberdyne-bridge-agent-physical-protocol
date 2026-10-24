@@ -20,8 +20,9 @@ removed       not part of the current profile
 | Feature | Status | 1.0 notes | Evidence |
 |---|---|---|---|
 | Unix socket NDJSON | implemented | `AF_UNIX`, 64 KiB frame | conformance |
-| TCP + token | planned | v1.1 transport | — |
-| CBOR / Protobuf | planned | v1.1 encoding | — |
+| TCP + token | optional | `KernelServer(tcp_host,tcp_port)` | test_transport |
+| TLS/mTLS | optional | cert/key/ca + client cert | test_transport |
+| CBOR / Protobuf | planned | not implemented | — |
 | `hello` / `welcome` | implemented | token + policy | test_conformance |
 | `ping` / `pong` | implemented | implementation extension | test_gateway |
 | `progress` | reserved | Kernel does not emit | — |
@@ -37,7 +38,7 @@ removed       not part of the current profile
 | `read` | implemented | `E_AGAIN` / `E_TIMEOUT` |
 | `write` | implemented | lease + optional fencing token |
 | `ioctl` | implemented | scan/watch/watch_items/furnace_watch |
-| `poll` | implemented, narrowed | only `timeout_ms`; `fds/events` planned |
+| `poll` | implemented | `timeout_ms` + negotiated `fds/events` |
 | `lease` / `release` | implemented | TTL, FIFO `wait_ms`, fence |
 | `estop` | implemented, tightened | operator token required |
 | `stat` | implemented | health/lease/security/pending |
@@ -81,7 +82,7 @@ removed       not part of the current profile
 | hardware estop hook | implemented | software-triggered relay command |
 | physical certified estop | not software | hardware/infrastructure |
 | TPM/HSM | planned | infrastructure |
-| mTLS remote transport | planned | no remote transport in 1.0 |
+| mTLS transport | optional | cert/key/CA; TCP only |
 
 ## 5. Agent adapters
 
@@ -93,7 +94,20 @@ removed       not part of the current profile
 | Voyager | implemented | forward/exec/say/stop |
 | Alice Forge | archived | source only, not built |
 
-## 6. M1 controls
+## 6. M2 transport/poll
+
+| Feature | Status | Notes |
+|---|---|---|
+| feature negotiation | implemented | `hello.features` / `welcome.features` |
+| poll fd/event filters | implemented | requires `poll_filter` |
+| TCP token | optional | no peer UID on TCP |
+| TLS | optional | cert/key |
+| mTLS | optional | CA + required client cert |
+| progress | reserved | no producer |
+| CBOR | planned | JSON only |
+| TCP warning | — | plaintext token without TLS |
+
+## 7. M1 controls
 
 | Control | Status | Notes |
 |---|---|---|
@@ -106,14 +120,15 @@ removed       not part of the current profile
 | remote ack verification | optional | ack file |
 | resume | removed | explicit E_PERM |
 
-## 7. Test mapping
+## 8. Test mapping
 
 ```text
-tools/cbap_conformance.py     93 cases
+tools/cbap_conformance.py     96 cases
 tests/cbap/test_conformance.py 20 core + D1/D4/D5 + security-adjacent
-tests/cbap/test_mcp_device.py  11
+tests/cbap/test_mcp_device.py  14
 tests/cbap/test_security.py    14
-tests/cbap/test_console.py     3
+tests/cbap/test_console.py      3
+tests/cbap/test_transport.py    2
 ```
 
 ## 7. Change rule

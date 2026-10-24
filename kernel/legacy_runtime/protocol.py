@@ -14,6 +14,7 @@ from typing import Any
 
 PROTOCOL_VERSION = "1.0"
 MAX_FRAME = 64 * 1024
+SUPPORTED_FEATURES = ("poll_filter",)
 
 ERROR_CODES = frozenset({
     "E_VERSION", "E_PROTOCOL", "E_AUTH", "E_PERM", "E_NOENT", "E_BUSY",

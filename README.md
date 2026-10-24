@@ -7,7 +7,7 @@
 **把异构 Minecraft Agent，变成同一个协议下的外设。**
 
 [![CBAP](https://img.shields.io/badge/CBAP-v1-0f766e?style=flat-square)](spec/README.md)
-[![Conformance](https://img.shields.io/badge/conformance-93%2F93-14b8a6?style=flat-square)](tools/cbap_conformance.py)
+[![Conformance](https://img.shields.io/badge/conformance-96%2F96-14b8a6?style=flat-square)](tools/cbap_conformance.py)
 [![Python](https://img.shields.io/badge/Python-3.10%2B-3776AB?style=flat-square&logo=python&logoColor=white)](kernel/)
 [![Transport](https://img.shields.io/badge/CBAP--U-Unix%20socket-334155?style=flat-square)](spec/README.md)
 [![No paid API](https://img.shields.io/badge/LLM-local%20friendly-6b7280?style=flat-square)](#)
@@ -66,7 +66,7 @@ python3 tools/cbap_conformance.py --target fake
 当前：
 
 ```text
-93/93 tests passed
+96/96 tests passed
 ```
 
 四个 Agent 子仓各自有独立 smoke：
@@ -215,7 +215,7 @@ archive/      Alice 归档
 ## 当前状态
 
 ```text
-CBAP conformance       93/93
+CBAP conformance       96/96
 活跃 Agent 子仓        4
 Alice                  源码归档，未构建
 控制面 p50             0.2–0.3 ms
@@ -243,6 +243,7 @@ console/README.md                      本地操作员控制台 / 人能看见�
 docs/SECURITY-HARDENING.md             13 项安全加固 / 控制项与残余风险
 docs/CBAP-参数手册.md                  协议 / Kernel / 驱动 / Console 全参数
 docs/M1-Trust-Boundary.md              M1 信任边界 / 隔离 / 审计锚点 / 恢复策略
+docs/M2-Protocol-1.1.md                M2 特性协商 / poll 过滤 / TCP/TLS
 agents/*/docs/                         各 Agent 自己的接入文档
 ```
 
