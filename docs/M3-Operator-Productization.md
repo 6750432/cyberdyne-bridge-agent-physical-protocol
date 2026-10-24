@@ -2,8 +2,8 @@
 
 **状态**：implemented
 **日期**：2026-10-24
-**基线**：CBAP 98/98 tests
-**范围**：Console lease/审批；MCP onboarding/probe；注册表；双人审批；签名；历史图
+**基线**：CBAP 100/100 tests
+**范围**：Console lease/审批；MCP onboarding/probe；注册表热插拔；双人审批；签名；持久化历史；SLA 通知；mTLS operator；resume
 
 ---
 
@@ -124,7 +124,7 @@ admin_release
 普通 Agent 没有 admin
 operator token 授予 admin
 estop 不需要审批
-resume 仍然 E_PERM
+resume 走 M3 operator 确认流程
 approval 不绕过 lease / fence / safe mode
 approval 过期不执行
 ```
@@ -214,9 +214,14 @@ verification
 [x] probe / health
 [x] registry enable / disable
 [x] onboarding signature button
-[x] history chart (in-memory last 300)
+[x] persistent history (JSONL + 300/device cache)
+[x] Kernel registry hotplug (explicit reload)
+[x] approval SLA + local notification feed
+[x] optional webhook notification
+[x] Console mTLS operator identity
+[x] operator resume with reason + confirm
 [x] UI + API
-[x] 98/98 tests
+[x] 100/100 tests
 ```
 
 部署注意：
@@ -251,11 +256,18 @@ devices/onboarded/registry.json   0600
 ```text
 onboard_probe 拒绝
 UI 标灰
-Kernel 仍按启动时已加载的 driver 运行
+Console 调用 Kernel registry_reload
+Kernel 在无 fd/lease/pending/approval 时卸载 driver
 ```
 
-**边界**：这是 onboarding registry 的启用状态，不是 Kernel 热插拔。
-禁用不会自动卸载已经挂到 Kernel 的 driver；生产需要重启/重新加载。
+Kernel 启动参数：
+
+```bash
+python3 -m kernel.legacy_runtime --mcp-registry devices/onboarded
+```
+
+**边界**：热插拔是**显式 reload**，不是文件系统 watcher。
+如果设备仍有 fd/lease/pending/approval，Kernel 会保留并返回 `kept`，不会强杀。
 
 ## 6. Onboarding 签名 UI
 
@@ -282,10 +294,11 @@ CBAP_MANIFEST_KEY / secret backend
 
 ## 7. 历史图
 
-Console 保存**内存**时间序列：
+Console 保存**持久化 JSONL + 内存缓存**：
 
 ```text
-每设备最多 300 个样本
+CBAP_CONSOLE_HISTORY 默认 logs/console-history.jsonl
+每设备最多缓存 300 个样本
 online / lease / pending / health
 hp / food（如果 facts 提供）
 ```
@@ -297,18 +310,80 @@ GET /api/history?device_id=...&limit=180
 ```
 
 UI 用本地 SVG 画线，不加载第三方图表库。
-只保留当前 console 进程生命周期内的历史；重启即清空。
+重启 Console 会从 JSONL 恢复最近样本。
+
+## 8. Approval SLA / notifications
+
+Policy：
+
+```json
+"approvals": {"sla_ms": 30000}
+```
+
+Approval 超过 SLA：
+
+```text
+本地 console notification feed 增加 approval_sla
+可选 webhook POST
+CBAP_CONSOLE_WEBHOOK_URL / CBAP_CONSOLE_WEBHOOK_TOKEN
+```
+
+Webhook 带：
+
+```text
+Authorization: Bearer <token>
+X-CBAP-Signature: sha256=<hmac>
+```
+
+通知是 best-effort；本地 feed 仍保留，不宣称 at-least-once。
+
+## 9. 远程 mTLS operator
+
+Console 支持：
+
+```bash
+python3 console/server.py   --bind-host 0.0.0.0 --port 8765   --allowed-host cbap.example:8765   --tls-cert server.crt --tls-key server.key   --tls-ca client-ca.crt --tls-require-client-cert
+```
+
+- 远程 bind 必须有 TLS；
+- mTLS 客户端证书 CN 成为 operator 身份后缀；
+- 仍要求 operator login token；
+- 双人审批可用两个不同 CN；
+- Host/Origin 必须显式加入 `--allowed-host`。
+
+## 10. Resume
+
+```http
+POST /api/resume
+{"device_id":"...","reason":"physical cause cleared","all":false}
+```
+
+Kernel op：
+
+```json
+{"op":"resume","args":{
+  "device_id":"...", "reason":"...", "confirm":"RESUME"
+}}
+```
+
+- operator/admin only；
+- reason >= 3；
+- confirm 精确 `RESUME`；
+- 有 lease/pending/approval -> `E_BUSY`；
+- health 非 ok -> `E_SAFETY`；
+- 只清 safe，不授予 lease；
+- 全局 safe 必须 `all=true`；
+- audit `resume`。
 
 ---
 
-## 8. 仍未做
+## 11. 仍未做
 
 ```text
-审批 SLA / 通知
 多操作员角色管理
-Kernel 热插拔
-持久化历史 / 数据库
-resume
+持久化审批通知（SLA feed 仍是内存）
+远程 operator 证书吊销/OCSP
+审批 SLA 的 at-least-once 送达
 ```
 
 不把“有 approval”误写成“有硬件安全认证”。

@@ -20,6 +20,8 @@
       <span id="connection" class="pill offline">connecting</span>
       <button id="refresh" class="btn">Refresh</button>
       <button id="global-estop" class="btn danger">EMERGENCY STOP</button>
+      <button id="resume-all" class="btn">RESUME ALL</button>
+      <button id="notify-bell" class="btn">NOTIFICATIONS <span id="notify-count">0</span></button>
       <button id="logout" class="btn">Logout</button>
     </div>
   </header>
@@ -32,6 +34,19 @@
       </div>
       <div id="devices" class="device-grid">
         <div class="empty">Connecting to the CBAP Kernel…</div>
+      </div>
+    </section>
+
+    <section class="panel">
+      <div class="section-head">
+        <h2>Notifications</h2>
+        <span id="notify-summary" class="muted">0 unread</span>
+      </div>
+      <div id="notifications" class="notification-list">
+        <div class="empty">No notifications.</div>
+      </div>
+      <div class="row-actions">
+        <button id="notify-read" class="btn">Mark all read</button>
       </div>
     </section>
 
@@ -80,6 +95,10 @@
           <button id="ob-create" class="btn">Create manifest</button>
           <span id="ob-create-status" class="muted"></span>
         </div>
+      </div>
+      <div class="row-actions">
+        <button id="ob-reload" class="btn">Reload Kernel registry</button>
+        <span id="ob-reload-status" class="muted"></span>
       </div>
       <div id="ob-registry" class="registry-list">
         <div class="empty">No onboarded devices.</div>

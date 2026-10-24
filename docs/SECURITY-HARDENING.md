@@ -68,7 +68,7 @@ estop requires the operator token
 a normal viewer session gets E_PERM
 per-device estop is still device-scoped
 global estop is operator-scoped
-estop is latched; no resume endpoint
+estop is latched; operator resume requires reason + confirm=RESUME
 ```
 
 The console reads the operator token file; a human does not need to paste the
@@ -91,7 +91,7 @@ Residual:
 
 ```text
 same OS user can read the console process environment/token file;
-console is local-only by design.
+console is local-first by default; remote binding requires mTLS.
 ```
 
 ## 6. Fencing and in-flight cancellation
@@ -249,10 +249,12 @@ no ML/anomaly service; these are deterministic fail-closed rules.
 ## Verification
 
 ```text
-CBAP conformance: 98/98
+CBAP conformance: 100/100
 security tests:   14
 MCP device tests: 14
 console tests:    5
+console TLS:      1
+registry hotplug: 1
 transport tests:  2
 ```
 
@@ -296,7 +298,7 @@ MCP auto pin <manifest>.pins.json          TOFU, then mandatory match
 MCP estop expect/verify                    required for safety.estop
 CBAP_AUDIT_REQUIRE_ACK=1                   remote ack seq/hash required
 Audit <audit>.remote-ack                   0600 ack file
-resume                                     explicit E_PERM, no UI
+resume                                     operator reason + confirm=RESUME
 ```
 
 M1 runbook: `docs/M1-Trust-Boundary.md`.
@@ -308,6 +310,6 @@ root/same-uid attacker
 malicious MCP server lying about facts
 certified physical emergency stop
 TPM/HSM
-mTLS remote transport
+remote Kernel transport mTLS (Console mTLS exists)
 independent penetration test
 ```

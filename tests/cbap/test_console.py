@@ -75,10 +75,12 @@ class ConsoleTest(unittest.TestCase):
             policy={"approvals": {
                 "devices": ["test://console/light-01"],
                 "ops": ["move"], "ttl_ms": 10000,
-                "required_approvals": 2,
+                "required_approvals": 2, "sla_ms": 100,
             }})
         self.assertTrue(self.kernel.start())
-        self.backend = ConsoleBackend(self.sock, audit_path=self.audit)
+        self.history_path = os.path.join(self.tmp, "console-history.jsonl")
+        self.backend = ConsoleBackend(self.sock, audit_path=self.audit,
+                                      history_path=self.history_path)
         self.operator_token = "console-test-operator"
         self.httpd = ConsoleHTTPServer(
             ("127.0.0.1", 0), Handler, backend=self.backend,
@@ -128,6 +130,15 @@ class ConsoleTest(unittest.TestCase):
         self.assertEqual(payload["devices"][0]["device_id"],
                          "test://console/light-01")
         self.assertFalse(payload["devices"][0]["safe"])
+        self.backend.refresh()
+        restarted = ConsoleBackend(self.sock, audit_path=self.audit,
+                                   history_path=self.history_path)
+        try:
+            hist = restarted.history("test://console/light-01")
+            self.assertTrue(hist["ok"])
+            self.assertGreaterEqual(len(hist["samples"]), 1, hist)
+        finally:
+            restarted.close()
 
     def login(self):
         c = http.client.HTTPConnection("127.0.0.1", self.port, timeout=5)
@@ -169,6 +180,12 @@ class ConsoleTest(unittest.TestCase):
         self.assertEqual(status, 200)
         rows = json.loads(data)["rows"]
         self.assertTrue(any(r.get("event") == "estop" for r in rows))
+        resumed = self.backend.resume("test://console/light-01",
+                                      reason="unit-test recovery")
+        self.assertTrue(resumed["ok"], resumed)
+        self.assertFalse(resumed["status"]["devices"][0]["safe"], resumed)
+        self.assertTrue(any(r.get("event") == "resume"
+                            for r in self.backend.audit(20)["rows"]))
 
 
     def test_approve_and_release_lease(self):
@@ -185,9 +202,13 @@ class ConsoleTest(unittest.TestCase):
                 "frame": {"channel": "body", "op": "move", "args": {}},
             })
             agent.wait_ack(rid, 2)
+            time.sleep(0.15)
             pending = self.backend.approvals()
             self.assertTrue(pending["ok"], pending)
             self.assertEqual(len(pending["approvals"]), 1, pending)
+            notes = self.backend.notifications()
+            self.assertTrue(any(n.get("type") == "approval_sla"
+                                for n in notes["notifications"]), notes)
             aid = pending["approvals"][0]["approval_id"]
             first = self.backend.approve(aid, approver="operator-1")
             self.assertTrue(first["ok"], first)

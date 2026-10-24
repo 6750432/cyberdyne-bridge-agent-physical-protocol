@@ -55,6 +55,8 @@ def main(argv: list[str] | None = None) -> int:
     p.add_argument("--tls-key", default=None)
     p.add_argument("--tls-ca", default=None)
     p.add_argument("--tls-require-client-cert", action="store_true")
+    p.add_argument("--mcp-registry", default=None,
+                   help="enabled MCP onboarding registry directory")
     p.add_argument("--check", action="store_true",
                    help="connect to the hand, print health, then exit")
     a = p.parse_args(argv)
@@ -89,6 +91,7 @@ def main(argv: list[str] | None = None) -> int:
         tcp_host=a.tcp_host, tcp_port=a.tcp_port,
         tls_cert=a.tls_cert, tls_key=a.tls_key, tls_ca=a.tls_ca,
         tls_require_client_cert=a.tls_require_client_cert,
+        mcp_registry=a.mcp_registry,
     )
     if not server.start():
         print("[cbap] cannot start CBAP server", file=sys.stderr)

@@ -2,7 +2,7 @@
 
 **状态**：software controls implemented；物理/基础设施项明确标注  
 **日期**：2026-10-24  
-**基线**：CBAP 98/98 tests
+**基线**：CBAP 100/100 tests
 
 M1 的目标不是增加协议功能，而是让第三方 MCP 设备、审计和恢复路径的信任边界可配置、可验证、失败关闭。
 
@@ -134,13 +134,12 @@ test_estop_is_verified_by_facts
 
 ## 4. 恢复策略
 
-M1 选择**显式不可恢复**：
+M1 的 estop 仍然锁存；恢复不在 M1，而是 M3 的 operator-only resume：
 
 ```text
 estop 锁存
-resume 固定 E_PERM
-恢复 = 重新 open / 重启 Kernel
-控制台没有 resume 按钮
+resume: operator + reason + confirm=RESUME
+控制台提供带确认的 resume
 ```
 
 理由：
@@ -173,8 +172,8 @@ operator token
 [x] estop 必须有 safe_state 证据
 [x] remote audit ack 可选并可验证
 [x] 删除审计尾部会被检出
-[x] resume 明确不可用
-[x] 98/98 tests 全绿
+[x] resume 走 M3 operator 显式确认
+[x] 100/100 tests 全绿
 
 部署项（必须由环境打开）：
 [ ] 生产使用独立 UID 或 sandbox

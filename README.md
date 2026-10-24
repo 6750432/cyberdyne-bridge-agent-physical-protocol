@@ -7,7 +7,7 @@
 **把异构 Minecraft Agent，变成同一个协议下的外设。**
 
 [![CBAP](https://img.shields.io/badge/CBAP-v1-0f766e?style=flat-square)](spec/README.md)
-[![Conformance](https://img.shields.io/badge/conformance-98%2F98-14b8a6?style=flat-square)](tools/cbap_conformance.py)
+[![Conformance](https://img.shields.io/badge/conformance-100%2F100-14b8a6?style=flat-square)](tools/cbap_conformance.py)
 [![Python](https://img.shields.io/badge/Python-3.10%2B-3776AB?style=flat-square&logo=python&logoColor=white)](kernel/)
 [![Transport](https://img.shields.io/badge/CBAP--U-Unix%20socket-334155?style=flat-square)](spec/README.md)
 [![No paid API](https://img.shields.io/badge/LLM-local%20friendly-6b7280?style=flat-square)](#)
@@ -66,7 +66,7 @@ python3 tools/cbap_conformance.py --target fake
 当前：
 
 ```text
-98/98 tests passed
+100/100 tests passed
 ```
 
 四个 Agent 子仓各自有独立 smoke：
@@ -215,7 +215,7 @@ archive/      Alice 归档
 ## 当前状态
 
 ```text
-CBAP conformance       98/98
+CBAP conformance       100/100
 活跃 Agent 子仓        4
 Alice                  源码归档，未构建
 控制面 p50             0.2–0.3 ms

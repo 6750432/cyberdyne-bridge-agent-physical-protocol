@@ -50,7 +50,7 @@ c.close()
 python3 tools/cbap_conformance.py --target fake
 ```
 
-当前 98 条用例（网关/驱动/适配器/数据/20 条一致性 + D1/D4/D5）：
+当前 100 条用例（网关/驱动/适配器/数据/20 条一致性 + D1/D4/D5）：
 
 - hello/welcome、device_list
 - open/read
@@ -117,3 +117,12 @@ python3 -m kernel.legacy_runtime --audit-require-ack ...
 The remote sink must return `{"seq": N, "hash": "<last hash>"}`. The Kernel
 writes `<audit>.remote-ack` (0600) and `verify()` requires it when
 `CBAP_AUDIT_REQUIRE_ACK=1`.
+
+### MCP registry hot-plug
+
+```bash
+python3 -m kernel.legacy_runtime --mcp-registry devices/onboarded
+```
+
+`registry_reload` (admin) loads enabled manifests and unloads disabled ones
+when no fd/lease/pending/approval is active. It is explicit, not a file watcher.

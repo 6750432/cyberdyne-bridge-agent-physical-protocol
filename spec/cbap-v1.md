@@ -1,6 +1,6 @@
 # CBAP v1 · Cyberdyne Bridge Agent Protocol
 
-- **状态**：**Implemented profile 1.0**（已实现并通过 98 条测试）；超出 1.0 的能力见 [`implementation-matrix.md`](implementation-matrix.md)
+- **状态**：**Implemented profile 1.0**（已实现并通过 100 条测试）；超出 1.0 的能力见 [`implementation-matrix.md`](implementation-matrix.md)
 - **版本**：1.0.0
 - **日期**：2026-10-24
 - **范围**：Agent ↔ Kernel 的系统调用 ABI（CBAP-U），以及 Kernel ↔ Driver 的驱动 ABI（CBAP-D）
@@ -401,7 +401,7 @@ Kernel 在 `welcome.features` 返回实际授予：
 
 - 1.0 **要求 operator token**；普通 Agent 默认 `E_PERM`。这是安全收紧，不退回“所有 Agent 可急停”。
 - 返回 `{"safe_state":"off","driver_ok":true,"canceled":0}`。
-- estop 锁存；1.0 没有 resume 路径（`resume` 固定 `E_PERM`）。
+- estop 锁存；operator 必须显式 `resume`（confirm=`RESUME` + reason）才能恢复。
 - 设备驱动 **MUST** 在收到 `estop` 后进入安全状态；不能只回 `ok:true`。
 
 ### 6.9 `stat`
@@ -434,7 +434,20 @@ Kernel 在 `welcome.features` 返回实际授予：
 - 不触发 estop；需要停机时单独 `estop`；
 - 返回 `{"released":true,"lease_id":"...","canceled":N}`。
 
-### 6.12 审批操作（operator）
+### 6.12 `registry_reload`（operator）
+
+```json
+{"op":"registry_reload","args":{}}
+```
+
+- 需要 `admin`；
+- 重新读取 `--mcp-registry` 下的 enabled manifest；
+- 加载新设备；卸载 disabled/removed 且无 fd/lease/pending/approval 的设备；
+- 有活动资源时保留并返回 `kept`；
+- 这是**显式 reload**，不是文件系统 watcher；
+- 返回 `{loaded,unloaded,kept,errors}`。
+
+### 6.13 审批操作（operator）
 
 审批策略（可选）：
 
@@ -444,7 +457,8 @@ Kernel 在 `welcome.features` 返回实际授予：
     "devices": ["mc://bot/DeepSeek"],
     "ops": ["dig", "place", "give", "exec"],
     "ttl_ms": 60000,
-    "required_approvals": 2
+    "required_approvals": 2,
+    "sla_ms": 30000
   }
 }
 ```
@@ -476,6 +490,26 @@ ack accepted
 - 审批不绕过 lease、fence、safe mode、rate limit。
 
 `approver` 由 Console 的 operator session 提供；Kernel 仍只信任本地 operator 通道。
+
+### 6.14 `resume`（operator）
+
+```json
+{"op":"resume","args":{
+  "device_id":"mc://bot/DeepSeek",
+  "reason":"physical cause cleared",
+  "confirm":"RESUME"
+}}
+```
+
+- 需要 `admin`；
+- `reason` 至少 3 字符；
+- `confirm` 必须精确为 `RESUME`；
+- 设备必须处于 latched safe；
+- 有 lease/pending/approval 时 `E_BUSY`；
+- driver `health().ok=false` 时 `E_SAFETY`；
+- 全局 safe 必须 `all=true` 才能清；
+- 只清 safe 标记，不自动授予 lease；
+- 写 audit: `resume`。
 
 ---
 
@@ -633,7 +667,7 @@ v1 控制面是 JSON/NDJSON，适合 MC（1–20 Hz）和低频机器人指令�
 
 ## 13. 一致性
 
-实现 **MUST** 通过 `spec/conformance-v1.md` 的当前 98 条用例，才能声明“CBAP v1 compatible”。
+实现 **MUST** 通过 `spec/conformance-v1.md` 的当前 100 条用例，才能声明“CBAP v1 compatible”。
 
 一致性等级：
 

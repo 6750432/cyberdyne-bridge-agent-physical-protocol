@@ -39,6 +39,8 @@ from . import protocol
 from .security import (AnomalyMonitor, AuditChain, CapabilityPolicy,
                        PolicyError, TokenFile, peer_credentials)
 from .secrets import get_secret
+from . import registry as registry_mod
+from drivers.mcp_device.driver import MCPDeviceDriver
 
 ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 DEFAULT_CBAP_SOCKET = os.path.join(ROOT, "cbap.sock")
@@ -176,7 +178,8 @@ class KernelServer:
                  tls_cert: str | None = None,
                  tls_key: str | None = None,
                  tls_ca: str | None = None,
-                 tls_require_client_cert: bool = False):
+                 tls_require_client_cert: bool = False,
+                 mcp_registry: str | None = None):
         # 多设备：drivers=[legacy, dataflow...]；旧单驱动参数仍然兼容。
         if drivers is None:
             drivers = [driver] if driver is not None else []
@@ -272,14 +275,98 @@ class KernelServer:
         self._thread: threading.Thread | None = None
         self._watchdog_thread: threading.Thread | None = None
         self._security_degraded = False
+        self.registry_dir = (os.path.abspath(mcp_registry)
+                             if mcp_registry else None)
+        self._registry_drivers: dict[str, Any] = {}
+        self._registry_last: dict = {}
 
-        # Wire each driver's callbacks with its own identity.
         for d in self.drivers:
-            d.on_state = (lambda msg, drv=d: self._on_state(drv, msg))
-            d.on_result = (lambda cmd, ok, why, extra, drv=d:
-                           self._on_result(drv, cmd, ok, why, extra))
-            d.on_event = (lambda ev, drv=d: self._on_event(drv, ev))
-            d.on_disconnect = (lambda reason, drv=d: self._on_disconnect(drv, reason))
+            self._wire_driver(d)
+        if self.registry_dir:
+            self.reload_registry()
+
+    def _wire_driver(self, d: Any) -> None:
+        d.on_state = (lambda msg, drv=d: self._on_state(drv, msg))
+        d.on_result = (lambda cmd, ok, why, extra, drv=d:
+                       self._on_result(drv, cmd, ok, why, extra))
+        d.on_event = (lambda ev, drv=d: self._on_event(drv, ev))
+        d.on_disconnect = (lambda reason, drv=d: self._on_disconnect(drv, reason))
+
+    def _driver_busy(self, device_id: str) -> bool:
+        with self._lock:
+            if any(f.device_id == device_id for f in self._fds.values()):
+                return True
+            if any(p.device_id == device_id and not p.done
+                   for q in self._pending.values() for p in q):
+                return True
+            if any(a.device_id == device_id for a in self._approvals.values()):
+                return True
+            if any(l.get("device_id") == device_id
+                   for l in self._leases.values()):
+                return True
+        return False
+
+    def reload_registry(self) -> dict:
+        """Load enabled manifests, unload disabled/removed ones.
+
+        This is explicit (operator/registry_reload) rather than an implicit
+        file watcher: a manifest change must not silently reconfigure a
+        physical device.
+        """
+        report = {"loaded": [], "unloaded": [], "kept": [], "errors": []}
+        if not self.registry_dir:
+            report["errors"].append("mcp_registry is not configured")
+            self._registry_last = report
+            return report
+        paths = registry_mod.enabled_manifests(self.registry_dir)
+        desired: dict[str, Path] = {}
+        for path in paths:
+            try:
+                data = json.loads(path.read_text(encoding="utf-8"))
+                dev = str(data.get("device_id") or "")
+            except (OSError, ValueError) as e:
+                report["errors"].append(f"{path.name}: {e}")
+                continue
+            if dev:
+                desired[dev] = path
+        with self._lock:
+            existing = {str(d.describe().get("device_id")): d
+                        for d in self.drivers}
+            for dev, d in list(self._registry_drivers.items()):
+                if dev in desired and str(desired[dev]) == getattr(d, "manifest_path", ""):
+                    continue
+                if self._driver_busy(dev):
+                    report["kept"].append(dev)
+                    continue
+                try:
+                    d.close()
+                except Exception:
+                    pass
+                if d in self.drivers:
+                    self.drivers.remove(d)
+                self._registry_drivers.pop(dev, None)
+                report["unloaded"].append(dev)
+            for dev, path in desired.items():
+                if dev in existing and dev not in self._registry_drivers:
+                    report["errors"].append(f"{dev}: duplicate device_id")
+                    continue
+                if dev in self._registry_drivers:
+                    continue
+                try:
+                    d = MCPDeviceDriver(path)
+                    d.connect()
+                    self._wire_driver(d)
+                    self.drivers.append(d)
+                    self._registry_drivers[dev] = d
+                    report["loaded"].append(dev)
+                except Exception as e:
+                    report["errors"].append(f"{dev}: {e}")
+            self.driver = self.drivers[0] if self.drivers else None
+            self._registry_last = report
+        self._audit("registry_reload", loaded=report["loaded"],
+                    unloaded=report["unloaded"], kept=report["kept"],
+                    errors=report["errors"])
+        return report
 
     # ── lifecycle ──────────────────────────────────────────────
 
@@ -699,7 +786,7 @@ class KernelServer:
         if op not in ("open", "close", "read", "write", "ioctl", "poll",
                       "lease", "release", "estop", "stat", "device_list",
                       "resume", "approval_list", "approval_approve",
-                      "approval_deny", "admin_release"):
+                      "approval_deny", "admin_release", "registry_reload"):
             self._result(session, rid, False,
                          err=protocol.error("E_NOTSUP", f"unknown op: {op}"))
             return
@@ -711,6 +798,7 @@ class KernelServer:
             "estop": "estop", "resume": "admin",
             "approval_list": "admin", "approval_approve": "admin",
             "approval_deny": "admin", "admin_release": "admin",
+            "registry_reload": "admin",
         }.get(op)
         if required and required not in session.capabilities:
             self._result(session, rid, False,
@@ -750,6 +838,8 @@ class KernelServer:
                 self._op_approval_decision(session, rid, args, False)
             elif op == "admin_release":
                 self._op_admin_release(session, rid, args)
+            elif op == "registry_reload":
+                self._op_registry_reload(session, rid)
         except Exception as e:
             self._result(session, rid, False,
                          err=protocol.error(
@@ -1101,6 +1191,13 @@ class KernelServer:
                     "expires": int(a.expires * 1000),
                     "approvals": sorted(a.approvals),
                     "required": a.required,
+                    "age_ms": int((now - a.created) * 1000),
+                    "sla_ms": self.policy.approval_sla_ms,
+                    "sla_due": int((a.created +
+                                    self.policy.approval_sla_ms / 1000.0) * 1000),
+                    "sla_exceeded": bool(self.policy.approval_sla_ms and
+                                         (now - a.created) * 1000 >=
+                                         self.policy.approval_sla_ms),
                 })
         self._result(session, rid, True, payload={"approvals": items})
 
@@ -1422,9 +1519,63 @@ class KernelServer:
             })
         self._result(session, rid, True, payload={"devices": devices})
 
+    def _op_registry_reload(self, session: Session, rid: str) -> None:
+        self._require_cap(session, "admin")
+        report = self.reload_registry()
+        self._result(session, rid, True, payload=report)
+
     def _op_resume(self, session: Session, rid: str, args: dict) -> None:
-        # v0: only the local operator may resume; no admin auth yet.
-        raise _OpError("E_PERM", "resume requires admin (not implemented in v0)")
+        self._require_cap(session, "admin")
+        reason = args.get("reason")
+        if not isinstance(reason, str) or len(reason.strip()) < 3:
+            raise _OpError("E_INVAL", "resume reason required")
+        if args.get("confirm") != "RESUME":
+            raise _OpError("E_INVAL", "resume requires confirm=RESUME")
+        device_id = args.get("device_id")
+        resume_all = bool(args.get("all"))
+        with self._lock:
+            if self._safe:
+                if not resume_all:
+                    raise _OpError("E_SAFETY", "global safe mode requires all=true")
+                targets = [d.describe().get("device_id") for d in self.drivers]
+                targets = [t for t in targets if t]
+            elif resume_all:
+                targets = sorted(self._safe_devices)
+            elif isinstance(device_id, str) and device_id in self._safe_devices:
+                targets = [device_id]
+            else:
+                raise _OpError("E_NOENT", "device is not latched safe")
+            if not targets:
+                raise _OpError("E_NOENT", "nothing to resume")
+            for dev in targets:
+                if any(l.get("fd") for l in self._leases.values()
+                       if l.get("device_id") == dev):
+                    raise _OpError("E_BUSY", f"active lease on {dev}")
+                if any(p.device_id == dev and not p.done
+                       for q in self._pending.values() for p in q):
+                    raise _OpError("E_BUSY", f"pending action on {dev}")
+        for d in self.drivers:
+            if d.describe().get("device_id") not in targets:
+                continue
+            try:
+                h = d.health()
+            except Exception:
+                h = {}
+            if isinstance(h, dict) and h.get("ok") is False:
+                raise _OpError("E_SAFETY", "driver health is not ok")
+        with self._lock:
+            for dev in targets:
+                self._safe_devices.discard(dev)
+            if resume_all:
+                self._safe = False
+                self._safe_devices.clear()
+        self._audit("resume", operator=session.agent_id, devices=targets,
+                    all=resume_all, reason=reason[:200])
+        self._result(session, rid, True, payload={
+            "resumed": True, "devices": targets,
+            "safe": self._safe,
+            "safe_devices": sorted(self._safe_devices),
+        })
 
     def _op_poll(self, session: Session, rid: str, args: dict) -> None:
         timeout_ms = args.get("timeout_ms", 0)

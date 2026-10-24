@@ -124,8 +124,31 @@ function renderDevices(devices) {
       rel.addEventListener("click", () => doRelease(d.device_id, d.lease));
       actions.appendChild(rel);
     }
+    if (d.safe) {
+      const resume = el("button", "btn", "RESUME DEVICE");
+      resume.addEventListener("click", () => doResume(d.device_id, false));
+      actions.appendChild(resume);
+    }
     card.appendChild(actions);
     root.appendChild(card);
+  }
+}
+
+function renderNotifications(rows, unread) {
+  const root = $("notifications");
+  root.replaceChildren();
+  $("notify-count").textContent = String(unread || 0);
+  $("notify-summary").textContent = `${unread || 0} unread`;
+  if (!rows.length) {
+    root.appendChild(el("div", "empty", "No notifications."));
+    return;
+  }
+  for (const n of rows.slice().reverse()) {
+    const row = el("div", "notification-row" + (n.read ? " read" : ""));
+    row.appendChild(el("div", "notification-title", `${n.type || "notification"} · ${n.device_id || ""}`));
+    row.appendChild(el("div", "notification-detail",
+      `agent=${n.agent_id || "?"} op=${n.op || "?"} age=${n.age_ms || 0}ms sla=${n.sla_ms || 0}ms`));
+    root.appendChild(row);
   }
 }
 
@@ -228,13 +251,15 @@ async function load() {
   if (loading || !authed) return;
   loading = true;
   try {
-    const [status, audit, approvals] = await Promise.all([
-      api("/api/status"), api("/api/audit?limit=80"), api("/api/approvals")
+    const [status, audit, approvals, notifications] = await Promise.all([
+      api("/api/status"), api("/api/audit?limit=80"), api("/api/approvals"),
+      api("/api/notifications")
     ]);
     setConnection(true, "kernel connected");
     renderDevices(status.devices || []);
     renderAudit(audit.rows || []);
     renderApprovals(approvals.approvals || []);
+    renderNotifications(notifications.notifications || [], notifications.unread || 0);
     updateHistoryDevices(status.devices || []);
     await loadHistory();
   } catch (e) {
@@ -242,6 +267,26 @@ async function load() {
     toast(String(e.message || e), true);
   } finally {
     loading = false;
+  }
+}
+
+async function doResume(deviceId, all) {
+  if (!authed) { showLogin(); return; }
+  const scope = all ? "ALL DEVICES" : `device ${deviceId}`;
+  const reason = prompt(`Resume ${scope}.\n\nReason (required):`, "operator recovery");
+  if (reason === null) return;
+  if (!reason.trim()) { toast("resume reason required", true); return; }
+  if (!confirm(`RESUME ${scope}?\n\nOnly do this after the physical cause is cleared.`)) return;
+  try {
+    const res = await api("/api/resume", {
+      method: "POST", headers: {"Content-Type": "application/json"},
+      body: JSON.stringify({device_id: all ? null : deviceId, all: Boolean(all), reason: reason.trim()})
+    });
+    toast(`Resume accepted · ${(res.result.devices || []).join(", ")}`);
+    if (res.status) renderDevices(res.status.devices || []);
+    await load();
+  } catch (e) {
+    toast("Resume failed: " + (e.message || e), true);
   }
 }
 
@@ -422,6 +467,24 @@ async function onboardProbe() {
   }
 }
 
+async function reloadRegistry() {
+  $("ob-reload-status").textContent = "reloading…";
+  try {
+    const res = await api("/api/registry/reload", {
+      method: "POST", headers: {"Content-Type": "application/json"}, body: "{}"
+    });
+    const r = res.report || {};
+    $("ob-reload-status").textContent =
+      `loaded=${(r.loaded || []).length} unloaded=${(r.unloaded || []).length} ` +
+      `kept=${(r.kept || []).length} errors=${(r.errors || []).length}`;
+    toast("Kernel registry reloaded");
+    await load();
+  } catch (e) {
+    $("ob-reload-status").textContent = "";
+    toast("Registry reload failed: " + (e.message || e), true);
+  }
+}
+
 async function onboardToggle(name, enabled) {
   try {
     const res = await api("/api/onboard/toggle", {
@@ -527,15 +590,27 @@ async function loadHistory() {
   }
 }
 
+$("notify-read").addEventListener("click", async () => {
+  try {
+    await api("/api/notifications/read", {method: "POST",
+      headers: {"Content-Type": "application/json"}, body: "{}"});
+    await load();
+  } catch (e) { toast("Notification update failed: " + (e.message || e), true); }
+});
+$("notify-bell").addEventListener("click", () => {
+  $("notifications").scrollIntoView({behavior: "smooth", block: "center"});
+});
+
 $("history-device").addEventListener("change", loadHistory);
+$("ob-reload").addEventListener("click", reloadRegistry);
 $("ob-scan").addEventListener("click", onboardScan);
 $("ob-create").addEventListener("click", onboardCreate);
 $("ob-refresh-list").addEventListener("click", onboardList);
 $("ob-probe").addEventListener("click", onboardProbe);
 
 $("refresh").addEventListener("click", load);
-$("refresh").addEventListener("click", load);
 $("global-estop").addEventListener("click", () => doEstop(null, "all devices"));
+$("resume-all").addEventListener("click", () => doResume(null, true));
 $("logout").addEventListener("click", async () => {
   try { await api("/api/logout", {method: "POST", headers: {"Content-Type": "application/json"}, body: "{}"}); } catch (_) {}
   showLogin();

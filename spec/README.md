@@ -1,6 +1,6 @@
 # CBAP v1 规范包
 
-- **状态**：Implemented profile 1.0（98/98 tests）
+- **状态**：Implemented profile 1.0（100/100 tests）
 - **日期**：2026-10-24
 
 ## 读的顺序
@@ -10,7 +10,7 @@
 3. [`schema/device.schema.json`](schema/device.schema.json) —— 驱动描述符 `device.json` 的 Schema。
 4. [`schema/mapping.schema.json`](schema/mapping.schema.json) —— 动作映射 `mapping.json` 的 Schema。
 5. [`examples/`](examples/) —— MC / 机械臂描述符、MC 映射、一次完整会话。
-6. [`conformance-v1.md`](conformance-v1.md) —— 98 条一致性用例。
+6. [`conformance-v1.md`](conformance-v1.md) —— 100 条一致性用例。
 7. [`implementation-matrix.md`](implementation-matrix.md) —— implemented / planned / removed 矩阵。
 
 ## 已验证
@@ -24,7 +24,7 @@
 - `tests/cbap/test_data.py`：设备通道、映射、参数类型、legacy 字段名 / dataflow / MCP 8 条数据契约测试通过；
 - `tests/cbap/test_mcp_driver.py`：MCP stdio 协议、状态、move/chat、estop 4 条通过；
 - `tests/cbap/test_conformance.py`：20 条核心一致性用例 + D1/D4/D5 驱动安全用例通过；
-- 网关/驱动/适配器/数据合计 98 条：`python3 tools/cbap_conformance.py --target fake`；
+- 网关/驱动/适配器/数据合计 100 条：`python3 tools/cbap_conformance.py --target fake`；
 - 真实 MCP 外设 demo：`python3 agents/mcp-mineflayer/tools/mcp_dashboard.py --server-path ...`，截图 `docs/screenshots/cbap-mcp-live.png`；
 - 本 Agent 直接当 LLM 的真实任务：`docs/CBAP-真实MCP-LLM任务.md`，截图 `docs/screenshots/cbap-mcp-llm-task.png`（采集 3 个 spruce_log）；
 - 完整木镐链路：`docs/CBAP-真实MCP-木镐任务.md`，截图 `docs/screenshots/cbap-mcp-pickaxe.png`（原木 → 木板 → 工作台 → 木棍 → 木镐 → 装备）；

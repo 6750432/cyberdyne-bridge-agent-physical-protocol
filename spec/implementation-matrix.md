@@ -141,11 +141,13 @@ removed       not part of the current profile
 ## 9. Test mapping
 
 ```text
-tools/cbap_conformance.py     98 cases
+tools/cbap_conformance.py     100 cases
 tests/cbap/test_conformance.py 20 core + D1/D4/D5 + security-adjacent
 tests/cbap/test_mcp_device.py  14
 tests/cbap/test_security.py    14
 tests/cbap/test_console.py       5
+tests/cbap/test_console_tls.py   1
+tests/cbap/test_registry.py      1
 tests/cbap/test_transport.py    2
 ```
 

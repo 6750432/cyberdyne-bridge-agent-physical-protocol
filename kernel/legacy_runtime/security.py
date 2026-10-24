@@ -84,6 +84,7 @@ class CapabilityPolicy:
             default_required = 2 if approvals.get("dual") else 1
             self.required_approvals = max(1, min(5, int(
                 approvals.get("required_approvals") or default_required)))
+            self.approval_sla_ms = max(0, int(approvals.get("sla_ms") or 30000))
         except (TypeError, ValueError):
             raise PolicyError("approvals ttl_ms/required_approvals must be integers")
         self.agents: dict[str, dict] = {}

@@ -132,8 +132,10 @@ and imports a factory on explicit request.
 ## Verification (2026-10-24)
 
 ```text
-CBAP conformance: 98/98 passed
-console tests:    5 passed (login / Host+Origin / estop+audit)
+CBAP conformance: 100/100 passed
+console tests:    5 passed (login / approvals / onboarding / history)
+console TLS:      1 passed (mTLS operator identity)
+registry hotplug: 1 passed (load / disable / unload)
 transport tests:  2 passed (TCP/TLS/mTLS)
 security tests:   14 passed (socket/token/policy/audit/fencing/limits)
 MCP device tests: 14 passed

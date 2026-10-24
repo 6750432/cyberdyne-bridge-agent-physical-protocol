@@ -1,6 +1,6 @@
 # CBAP Operator Console
 
-Local-only web console for the CBAP Kernel.
+Local-first web console for the CBAP Kernel; optional remote mTLS.
 
 It exists for one reason:
 
@@ -23,7 +23,8 @@ Kernel audit tail
 pending high-risk approvals
 onboarded MCP manifests / registry enable/disable
 probe / signature / pin status
-in-memory history chart
+persistent history chart
+approval SLA notifications
 ```
 
 ## What it can do
@@ -31,20 +32,29 @@ in-memory history chart
 ```text
 estop one device
 estop all devices
+resume one device / all devices (operator, reason + confirm)
 release a lease (admin)
 approve / deny a high-risk write (admin)
 dual approval with a second operator token
-release a lease (admin)
 scan MCP tools, create an onboarding manifest
 sign an onboarding manifest (CBAP_MANIFEST_KEY)
 enable / disable an onboarding registry entry
+reload the Kernel registry
 probe an onboarded MCP device
-history chart
+persistent history chart
+SLA notification feed / optional webhook
 ```
 
-There is intentionally **no resume endpoint**. The Kernel's estop is latched:
-per-device estop requires a Kernel restart or an explicit admin resume path
-(not implemented in v0). The UI labels the state `LATCHED SAFE`.
+Estop is latched. Resume is operator-only and requires:
+
+```text
+reason
+confirm=RESUME
+lease/pending/approval cleared
+driver health ok
+```
+
+The UI labels the stopped state `LATCHED SAFE`.
 
 ## Run
 
@@ -95,21 +105,23 @@ from each operator session.
 ## Security posture
 
 ```text
-bind:       127.0.0.1 only
-Host:       validated against 127.0.0.1:<port> / localhost:<port>
-Origin:     validated when present
+bind:       default 127.0.0.1; remote bind requires TLS
+Host:       explicit allowlist (`--allowed-host`)
+Origin:     validated when present; https allowed under TLS
 API auth:   HttpOnly SameSite=Strict operator session cookie
 Login:      POST /api/login with the printed operator token
 CSP:        self only, frame-ancestors none
 No CORS
-No resume
-MCP onboarding scan starts the operator-supplied argv (local, operator-only)
+Resume: operator-only, reason + confirm=RESUME
+MCP onboarding scan starts the operator-supplied argv (operator-only)
+Optional mTLS: client certificate CN becomes the operator identity suffix
 ```
 
 The page contains no token. Login attempts are rate-limited. The console is
-still a local-only host; a hostile process running as the same OS user can
-read the process environment or files. MCP onboarding is deliberately a
-powerful operator action: it can start a local stdio server.
+local-first by default; remote binding requires TLS. A hostile process
+running as the same OS user can read the process environment or files.
+MCP onboarding is deliberately a powerful operator action: it can start a
+local stdio server.
 
 ## Test
 
@@ -120,13 +132,26 @@ python3 -m unittest -v tests.cbap.test_console
 ## Limitations
 
 ```text
-single operator token (no multi-user account system)
-no TLS (localhost only)
-no resume UI
-no persistent history (chart is in-memory)
-no Kernel hot-plug for registry toggles
-no approval SLA / notifications
+two fixed operator tokens (no full account system)
+remote TLS requires operator-managed certs
+history is JSONL-persisted; chart keeps last 300/device
+Kernel registry reload is explicit, not a filesystem watcher
+SLA notifications are in-memory + best-effort webhook
 no device-specific 3D visualization
 ```
 
 The Kernel audit log is the authoritative record; the console is a view.
+
+## Remote mTLS
+
+```bash
+python3 console/server.py \
+  --bind-host 0.0.0.0 --port 8765 \
+  --allowed-host cbap.example:8765 \
+  --tls-cert server.crt --tls-key server.key \
+  --tls-ca client-ca.crt --tls-require-client-cert
+```
+
+The operator still logs in with an operator token. The client certificate CN
+is appended to the operator identity (for example `operator-1@remote-ops`) and
+is what dual approval counts as a distinct approver.

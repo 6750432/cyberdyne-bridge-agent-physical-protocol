@@ -475,7 +475,7 @@ ack accepted
 记录 audit
 ```
 
-estop 锁存；实现没有 resume 路径（`resume` 永远 `E_PERM`）。
+estop 锁存；恢复必须走 operator `resume`（reason + confirm=RESUME）。
 
 ### 4.10 `stat`
 
@@ -529,17 +529,26 @@ estop 锁存；实现没有 resume 路径（`resume` 永远 `E_PERM`）。
 
 需要 `admin`；释放 lease、取消 pending/approvals，但不触发 estop。
 
-### 4.14 `resume`
+### 4.14 `registry_reload`
 
 ```json
-{"op":"resume","args":{}}
+{"op":"registry_reload","args":{}}
 ```
 
-当前实现固定：
+需要 `admin`；只加载 `mcp_registry` 下 enabled manifest；有 fd/lease/pending/approval 的设备保留在 `kept`，不强杀。显式 reload，不是 watcher。
+
+### 4.15 `resume`（operator）
 
 ```json
-{"ok":false,"error":{"code":"E_PERM","message":"resume requires admin (not implemented in v0)"}}
+{"op":"resume","args":{
+  "device_id":"mc://bot/DeepSeek",
+  "reason":"physical cause cleared",
+  "confirm":"RESUME"
+}}
 ```
+
+需要 `admin`；reason>=3；confirm 精确 `RESUME`；有 lease/pending/approval 返回 `E_BUSY`；driver health 非 ok 返回 `E_SAFETY`；全局 safe 必须 `all=true`。只清 safe，不授予 lease。
+
 
 ### 4.13 `cancel`（消息，不是 request）
 
@@ -671,6 +680,7 @@ security_degrade, session_end
 | `tls_key` | str/null | 无 | 服务端私钥 |
 | `tls_ca` | str/null | 无 | 客户端信任 CA |
 | `tls_require_client_cert` | bool | `False` | mTLS 必需 |
+| `mcp_registry` | str/null | 无 | 可选 onboarding registry；显式 reload |
 
 ### 7.2 Kernel CLI
 
@@ -704,6 +714,7 @@ python3 -m kernel.legacy_runtime [options]
 | `--tls-key` | 无 | 服务端私钥 |
 | `--tls-ca` | 无 | 客户端 CA |
 | `--tls-require-client-cert` | false | mTLS |
+| `--mcp-registry` | 无 | onboarding registry |
 | `--check` | — | 连接 hand、打印 health 后退出 |
 
 ### 7.3 Token 文件
@@ -779,7 +790,8 @@ operator 走独立 token，不受 policy 限制，并自动获得 `admin`。
     "devices": ["mc://bot/DeepSeek"],
     "ops": ["dig", "place", "give", "exec"],
     "ttl_ms": 60000,
-    "required_approvals": 2
+    "required_approvals": 2,
+    "sla_ms": 30000
   }
 }
 ```
@@ -1214,14 +1226,24 @@ python3 console/server.py \
 | `--token` | 自动读 `<socket>.token` | Kernel agent token |
 | `--operator-token` | `CBAP_CONSOLE_OPERATOR_TOKEN` 或自动生成 | operator-1 登录 token |
 | `--second-operator-token` | `CBAP_SECOND_OPERATOR_TOKEN` | operator-2（双人审批） |
+| `--history` | `CBAP_CONSOLE_HISTORY` 或 `logs/console-history.jsonl` | 持久化历史 |
+| `--webhook-url` | `CBAP_CONSOLE_WEBHOOK_URL` | SLA webhook |
+| `--webhook-token` | `CBAP_CONSOLE_WEBHOOK_TOKEN` | webhook Bearer/HMAC |
+| `--bind-host` | `127.0.0.1` | 远程 bind 必须有 TLS |
+| `--allowed-host` | 无 | Host/Origin allowlist，可重复 |
+| `--tls-cert` | 无 | Console TLS 证书 |
+| `--tls-key` | 无 | Console TLS 私钥 |
+| `--tls-ca` | 无 | mTLS 客户端 CA |
+| `--tls-require-client-cert` | false | 客户端证书必需 |
 
 ### 11.2 网络/认证
 
 | 项 | 值 |
 |---|---|
-| bind | `127.0.0.1` only |
-| Host 允许 | `127.0.0.1:<port>` / `localhost:<port>` |
-| Origin 允许 | 同 Host 的 http |
+| bind | 默认 `127.0.0.1`；远程 bind 必须有 TLS |
+| Host 允许 | `--allowed-host`；默认 127.0.0.1/localhost |
+| Origin 允许 | 同 Host 的 http；TLS 下也接受 https |
+| mTLS 身份 | 客户端证书 CN 作为 operator 后缀 |
 | 登录限速 | 5 次/60s/IP |
 | session TTL | 8 小时 |
 | Cookie | `cbap_console_session`；HttpOnly；SameSite=Strict；Path=/ |
@@ -1252,7 +1274,11 @@ python3 console/server.py \
 | POST | `/api/onboard/probe` | cookie | `{name,op?,args?,expect?}` |
 | POST | `/api/onboard/toggle` | cookie | `{name,enabled}` |
 | POST | `/api/onboard/sign` | cookie | `{name}` |
-| GET | `/api/history?device_id=&limit=` | cookie | in-memory samples |
+| GET | `/api/history?device_id=&limit=` | cookie | persistent samples |
+| GET | `/api/notifications` | cookie | SLA notifications |
+| POST | `/api/notifications/read` | cookie | mark read |
+| POST | `/api/registry/reload` | cookie | Kernel hotplug reload |
+| POST | `/api/resume` | cookie | `{device_id,all,reason}` |
 
 `/api/status` 返回：
 
@@ -1296,8 +1322,8 @@ python3 console/server.py \
 每次刷新 stat + read(timeout_ms=0)
 不获取 lease
 不直连 driver
-estop 走 Kernel
-没有 resume endpoint
+estop / resume 走 Kernel
+resume 需要 operator + reason + confirm
 ```
 
 ### 11.5 Onboarding 参数
@@ -1317,7 +1343,7 @@ estop 走 Kernel
 
 Onboarding scan 会启动 MCP 命令；只有 operator 能调用，仍然要使用可信 command。
 
-签名按钮使用 `CBAP_MANIFEST_KEY`；没有 key 时拒绝。历史图只保留当前 console 进程内最多 300 个样本。
+签名按钮使用 `CBAP_MANIFEST_KEY`；没有 key 时拒绝。历史图持久化到 `CBAP_CONSOLE_HISTORY`，内存缓存每设备最多 300 个样本。
 
 ---
 
@@ -1329,6 +1355,9 @@ Onboarding scan 会启动 MCP 命令；只有 operator 能调用，仍然要使�
 | `CBAP_AUDIT` | `<repo>/logs/cbap-audit.jsonl` | Console 默认审计 |
 | `CBAP_CONSOLE_OPERATOR_TOKEN` | 自动生成 | Console operator-1 token |
 | `CBAP_SECOND_OPERATOR_TOKEN` | 无 | Console operator-2 token（双人审批） |
+| `CBAP_CONSOLE_HISTORY` | `logs/console-history.jsonl` | 持久化历史 |
+| `CBAP_CONSOLE_WEBHOOK_URL` | 无 | SLA webhook |
+| `CBAP_CONSOLE_WEBHOOK_TOKEN` | 无 | webhook HMAC/Bearer |
 | `CBAP_AUDIT_KEY` | 无 | 审计 HMAC |
 | `CBAP_AUDIT_REMOTE_URL` | 无 | 远程审计 URL |
 | `CBAP_AUDIT_REMOTE_TOKEN` | 无 | 远程审计 Bearer |
@@ -1385,13 +1414,13 @@ Console audit limit       80 default / 500 max
 | `event.seq` | 单调递增 | 当前实现已单调递增。 |
 | `estop` 权限 | MUST 总是允许 | 必须 operator token；普通 Agent `E_PERM` |
 | `cancel` 他人 | admin 可取消 | 当前 `E_PERM` |
-| `resume` | admin 可恢复 | 未实现，固定 `E_PERM` |
+| `resume` | admin 可恢复 | operator + reason + confirm=RESUME |
 | CBAP-D 独立进程 | 支持 | 只支持进程内 driver |
 | hello token | UDS MAY | Kernel 生成 token，实际要求 |
 | hello capabilities | 请求权限 | 以 policy 授予为准 |
 | global state | 推送 | 只推给持有该设备 fd 的会话 |
 | `write` 前置失败 | result | 无 ack；`CBAPClient.write` 可能表现为超时 |
-| spec 用例数 | 20 条 | 当前 98 条实现测试 |
+| spec 用例数 | 20 条 | 当前 100 条实现测试 |
 
 ---
 
@@ -1418,7 +1447,7 @@ python3 tools/mcp_device_probe.py drivers/mcp_device/examples/light.json \
 当前状态：
 
 ```text
-CBAP conformance: 98/98
+CBAP conformance: 100/100
 console tests:    5
 transport tests:  2
 security tests:   14

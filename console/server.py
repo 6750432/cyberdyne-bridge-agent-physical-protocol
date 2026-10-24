@@ -15,6 +15,7 @@ import argparse
 import json
 import os
 import secrets
+import ssl
 import sys
 import threading
 import time
@@ -39,8 +40,13 @@ class ConsoleHTTPServer(ThreadingHTTPServer):
 
     def __init__(self, addr, handler, backend: ConsoleBackend,
                  operator_token: str, second_operator_token: str | None = None,
-                 session_ttl_s: int = 8 * 3600):
+                 session_ttl_s: int = 8 * 3600,
+                 tls_context: ssl.SSLContext | None = None,
+                 allowed_hosts: list[str] | None = None):
         self.backend = backend
+        self.tls_context = tls_context
+        self._explicit_hosts = allowed_hosts is not None
+        self.allowed_hosts = set(allowed_hosts or [])
         self.operator_token = operator_token
         self.operator_tokens = {operator_token: "operator-1"}
         if second_operator_token:
@@ -52,6 +58,27 @@ class ConsoleHTTPServer(ThreadingHTTPServer):
         self.login_attempts: dict[str, list[float]] = {}
         self._session_lock = threading.Lock()
         super().__init__(addr, handler)
+        if not self._explicit_hosts:
+            self.allowed_hosts = {
+                f"127.0.0.1:{self.server_port}",
+                f"localhost:{self.server_port}",
+            }
+
+    def get_request(self):
+        conn, addr = super().get_request()
+        if self.tls_context is None:
+            return conn, addr
+        conn.settimeout(5.0)
+        try:
+            return self.tls_context.wrap_socket(conn, server_side=True), addr
+        except (ssl.SSLError, OSError):
+            try:
+                conn.close()
+            except OSError:
+                pass
+            # Let the request thread fail closed instead of spinning the
+            # accept loop on a client that cannot complete mTLS.
+            return conn, addr
 
 
 class Handler(BaseHTTPRequestHandler):
@@ -83,16 +110,18 @@ class Handler(BaseHTTPRequestHandler):
 
     def _host_ok(self) -> bool:
         host = self.headers.get("Host", "")
-        port = self.server.server_port
-        return host in {f"127.0.0.1:{port}", f"localhost:{port}"}
+        return host in self.server.allowed_hosts
 
     def _origin_ok(self) -> bool:
         origin = self.headers.get("Origin")
         if origin is None:
             return True  # native/curl client; token still required
-        port = self.server.server_port
-        return origin in {f"http://127.0.0.1:{port}",
-                          f"http://localhost:{port}"}
+        allowed = set()
+        for host in self.server.allowed_hosts:
+            allowed.add(f"http://{host}")
+            if self.server.tls_context is not None:
+                allowed.add(f"https://{host}")
+        return origin in allowed
 
     def _session_token(self) -> str | None:
         raw = self.headers.get("Cookie", "")
@@ -105,6 +134,17 @@ class Handler(BaseHTTPRequestHandler):
     def _session_ok(self) -> bool:
         return self._session_name() is not None
 
+    def _tls_cn(self) -> str | None:
+        try:
+            cert = self.connection.getpeercert() or {}
+        except (AttributeError, ssl.SSLError):
+            return None
+        for rdn in cert.get("subject", ()):
+            for key, value in rdn:
+                if key == "commonName" and value:
+                    return str(value)
+        return None
+
     def _session_name(self) -> str | None:
         token = self._session_token()
         if not token:
@@ -115,7 +155,9 @@ class Handler(BaseHTTPRequestHandler):
             if not sess or sess.get("expires", 0) <= now:
                 self.server.sessions.pop(token, None)
                 return None
-            return str(sess.get("operator") or "operator")
+            base = str(sess.get("operator") or "operator")
+        cn = self._tls_cn()
+        return f"{base}@{cn}" if cn else base
 
     def _api_guard(self) -> bool:
         if not self._host_ok():
@@ -153,6 +195,16 @@ class Handler(BaseHTTPRequestHandler):
             if not self._api_guard():
                 return
             self._json(200, self.server.backend.approvals())
+            return
+        if self.path == "/api/registry/reload":
+            if not self._api_guard():
+                return
+            self._json(200, self.server.backend.reload_registry())
+            return
+        if self.path == "/api/notifications":
+            if not self._api_guard():
+                return
+            self._json(200, self.server.backend.notifications())
             return
         if self.path.startswith("/api/history"):
             if not self._api_guard():
@@ -206,7 +258,8 @@ class Handler(BaseHTTPRequestHandler):
                   "/api/approvals/deny", "/api/lease/release",
                   "/api/onboard/scan", "/api/onboard/create",
                   "/api/onboard/probe", "/api/onboard/toggle",
-                  "/api/onboard/sign"}
+                  "/api/onboard/sign", "/api/resume",
+                  "/api/registry/reload", "/api/notifications/read"}
         if self.path not in routes:
             self._json(404, {"ok": False, "error": "not found"})
             return
@@ -233,12 +286,24 @@ class Handler(BaseHTTPRequestHandler):
                        aid, approver=self._session_name() or "operator")
                    if self.path.endswith("/approve")
                    else self.server.backend.deny(aid))
+        elif self.path == "/api/resume":
+            dev = body.get("device_id")
+            if dev is not None and not isinstance(dev, str):
+                self._json(400, {"ok": False, "error": "device_id must be a string or null"})
+                return
+            reason = str(body.get("reason") or "operator-console")[:200]
+            res = self.server.backend.resume(
+                dev, resume_all=bool(body.get("all")), reason=reason)
         elif self.path == "/api/lease/release":
             dev = body.get("device_id")
             if not isinstance(dev, str) or not dev:
                 self._json(400, {"ok": False, "error": "device_id required"})
                 return
             res = self.server.backend.release_lease(dev)
+        elif self.path == "/api/registry/reload":
+            res = self.server.backend.reload_registry()
+        elif self.path == "/api/notifications/read":
+            res = self.server.backend.mark_notifications_read()
         else:
             res = self._onboard_post(body)
         self._json(200 if res.get("ok") else 500, res)
@@ -331,14 +396,43 @@ class Handler(BaseHTTPRequestHandler):
 def serve(socket_path: str, audit_path: str | None, port: int = 8765,
           operator_token: str | None = None,
           second_operator_token: str | None = None,
-          kernel_token: str | None = None) -> None:
+          kernel_token: str | None = None,
+          history_path: str | None = None,
+          webhook_url: str | None = None,
+          webhook_token: str | None = None,
+          bind_host: str = "127.0.0.1",
+          allowed_hosts: list[str] | None = None,
+          tls_cert: str | None = None,
+          tls_key: str | None = None,
+          tls_ca: str | None = None,
+          tls_require_client_cert: bool = False) -> None:
     backend = ConsoleBackend(socket_path, audit_path=audit_path,
-                             token=kernel_token)
+                             token=kernel_token, history_path=history_path,
+                             webhook_url=webhook_url,
+                             webhook_token=webhook_token)
     op_token = operator_token or secrets.token_urlsafe(18)
-    httpd = ConsoleHTTPServer(("127.0.0.1", int(port)), Handler,
+    if bool(tls_cert) != bool(tls_key):
+        raise ValueError("tls_cert and tls_key must be paired")
+    tls_context = None
+    if tls_cert:
+        tls_context = ssl.SSLContext(ssl.PROTOCOL_TLS_SERVER)
+        tls_context.minimum_version = ssl.TLSVersion.TLSv1_2
+        tls_context.load_cert_chain(tls_cert, tls_key)
+        if tls_ca:
+            tls_context.load_verify_locations(tls_ca)
+            tls_context.verify_mode = (ssl.CERT_REQUIRED if
+                                       tls_require_client_cert else ssl.CERT_OPTIONAL)
+        elif tls_require_client_cert:
+            raise ValueError("tls_require_client_cert requires tls_ca")
+    if bind_host not in ("127.0.0.1", "localhost") and tls_context is None:
+        raise ValueError("remote bind requires TLS")
+    httpd = ConsoleHTTPServer((bind_host, int(port)), Handler,
                               backend=backend, operator_token=op_token,
-                              second_operator_token=second_operator_token)
-    url = f"http://127.0.0.1:{httpd.server_port}/"
+                              second_operator_token=second_operator_token,
+                              tls_context=tls_context,
+                              allowed_hosts=allowed_hosts)
+    scheme = "https" if tls_context else "http"
+    url = f"{scheme}://{bind_host}:{httpd.server_port}/"
     print(f"CBAP console: {url}")
     print(f"operator token: {op_token}")
     if second_operator_token:
@@ -361,6 +455,13 @@ def main() -> int:
     ap.add_argument("--audit", default=os.environ.get(
         "CBAP_AUDIT", str(ROOT / "logs" / "cbap-audit.jsonl")))
     ap.add_argument("--port", type=int, default=8765)
+    ap.add_argument("--bind-host", default="127.0.0.1")
+    ap.add_argument("--allowed-host", action="append", default=None,
+                    help="Host header allowlist entry (repeatable)")
+    ap.add_argument("--tls-cert", default=None)
+    ap.add_argument("--tls-key", default=None)
+    ap.add_argument("--tls-ca", default=None)
+    ap.add_argument("--tls-require-client-cert", action="store_true")
     ap.add_argument("--token", default=None,
                     help="optional Kernel auth token")
     ap.add_argument("--operator-token", default=os.environ.get(
@@ -369,11 +470,22 @@ def main() -> int:
     ap.add_argument("--second-operator-token", default=os.environ.get(
         "CBAP_SECOND_OPERATOR_TOKEN"),
         help="second operator token for dual approval")
+    ap.add_argument("--history", default=os.environ.get(
+        "CBAP_CONSOLE_HISTORY", str(ROOT / "logs" / "console-history.jsonl")),
+        help="persistent history JSONL path")
+    ap.add_argument("--webhook-url", default=os.environ.get(
+        "CBAP_CONSOLE_WEBHOOK_URL"), help="optional approval SLA webhook")
+    ap.add_argument("--webhook-token", default=os.environ.get(
+        "CBAP_CONSOLE_WEBHOOK_TOKEN"), help="optional webhook HMAC token")
     ns = ap.parse_args()
     serve(ns.socket, ns.audit, ns.port,
           operator_token=ns.operator_token,
           second_operator_token=ns.second_operator_token,
-          kernel_token=ns.token)
+          kernel_token=ns.token, history_path=ns.history,
+          webhook_url=ns.webhook_url, webhook_token=ns.webhook_token,
+          bind_host=ns.bind_host, allowed_hosts=ns.allowed_host,
+          tls_cert=ns.tls_cert, tls_key=ns.tls_key, tls_ca=ns.tls_ca,
+          tls_require_client_cert=ns.tls_require_client_cert)
     return 0
 
 

@@ -8,11 +8,14 @@ read status, and request estop.  There is intentionally no resume endpoint.
 """
 from __future__ import annotations
 
+import hashlib
+import hmac
 import json
 import os
 import re
 import threading
 import time
+import urllib.request
 from pathlib import Path
 from typing import Any
 
@@ -29,7 +32,10 @@ class ConsoleError(RuntimeError):
 class ConsoleBackend:
     def __init__(self, socket_path: str, audit_path: str | None = None,
                  token: str | None = None, agent_id: str = "cbap-console",
-                 registry_dir: str | None = None):
+                 registry_dir: str | None = None,
+                 history_path: str | None = None,
+                 webhook_url: str | None = None,
+                 webhook_token: str | None = None):
         self.socket_path = os.path.abspath(socket_path)
         self.audit_path = os.path.abspath(audit_path) if audit_path else None
         self.token = token
@@ -43,6 +49,15 @@ class ConsoleBackend:
                                   "devices" / "onboarded"))
         self._onboard_lock = threading.Lock()
         self._history: dict[str, list[dict]] = {}
+        self.history_path = (os.path.abspath(history_path)
+                             if history_path else None)
+        self.webhook_url = webhook_url or os.environ.get("CBAP_CONSOLE_WEBHOOK_URL")
+        self.webhook_token = (webhook_token or
+                              os.environ.get("CBAP_CONSOLE_WEBHOOK_TOKEN"))
+        self._notifications: list[dict] = []
+        self._notified: set[str] = set()
+        if self.history_path:
+            self._load_history()
 
     # ── connection ───────────────────────────────────────────
     def _connect_locked(self) -> None:
@@ -184,6 +199,10 @@ class ConsoleBackend:
                         self._history.setdefault(dev, []).append(sample)
                         if len(self._history[dev]) > 300:
                             del self._history[dev][:-300]
+                self._append_history([(item.get("device_id") or "", s)
+                                      for item in out
+                                      for s in [self._history.get(item.get("device_id") or "", [])[-1]]
+                                      if item.get("device_id") and s])
                 return {
                     "ok": True,
                     "ts": time.time(),
@@ -216,6 +235,19 @@ class ConsoleBackend:
                 self._last_error = str(e)
                 return {"ok": False, "error": str(e)}
 
+    def reload_registry(self) -> dict:
+        with self._lock:
+            try:
+                self._connect_locked()
+                res = self._client.call("registry_reload", {})
+                if not res.get("ok"):
+                    raise ConsoleError(str(res.get("error") or "registry reload failed"))
+                return {"ok": True, "report": res.get("payload") or {},
+                        "status": self.refresh()}
+            except Exception as e:
+                self._last_error = str(e)
+                return {"ok": False, "error": str(e)}
+
     # ── approvals / lease ────────────────────────────────────
     def approvals(self) -> dict:
         with self._lock:
@@ -224,8 +256,10 @@ class ConsoleBackend:
                 res = self._client.call("approval_list", {})
                 if not res.get("ok"):
                     raise ConsoleError(str(res.get("error") or "approval_list failed"))
-                return {"ok": True,
-                        "approvals": (res.get("payload") or {}).get("approvals") or []}
+                approvals = (res.get("payload") or {}).get("approvals") or []
+                self._check_sla(approvals)
+                return {"ok": True, "approvals": approvals,
+                        "notifications": len(self._notifications)}
             except Exception as e:
                 self._last_error = str(e)
                 return {"ok": False, "approvals": [], "error": str(e)}
@@ -260,6 +294,23 @@ class ConsoleBackend:
                 self._last_error = str(e)
                 return {"ok": False, "error": str(e)}
 
+    def resume(self, device_id: str | None = None, resume_all: bool = False,
+               reason: str = "operator-console") -> dict:
+        with self._lock:
+            try:
+                self._connect_locked()
+                res = self._client.call("resume", {
+                    "device_id": device_id, "all": bool(resume_all),
+                    "reason": reason, "confirm": "RESUME",
+                })
+                if not res.get("ok"):
+                    raise ConsoleError(str(res.get("error") or "resume failed"))
+                return {"ok": True, "result": res.get("payload") or {},
+                        "status": self.refresh()}
+            except Exception as e:
+                self._last_error = str(e)
+                return {"ok": False, "error": str(e)}
+
     def release_lease(self, device_id: str) -> dict:
         with self._lock:
             try:
@@ -273,6 +324,73 @@ class ConsoleBackend:
             except Exception as e:
                 self._last_error = str(e)
                 return {"ok": False, "error": str(e)}
+
+    # ── notifications / SLA ──────────────────────────────────
+    def _check_sla(self, approvals: list[dict]) -> None:
+        now = int(time.time() * 1000)
+        for a in approvals:
+            sla = int(a.get("sla_ms") or 0)
+            if sla <= 0:
+                continue
+            age = int(a.get("age_ms") or 0)
+            if age < sla:
+                continue
+            nid = f"sla:{a.get('approval_id')}"
+            with self._lock:
+                if nid in self._notified:
+                    continue
+                self._notified.add(nid)
+                note = {
+                    "id": nid,
+                    "type": "approval_sla",
+                    "severity": "warning",
+                    "created": now,
+                    "approval_id": a.get("approval_id"),
+                    "device_id": a.get("device_id"),
+                    "op": a.get("op"),
+                    "agent_id": a.get("agent_id"),
+                    "age_ms": age,
+                    "sla_ms": sla,
+                    "read": False,
+                }
+                self._notifications.append(note)
+                if len(self._notifications) > 200:
+                    del self._notifications[:-200]
+            if self.webhook_url:
+                threading.Thread(target=self._send_webhook,
+                                 args=(note,), daemon=True).start()
+
+    def _send_webhook(self, note: dict) -> None:
+        try:
+            data = json.dumps(note, ensure_ascii=False).encode("utf-8")
+            req = urllib.request.Request(
+                self.webhook_url, data=data, method="POST",
+                headers={"Content-Type": "application/json",
+                         "User-Agent": "cbap-console/1"})
+            if self.webhook_token:
+                sig = hmac.new(self.webhook_token.encode(), data,
+                               hashlib.sha256).hexdigest()
+                req.add_header("Authorization",
+                               f"Bearer {self.webhook_token}")
+                req.add_header("X-CBAP-Signature", f"sha256={sig}")
+            with urllib.request.urlopen(req, timeout=3):
+                pass
+        except Exception:
+            # Notification delivery is best-effort; the local feed remains.
+            pass
+
+    def notifications(self, limit: int = 50) -> dict:
+        limit = max(1, min(int(limit), 200))
+        with self._lock:
+            rows = list(self._notifications[-limit:])
+        return {"ok": True, "notifications": rows,
+                "unread": sum(1 for n in rows if not n.get("read"))}
+
+    def mark_notifications_read(self) -> dict:
+        with self._lock:
+            for n in self._notifications:
+                n["read"] = True
+        return {"ok": True}
 
     # ── MCP onboarding ───────────────────────────────────────
     @staticmethod
@@ -484,7 +602,9 @@ class ConsoleBackend:
                 "enabled": enabled, "updated": int(time.time() * 1000),
             }
             self._save_registry_state(state)
-            return {"ok": True, "name": name, "enabled": enabled}
+            reload = self.reload_registry()
+            return {"ok": True, "name": name, "enabled": enabled,
+                    "reload": reload}
         except Exception as e:
             return {"ok": False, "error": str(e)}
 
@@ -565,6 +685,51 @@ class ConsoleBackend:
                 except Exception:
                     pass
             self._onboard_lock.release()
+
+    def _load_history(self) -> None:
+        if not self.history_path:
+            return
+        try:
+            with open(self.history_path, encoding="utf-8") as f:
+                for line in f:
+                    try:
+                        row = json.loads(line)
+                    except ValueError:
+                        continue
+                    dev = str(row.get("device_id") or "")
+                    if not dev:
+                        continue
+                    sample = row.get("sample") if isinstance(row.get("sample"), dict) else None
+                    if sample is None:
+                        sample = {k: v for k, v in row.items()
+                                  if k != "device_id"}
+                    self._history.setdefault(dev, []).append(sample)
+                    if len(self._history[dev]) > 300:
+                        del self._history[dev][:-300]
+        except OSError:
+            pass
+
+    def _append_history(self, rows: list[tuple[str, dict]]) -> None:
+        if not self.history_path or not rows:
+            return
+        try:
+            p = Path(self.history_path)
+            p.parent.mkdir(parents=True, exist_ok=True, mode=0o700)
+            flags = os.O_WRONLY | os.O_CREAT | os.O_APPEND
+            if hasattr(os, "O_NOFOLLOW"):
+                flags |= os.O_NOFOLLOW
+            fd = os.open(p, flags, 0o600)
+            try:
+                for dev, sample in rows:
+                    data = json.dumps({"device_id": dev, "sample": sample},
+                                      ensure_ascii=False,
+                                      separators=(",", ":")) + "\n"
+                    os.write(fd, data.encode("utf-8"))
+                os.fsync(fd)
+            finally:
+                os.close(fd)
+        except OSError:
+            pass
 
     def history(self, device_id: str, limit: int = 120) -> dict:
         limit = max(1, min(int(limit), 300))
