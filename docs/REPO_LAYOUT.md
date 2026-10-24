@@ -141,19 +141,19 @@ external shims:   drivers/{mcp,mindcraft,voyager,alice},
                   are removed
 ```
 
-`tools/跑全部.sh` still reports six legacy files red. They were already red
-before the physical move; the bridge fingerprint expected by those tests is
-`a649...` while the checked-in bridge has been `658c...` since commit
-`2ef1ab5`. They are not caused by the subrepo split:
+`tools/跑全部.sh` now passes the bridge fingerprint gate (`658c947ec7f33d37`)
+and all JS tests. Three legacy files still have pre-existing functional
+failures (8 assertions); they are not CBAP conformance failures:
 
 ```text
-测任务书.py        bridge fingerprint
-测挖空守卫.py      bridge fingerprint
-测贯通审计.py      bridge fingerprint
 测工具查表.py      D2 pre-existing
 测常识.py          N1/N3/N4 pre-existing
 测生存常识.py      B15b/G2/C13/R5b pre-existing
 ```
+
+The old fingerprint assertions were stale: they expected `a649...` although
+the checked-in bridge changed in `2ef1ab5`. Tests/docs were updated to the
+current baseline; `bridge.py` itself was not touched.
 
 The JS path failure was caused by the move (block-table lookup was three
 directories up); `proto_body.js` now also looks in
