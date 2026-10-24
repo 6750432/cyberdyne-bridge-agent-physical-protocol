@@ -249,9 +249,9 @@ no ML/anomaly service; these are deterministic fail-closed rules.
 ## Verification
 
 ```text
-CBAP conformance: 87/87
+CBAP conformance: 88/88
 security tests:   13
-MCP device tests: 10
+MCP device tests: 11
 console tests:    3
 ```
 
@@ -271,3 +271,17 @@ physical emergency stop cannot be implemented in software
 ```
 
 These are not hidden. They are the boundary of this layer.
+
+## Secret-provider backends
+
+`kernel/legacy_runtime/secrets.py` supports:
+
+```text
+CBAP_SECRET_BACKEND=env       default, backwards compatible
+CBAP_SECRET_BACKEND=file      CBAP_SECRET_FILE, JSON, must be 0600
+CBAP_SECRET_BACKEND=keyring   optional keyring package
+```
+
+A configured backend that is unavailable fails closed. This is still not a
+TPM; root/same-uid can read process memory. TPM/TPM2 or an HSM remains an
+infrastructure-level control.

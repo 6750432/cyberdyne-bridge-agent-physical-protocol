@@ -37,6 +37,7 @@ from typing import Any
 from . import protocol
 from .security import (AnomalyMonitor, AuditChain, CapabilityPolicy,
                        PolicyError, TokenFile, peer_credentials)
+from .secrets import get_secret
 
 ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 DEFAULT_CBAP_SOCKET = os.path.join(ROOT, "cbap.sock")
@@ -167,7 +168,7 @@ class KernelServer:
         self.audit = AuditChain(
             self.audit_path, mirror_path=audit_mirror_path,
             lock=threading.RLock(),
-            signing_key=audit_signing_key or os.environ.get("CBAP_AUDIT_KEY"),
+            signing_key=audit_signing_key or get_secret("CBAP_AUDIT_KEY"),
             remote_url=audit_remote_url or os.environ.get("CBAP_AUDIT_REMOTE_URL"),
             remote_token=audit_remote_token or os.environ.get("CBAP_AUDIT_REMOTE_TOKEN"),
         )

@@ -90,6 +90,23 @@ class MCPDeviceDriverTest(unittest.TestCase):
         finally:
             driver.close()
 
+    def test_hardware_estop_hook_runs_before_verified_estop(self):
+        path = self._manifest()
+        manifest = json.loads(path.read_text(encoding="utf-8"))
+        marker = path.parent / "relay-off"
+        manifest["estop"]["hardware_command"] = [
+            sys.executable, "-c",
+            f"open({str(marker)!r}, 'w').write('off')",
+        ]
+        path.write_text(json.dumps(manifest), encoding="utf-8")
+        driver = MCPDeviceDriver(path)
+        try:
+            self.assertTrue(driver.connect())
+            self.assertTrue(driver.estop())
+            self.assertEqual(marker.read_text(), "off")
+        finally:
+            driver.close()
+
     def test_sandbox_wrapper_is_opt_in_and_fails_closed(self):
         from drivers.mcp_device.sandbox import SandboxUnavailable, wrap_command
         base = ["python3", "server.py"]

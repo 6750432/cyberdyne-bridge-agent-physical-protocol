@@ -10,6 +10,7 @@ import tempfile
 import threading
 import time
 import unittest
+from pathlib import Path
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
 from kernel.legacy_runtime.client import CBAPClient
@@ -179,8 +180,10 @@ class SecurityTest(unittest.TestCase):
         path = os.path.join(self.tmp, "trunc.jsonl")
         a = AuditChain(path, signing_key="k")
         a.append("one"); a.append("two")
-        lines = open(path, encoding="utf-8").read().splitlines()
-        open(path, "w", encoding="utf-8").write("\n".join(lines[:-1]) + "\n")
+        with open(path, encoding="utf-8") as f:
+            lines = f.read().splitlines()
+        with open(path, "w", encoding="utf-8") as f:
+            f.write("\n".join(lines[:-1]) + "\n")
         ok, why = AuditChain(path, signing_key="k").verify()
         self.assertFalse(ok, why)
 
@@ -205,12 +208,12 @@ class SecurityTest(unittest.TestCase):
     def test_symlink_token_target_is_rejected(self):
         from kernel.legacy_runtime.security import TokenFile
         target = os.path.join(self.tmp, "target")
-        open(target, "w").write("do not touch")
+        Path(target).write_text("do not touch", encoding="utf-8")
         token_path = os.path.join(self.tmp, "symlink.sock") + ".token"
         os.symlink(target, token_path)
         with self.assertRaises(OSError):
             TokenFile(os.path.join(self.tmp, "symlink.sock")).write()
-        self.assertEqual(open(target).read(), "do not touch")
+        self.assertEqual(Path(target).read_text(encoding="utf-8"), "do not touch")
 
     def test_audit_chain_verifies(self):
         c = self.client("viewer")

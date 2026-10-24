@@ -51,6 +51,7 @@ from typing import Any
 
 from drivers.mcp_client import MCPError, MCPStdioClient
 from drivers.mcp_device.sandbox import SandboxUnavailable, wrap_command
+from kernel.legacy_runtime.secrets import SecretError, get_secret
 
 
 class MCPDeviceError(RuntimeError):
@@ -150,7 +151,10 @@ class MCPDeviceDriver:
             if os.environ.get("CBAP_REQUIRE_SIGNED_MANIFEST") == "1":
                 raise MCPDeviceError("E_AUTH", "unsigned manifest rejected")
             return
-        key = os.environ.get("CBAP_MANIFEST_KEY")
+        try:
+            key = get_secret("CBAP_MANIFEST_KEY")
+        except SecretError as e:
+            raise MCPDeviceError("E_AUTH", str(e))
         if not key:
             raise MCPDeviceError("E_AUTH", "manifest signature requires CBAP_MANIFEST_KEY")
         body = _canonical(_manifest_payload(self.manifest)).encode("utf-8")
@@ -460,6 +464,19 @@ class MCPDeviceDriver:
                 self._last_error = "E_SAFETY: no estop tool declared"
                 return False
             try:
+                hw = self.estop_spec.get("hardware_command")
+                if hw:
+                    if not isinstance(hw, list) or not hw:
+                        raise MCPDeviceError("E_SAFETY", "hardware_command must be argv")
+                    proc = subprocess.run(
+                        [str(x) for x in hw], cwd=os.path.dirname(self.manifest_path),
+                        env={k: os.environ[k] for k in ("PATH", "HOME", "LANG")
+                             if k in os.environ},
+                        capture_output=True, text=True, timeout=5,
+                        shell=False, check=False,
+                    )
+                    if proc.returncode != 0:
+                        raise MCPDeviceError("E_SAFETY", "hardware estop failed")
                 self._call_spec(self.estop_spec)
                 actual = self.refresh()
                 expect = (self.estop_spec.get("expect")

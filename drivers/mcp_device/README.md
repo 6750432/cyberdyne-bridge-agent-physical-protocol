@@ -169,3 +169,32 @@ must print one JSON value. `source: "resource"` is also supported.
 `independent` is a declaration, not a proof. Use a separate device/sensor
 channel when the MCP server itself is untrusted. A Kernel started with
 `require_independent_facts=True` rejects results without the marker.
+
+### Hardware estop hook
+
+For a relay/PLC/GPIO path, declare an argv command that runs before the MCP
+estop tool:
+
+```json
+"estop": {
+  "hardware_command": ["/opt/cbap/relay-off"],
+  "tool": "turn_off",
+  "expect": {"on": false}
+}
+```
+
+The hook must exit 0. If it fails, the driver returns false and the Kernel
+marks `driver_ok=false`; this is still a software-triggered relay, not a
+certified physical safety circuit.
+
+### Sandbox
+
+```json
+"transport": {
+  "sandbox": {"type": "bwrap", "writable_cwd": false}
+}
+```
+
+`bwrap` or `nsjail` must be installed. If requested and unavailable, the
+driver refuses to start. This is optional OS isolation, not a guarantee
+against a kernel/hypervisor escape.

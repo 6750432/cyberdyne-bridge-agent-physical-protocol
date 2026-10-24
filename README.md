@@ -66,7 +66,7 @@ python3 tools/cbap_conformance.py --target fake
 当前：
 
 ```text
-87/87 tests passed
+88/88 tests passed
 ```
 
 四个 Agent 子仓各自有独立 smoke：
@@ -215,7 +215,7 @@ archive/      Alice 归档
 ## 当前状态
 
 ```text
-CBAP conformance       87/87
+CBAP conformance       88/88
 活跃 Agent 子仓        4
 Alice                  源码归档，未构建
 控制面 p50             0.2–0.3 ms
