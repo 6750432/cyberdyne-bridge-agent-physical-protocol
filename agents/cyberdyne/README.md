@@ -1,6 +1,6 @@
 # Cyberdyne MC Agent
 
-Status: **legacy-frozen / ours; CBAP wrapper available**
+Status: **legacy brain, migrated entrypoint / ours**
 
 This is our original MC Agent:
 
@@ -24,17 +24,16 @@ agents/cyberdyne/tools/启动大脑-cbap.sh
 It keeps the legacy brain but replaces `接线口` with `CBAPHandAdapter`.
 The original direct hand path remains frozen and is not the recommended runtime.
 
-Compatibility shims remain at the repository root:
+M4 removed the root compatibility shims. Use the physical paths or the
+CBAP wrapper:
 
 ```text
-bridge.py  -> agents/cyberdyne/brain/bridge.py
-node       -> agents/cyberdyne/hand/node
-外挂        -> agents/cyberdyne/plugins
-config.json -> agents/cyberdyne/config.json
+agents/cyberdyne/brain/bridge_cbap.py
+agents/cyberdyne/tools/启动大脑.sh
+agents/cyberdyne/tools/启动手.sh
 ```
 
-This keeps the existing service and launch scripts working.
+The old direct brain/hand path is frozen; it is not a second controller.
 
 Local smoke: `python3 agents/cyberdyne/smoke.py`
-Agent tools: `agents/cyberdyne/tools/` (launchers are physically here; root
-`tools/启动*.sh` are compatibility symlinks).
+Agent tools: `agents/cyberdyne/tools/`; root launch shims were removed in M4.

@@ -16,4 +16,4 @@ export PATH="$HOME/.local/node/bin:$PATH"
 mkdir -p logs
 exec >> logs/手.log 2>&1
 echo "───────── $(date '+%F %T') 手起来了（pid $$ 的壳，node 随后 exec）─────────"
-exec nice -n 15 ionice -c3 node node/server.js
+exec nice -n 15 ionice -c3 node agents/cyberdyne/hand/node/server.js

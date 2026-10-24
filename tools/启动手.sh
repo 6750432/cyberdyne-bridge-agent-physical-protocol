@@ -1,1 +1,0 @@
-../agents/cyberdyne/tools/启动手.sh

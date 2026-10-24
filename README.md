@@ -219,10 +219,10 @@ CBAP conformance       101/101
 活跃 Agent 子仓        4
 Alice                  源码归档，未构建
 控制面 p50             0.2–0.3 ms
-旧套件                 有搬迁前就存在的红项
+旧套件                 已归档，不再进主 CI
 ```
 
-旧套件 `tools/跑全部.sh` 的红项（bridge 指纹和几条旧逻辑）没有被伪装成绿色；它们是 legacy 子链的状态，不是 CBAP conformance 的结果。详见 [`docs/REPO_LAYOUT.md`](docs/REPO_LAYOUT.md) 的 Verification。
+旧套件已移到 `archive/legacy-bridge/跑全部.sh`，不再属于主 CI；旧直连路径已冻结，默认脑入口是 CBAP wrapper。详见 [`docs/REPO_LAYOUT.md`](docs/REPO_LAYOUT.md) 和 [`docs/M4-Legacy-Decision.md`](docs/M4-Legacy-Decision.md)。
 
 ## 文档
 

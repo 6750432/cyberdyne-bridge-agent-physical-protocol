@@ -9,7 +9,7 @@ Agent --CBAP-U--> KernelServer --McDriver--> node/server.js（legacy hand）
 - `KernelServer`：CBAP-U 服务，处理 `hello/open/read/write/ioctl/poll/lease/release/estop/stat/device_list`。
 - `McDriver`：CBAP-D 形状的 MC 驱动包壳，直接说 `node/server.js` 的 line-JSON。
 - `CBAPClient`：最小 Python 客户端，给测试/示例用。
-- `brain_adapter.py`：`接线口` 形状的适配器（`连/收/发/断`），让未来的 `bridge.py` 可以一行换过来；现在没有接进主链。
+- `brain_adapter.py`：`接线口` 形状的适配器（`连/收/发/断`）；M4 的 `agents/cyberdyne/brain/bridge_cbap.py` 用它把旧 brain 接到 CBAP。
 - `tests/cbap/fake_hand.py`：假手，不连 Minecraft。
 
 ## 跑起来
@@ -24,9 +24,9 @@ python3 -m kernel.legacy_runtime \
   --cbap-socket ./cbap.sock
 ```
 
-> ⚠ **不要同时跑 `bridge.py` 和这个网关去连同一只手。**
+> ⚠ **不要同时跑归档的旧直连 brain 和这个网关去连同一只手。**
 > 两者都是 legacy hand 的客户端；legacy hand 没有 per-client 仲裁，会变成“两个大脑抢一只手”。
-> 现在这个网关是给“新 Agent / 测试 / 迁移期”用的，不是替代 `bridge.py` 的常驻入口。
+> 现在这个网关是主链入口；旧 brain 的默认入口已改成 `bridge_cbap.py`。
 
 ## 最小客户端示例
 
@@ -79,7 +79,7 @@ python3 tools/cbap_conformance.py --target fake
 ## 下一步
 
 - 给 legacy hand 的 `cmdResult` 加 `id`（或网关侧用单飞队列强制串行）；
-- 把 `bridge.py` 的 `接线口` 换成 `CBAPClient`（真正“脑走 CBAP”）；
+- 旧 brain 已通过 `brain_adapter.py` 走 CBAP（M4）；
 - 给 `mc-driver` 加 `device.json` 一致性测试与 `health` 看门狗；
 - 给 `kernel` 加 `resume` 的 admin 权限模型。
 

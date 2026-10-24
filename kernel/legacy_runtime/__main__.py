@@ -6,7 +6,7 @@ Usage:
     python3 -m kernel.legacy_runtime --hand-socket ./cyberdyne.sock \
         --cbap-socket ./cbap.sock
 
-Do NOT run this and bridge.py against the same hand at the same time:
+Do NOT run this and the archived direct brain against the same hand at the same time:
 both are clients, and the legacy hand has no per-client arbitration.
 """
 
@@ -98,7 +98,7 @@ def main(argv: list[str] | None = None) -> int:
         driver.close()
         return 3
     print(f"[cbap] listening: {a.cbap_socket}")
-    print("[cbap] do not run bridge.py against the same hand while this is up")
+    print("[cbap] do not run the archived direct brain against the same hand while this is up")
 
     stop = {"v": False}
 

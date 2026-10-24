@@ -10,17 +10,15 @@ live physical source:
   agents/cyberdyne/plugins/
 
 root compatibility shims:
-  bridge.py
-  node
-  外挂
-  config.json
+  removed in M4
 ```
 
 Status:
 
 ```text
 M4 phase 1: frozen / inventory / migration wrapper available
-M4 phase 2: remove root shims after all callers move
+M4 phase 2: root shims removed; default launcher -> bridge_cbap.py
+M4 phase 3: old direct source retained read-only / no root entrypoint
 ```
 
 The original `bridge.py` is intentionally still byte-for-byte pinned. The

@@ -30,8 +30,10 @@ import sys
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[3]
-if str(ROOT) not in sys.path:
-    sys.path.insert(0, str(ROOT))
+AGENT_ROOT = ROOT / "agents/cyberdyne"
+for path in (ROOT, AGENT_ROOT / "brain"):
+    if str(path) not in sys.path:
+        sys.path.insert(0, str(path))
 
 import bridge as legacy  # noqa: E402
 from kernel.legacy_runtime.brain_adapter import CBAPHandAdapter  # noqa: E402
@@ -40,7 +42,9 @@ from kernel.legacy_runtime.brain_adapter import CBAPHandAdapter  # noqa: E402
 def install() -> None:
     # bridge.py uses its own __file__ when imported from the physical subrepo;
     # point its config/log paths at the repository root, matching the shim.
-    legacy.ROOT = str(ROOT)
+    # The legacy brain expects config.json/logs next to its logical root.
+    # Keep those under the agent subrepo; no root compatibility shim needed.
+    legacy.ROOT = str(AGENT_ROOT)
     legacy.接线口 = CBAPHandAdapter
 
 

@@ -4,24 +4,25 @@
   "display_name": "Cyberdyne MC Agent",
   "status": "active",
   "ownership": "ours",
-  "kind": "legacy-direct-agent",
-  "summary": "Legacy direct brain/hand; M4 wrapper runs the brain through CBAP.",
+  "kind": "legacy-brain-over-cbap",
+  "summary": "Legacy brain migrated to the CBAP wrapper; direct root entrypoint archived.",
   "runtime": {
-    "brain": "agents/cyberdyne/brain/bridge.py",
+    "brain": "agents/cyberdyne/brain/bridge_cbap.py",
     "hand": "agents/cyberdyne/hand/node/server.js",
     "plugins": "agents/cyberdyne/plugins/",
     "tools": [
       "agents/cyberdyne/tools/"
     ],
     "smoke": "agents/cyberdyne/smoke.py",
-    "cbap_wrapper": "agents/cyberdyne/brain/bridge_cbap.py"
+    "cbap_wrapper": "agents/cyberdyne/brain/bridge_cbap.py",
+    "legacy_brain": "agents/cyberdyne/brain/bridge.py"
   },
   "cbap": {
     "driver_module": "drivers.mc.driver",
     "driver_factory": "McDriver",
     "device_id": "mc://bot/DeepSeek",
     "transport": "line-json",
-    "note": "The hand can be wrapped by McDriver; the brain is still legacy-direct.",
+    "note": "Default brain entrypoint is bridge_cbap.py; root shims removed.",
     "brain_wrapper": "agents/cyberdyne/brain/bridge_cbap.py"
   }
 }

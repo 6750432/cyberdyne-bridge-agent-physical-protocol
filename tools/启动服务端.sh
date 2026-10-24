@@ -1,1 +1,0 @@
-../agents/cyberdyne/tools/启动服务端.sh

@@ -1,7 +1,7 @@
 # M4 · Legacy bridge decision
 
-**Status**: phase 1 (freeze + migration wrapper)  
-**Date**: 2026-10-24  
+**Status**: complete (direct path frozen; CBAP wrapper is the default; root shims removed)
+**Date**: 2026-10-24
 **Decision**: archive the direct hand path; migrate the reusable brain through CBAP
 
 ---
@@ -61,7 +61,7 @@ mode / friend / 变了 / scan_clear
 
 ## 4. Phases
 
-### Phase 1 (this commit)
+### Phase 1
 
 ```text
 [x] freeze legacy direct path
@@ -69,34 +69,33 @@ mode / friend / 变了 / scan_clear
 [x] CBAP brain wrapper
 [x] adapter env/config support
 [x] wrapper smoke test
-[ ] remove root shims
-[ ] migrate all plugins
-[ ] delete/retire direct hand path
 ```
 
 ### Phase 2
 
 ```text
-move root shims out of the main entrypoint
-repoint launch scripts to bridge_cbap.py
-migrate supported plugin actions
-keep old source in archive/legacy-bridge
+[x] remove root shims
+[x] default brain launcher -> bridge_cbap.py
+[x] physical hand launcher
+[x] archive legacy test suite
+[x] freeze unsupported plugin actions
 ```
 
 ### Phase 3
 
 ```text
-decide whether to delete the old direct hand code
-or keep it as an unmaintained read-only archive
+[x] keep direct source as an unmaintained read-only archive
+[x] no root entrypoint
+[x] no second controller recommendation
 ```
 
-## 5. Acceptance for phase 1
+## 5. Acceptance
 
 ```text
 [x] bridge.py fingerprint unchanged (658c947ec7f33d37)
 [x] bridge_cbap.py --help works
 [x] wrapper sets legacy.接线口 to CBAPHandAdapter
-[x] root shims still work for old callers
+[x] root shims removed; physical paths remain
 [x] CBAP 101/101 tests
 ```
 

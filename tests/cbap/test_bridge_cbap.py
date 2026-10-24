@@ -22,7 +22,7 @@ class BridgeCBAPWrapperTest(unittest.TestCase):
         try:
             mod.install()
             self.assertIs(legacy.接线口, mod.CBAPHandAdapter)
-            self.assertEqual(legacy.ROOT, str(ROOT))
+            self.assertEqual(legacy.ROOT, str(ROOT / "agents/cyberdyne"))
             self.assertTrue(WRAPPER.exists())
         finally:
             legacy.接线口 = original

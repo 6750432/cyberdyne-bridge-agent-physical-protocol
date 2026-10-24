@@ -1,5 +1,10 @@
 # Cyberdyne-Bridge
 
+> **M4 archive note:** the root `bridge.py` / `node` / `外挂` shims are removed.
+> The default legacy-brain entrypoint is
+> `agents/cyberdyne/brain/bridge_cbap.py`; the old direct path is frozen.
+> See `docs/M4-Legacy-Decision.md`.
+
 **A reference implementation of an Agent–physical-world protocol.**
 Minecraft is not the point — it is only the cheap, observable, reproducible physics sandbox we test in.
 
@@ -115,7 +120,7 @@ The full set (16 rules, each with the story that taught it) is in
 ## Layout
 
 ```
-bridge.py              main chain (red line: fingerprint pinned, re-checked by the gate)
+agents/cyberdyne/brain/bridge.py    frozen legacy source (no root shim)
 config.json            every switch and threshold
 node/                  body: server.js + action plugins + pathfinder
 node/测试/             body-side JS assertions (node --test)
@@ -139,7 +144,7 @@ docs/日记/             the agent's own diaries (first person, Chinese)
 
 ```bash
 cd node && npm install && cd ..
-bash tools/跑全部.sh        # full gate — current baseline: 1145 passed / 0 failed
+bash tools/cbap_conformance.py --target fake   # main CBAP gate
 ```
 
 The red-line file `bridge.py` is fingerprint-checked (`658c947ec7f33d37`) at the
@@ -148,9 +153,9 @@ end of the gate; if it changed, the gate goes red.
 Running it for real needs a local Minecraft server (RCON, offline mode):
 
 ```bash
-bash tools/启动服务端.sh      # server
-bash tools/启动手.sh          # body
-bash 外挂/启动列车.sh          # brain + carriage assembly
+bash agents/cyberdyne/tools/启动服务端.sh   # server
+bash agents/cyberdyne/tools/启动手.sh       # body
+bash agents/cyberdyne/tools/启动大脑.sh      # legacy brain over CBAP
 MC_RCON_PASSWORD=your-password python3 tools/rcon.py "list"
 ```
 

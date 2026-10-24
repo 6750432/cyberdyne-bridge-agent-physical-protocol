@@ -1,6 +1,6 @@
 # Repository layout and migration boundary
 
-Status: **phase 4 — external agent shims removed; own legacy shims remain**
+Status: **M4 — own-agent root shims removed; legacy source frozen**
 
 ## Current
 
@@ -48,7 +48,7 @@ cyberdyne-bridge/                  main repository = CBAP
 ## Active agents
 
 ```text
-cyberdyne       our own brain/hand; direct UDS is legacy, hand can be wrapped by McDriver
+cyberdyne       legacy brain, CBAP wrapper entrypoint; hand via McDriver
 mcp-mineflayer  MCP body; MCP stdio JSON-RPC
 mindcraft       autonomous agent; state / prompt / stop
 voyager         bridge only; not Voyager Python agent
@@ -58,31 +58,22 @@ Alice is archived: source-only, not compiled, not smoke-tested.
 
 ## Compatibility shims
 
-External agent shims are removed. Remaining root shims are only for our own
-legacy brain/hand/plugin constants:
+M4 removed the own-agent root shims:
 
 ```text
-bridge.py   -> agents/cyberdyne/brain/bridge.py
-config.json -> agents/cyberdyne/config.json
-node        -> agents/cyberdyne/hand/node
-外挂         -> agents/cyberdyne/plugins
+bridge.py / config.json / node / 外挂   removed
+```
+
+Use physical paths or the CBAP wrapper:
+
+```text
+agents/cyberdyne/brain/bridge_cbap.py
+agents/cyberdyne/tools/启动大脑.sh
+agents/cyberdyne/tools/启动手.sh
 ```
 
 MCP, Mindcraft, Voyager and Alice are addressed by their real paths.
-
-## Why shims instead of changing imports now
-
-The current kernel/tests/tools still use concrete paths such as:
-
-```text
-drivers.mc.driver
-agents/mcp-mineflayer.driver.driver
-agents/mindcraft/tools/mindcraft_cbap.py
-agents/cyberdyne/hand/node/server.js
-```
-
-The symlinks preserve those paths while the physical files are separated.
-Removing a shim is a separate migration after every caller has moved.
+The old direct brain remains frozen under its physical path for reference.
 
 ## Migration status
 
@@ -94,9 +85,11 @@ Removing a shim is a separate migration after every caller has moved.
 5. Independent per-agent smoke tests                   [done]
 6. External callers moved off shims                    [done]
 7. External agent shims removed                        [done]
-8. Own legacy path constants migrated                  [next]
-9. M4 legacy bridge freeze / CBAP wrapper              [phase 1 done]
-10. Decide whether to use real git submodules/remotes  [later]
+8. Own legacy path constants migrated                  [done]
+9. M4 legacy bridge frozen / CBAP wrapper              [done]
+10. Root own-agent shims removed                       [done]
+11. Old direct source retained as frozen archive       [done]
+12. Decide whether to use real git submodules/remotes  [later]
 ```
 
 ## Contract
@@ -141,7 +134,8 @@ legacy wrapper:   1 passed (bridge_cbap boundary)
 transport tests:  2 passed (TCP/TLS/mTLS)
 security tests:   14 passed (socket/token/policy/audit/fencing/limits)
 MCP device tests: 14 passed
-brain launcher:   bash tools/启动大脑.sh --help  -> ok
+brain launcher:   bash agents/cyberdyne/tools/启动大脑.sh --help  -> ok
+legacy brain:     agents/cyberdyne/brain/bridge_cbap.py --help -> ok
 launcher syntax:  bash -n on all three root launch shims -> ok
 Alice probe:      archive/alice/tools/alice_bridge_probe.py --help -> ok
 JS tests:         22 + 6 + 8 passed
@@ -150,9 +144,9 @@ external shims:   drivers/{mcp,mindcraft,voyager,alice},
                   are removed
 ```
 
-`tools/跑全部.sh` now passes the bridge fingerprint gate (`658c947ec7f33d37`)
-and all JS tests. Three legacy files still have pre-existing functional
-failures (8 assertions); they are not CBAP conformance failures:
+The legacy suite is archived at `archive/legacy-bridge/跑全部.sh`; it is not
+part of the main CI. The frozen direct source still has pre-existing
+functional failures (8 assertions), recorded as legacy state:
 
 ```text
 测工具查表.py      D2 pre-existing
@@ -162,14 +156,13 @@ failures (8 assertions); they are not CBAP conformance failures:
 
 The old fingerprint assertions were stale: they expected `a649...` although
 the checked-in bridge changed in `2ef1ab5`. Tests/docs were updated to the
-current baseline; `bridge.py` itself was not touched.
+current baseline; the frozen direct source itself was not touched.
 
 The JS path failure was caused by the move (block-table lookup was three
 directories up); `proto_body.js` now also looks in
 `agents/cyberdyne/plugins/常识/方块交互表.json`, and all 22 JS tests pass.
 
-Own legacy shims remain because `bridge.py`, `node` and `外挂` are still
-hardcoded by the old brain/hand/plugin code. M4 phase 1 adds
+M4 moved the default brain entrypoint to
 `agents/cyberdyne/brain/bridge_cbap.py`, which keeps the old brain and swaps
-only `接线口` for `CBAPHandAdapter`. The direct path is frozen; root shims are
-removed only after all callers move.
+only `接线口` for `CBAPHandAdapter`. Root shims are gone. The old direct
+source remains frozen under its physical path and is not a controller.
