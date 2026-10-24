@@ -296,6 +296,8 @@ docs/M1-Trust-Boundary.md              M1 信任边界 / 隔离 / 审计锚点 /
 docs/M2-Protocol-1.1.md                M2 特性协商 / poll 过滤 / TCP/TLS
 docs/M3-Operator-Productization.md     M3 lease / 审批 / MCP onboarding / probe
 docs/M4-Legacy-Decision.md             M4 legacy bridge freeze / CBAP wrapper
+RELEASES.md                            源码发行版与版本边界
+docs/releases/                         各版本 release notes
 agents/*/docs/                         各 Agent 自己的接入文档
 ```
 
