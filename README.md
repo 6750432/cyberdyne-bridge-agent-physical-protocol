@@ -7,7 +7,7 @@
 **把异构 Minecraft Agent，变成同一个协议下的外设。**
 
 [![CBAP](https://img.shields.io/badge/CBAP-v1-0f766e?style=flat-square)](spec/README.md)
-[![Release](https://img.shields.io/badge/release-v1.7.0-0f766e?style=flat-square)](https://github.com/cyberdyne-bridge/cyberdyne-bridge-agent-physical-protocol/releases)
+[![Release](https://img.shields.io/badge/release-v1.7.1-0f766e?style=flat-square)](https://github.com/cyberdyne-bridge/cyberdyne-bridge-agent-physical-protocol/releases)
 [![Conformance](https://img.shields.io/badge/conformance-114%2F114-14b8a6?style=flat-square)](tools/cbap_conformance.py)
 [![Python](https://img.shields.io/badge/Python-3.10%2B-3776AB?style=flat-square&logo=python&logoColor=white)](kernel/)
 [![Transport](https://img.shields.io/badge/CBAP--U-Unix%20socket-334155?style=flat-square)](spec/README.md)
@@ -282,6 +282,7 @@ Host device surface    5 个 device_id / 输入默认关闭
 当前源码发行版：
 
 ```text
+v1.7.1  Legal & Notices        114/114
 v1.7.0  Device Parity P0–P6  114/114
 v1.6.0  Host Device Surface   101/101
 v1.5.0  CBAP OS & Host Bridge 101/101
@@ -296,7 +297,7 @@ Release 页面：
 
 - https://github.com/cyberdyne-bridge/cyberdyne-bridge-agent-physical-protocol/releases
 
-v1.7.0 / v1.6.0 / v1.5.0 / v1.4.0 附带 `CBAP-parameters-zh.pdf`。
+v1.7.1 / v1.7.0 / v1.6.0 / v1.5.0 / v1.4.0 附带 `CBAP-parameters-zh.pdf`。
 版本边界和兼容性见 [`RELEASES.md`](RELEASES.md)。
 
 ## 文档
