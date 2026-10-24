@@ -66,7 +66,7 @@ python3 tools/cbap_conformance.py --target fake
 当前：
 
 ```text
-88/88 tests passed
+89/89 tests passed
 ```
 
 四个 Agent 子仓各自有独立 smoke：
@@ -215,7 +215,7 @@ archive/      Alice 归档
 ## 当前状态
 
 ```text
-CBAP conformance       88/88
+CBAP conformance       89/89
 活跃 Agent 子仓        4
 Alice                  源码归档，未构建
 控制面 p50             0.2–0.3 ms
@@ -241,6 +241,7 @@ docs/MCP-audit-report-2026-10-24.md     独立 MCP 审计报告（PDF 版同目�
 docs/MCP-protocol-security-2026-10-24.md  MCP 协议级安全审计（PDF 版同目录）
 console/README.md                      本地操作员控制台 / 人能看见、能停
 docs/SECURITY-HARDENING.md             13 项安全加固 / 控制项与残余风险
+docs/CBAP-参数手册.md                  协议 / Kernel / 驱动 / Console 全参数
 agents/*/docs/                         各 Agent 自己的接入文档
 ```
 

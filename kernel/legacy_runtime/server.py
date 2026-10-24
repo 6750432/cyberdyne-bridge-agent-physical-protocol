@@ -1102,15 +1102,24 @@ class KernelServer:
                          err=protocol.error("E_INVAL", "target required"))
             return
         found = None
+        found_other = False
         with self._lock:
             for q in self._pending.values():
                 for p in q:
                     if p.request_id == target and not p.done:
+                        if p.session is not session:
+                            found_other = True
+                            continue
                         found = p
                         break
                 if found:
                     break
         if not found:
+            if found_other:
+                self._result(session, rid, False,
+                             err=protocol.error("E_PERM",
+                                                "cannot cancel another session"))
+                return
             self._result(session, rid, True, payload={"already_done": True})
             return
         if found.timer:

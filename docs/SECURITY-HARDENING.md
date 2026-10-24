@@ -249,8 +249,8 @@ no ML/anomaly service; these are deterministic fail-closed rules.
 ## Verification
 
 ```text
-CBAP conformance: 88/88
-security tests:   13
+CBAP conformance: 89/89
+security tests:   14
 MCP device tests: 11
 console tests:    3
 ```

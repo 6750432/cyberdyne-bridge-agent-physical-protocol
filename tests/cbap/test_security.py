@@ -298,6 +298,23 @@ class SecurityTest(unittest.TestCase):
         finally:
             k.stop()
 
+    def test_other_session_cannot_cancel(self):
+        a = self.client("viewer")
+        b = self.client("viewer")
+        fd = a.open("test://security/light-01", "rw")["payload"]["fd"]
+        a.lease(fd)
+        rid = a.request("write", {"fd": fd, "frame": {
+            "channel": "body", "op": "move", "args": {}}})
+        a.wait_ack(rid)
+        b.send({"v": "1.0", "type": "cancel", "id": "c-x",
+                "ts": 1, "target": rid})
+        r = b.wait("c-x", 2)
+        self.assertFalse(r.get("ok"), r)
+        self.assertEqual(r["error"]["code"], "E_PERM")
+        self.assertTrue(a.release(fd)["ok"])
+        self.assertEqual(a.wait(rid, 2)["error"]["code"], "E_CANCELED")
+        a.close(); b.close()
+
     def test_auth_failures_degrade_to_safe(self):
         # Five bad hellos are counted by the Kernel monitor.
         import socket

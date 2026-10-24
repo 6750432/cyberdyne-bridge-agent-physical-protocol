@@ -132,9 +132,9 @@ and imports a factory on explicit request.
 ## Verification (2026-10-24)
 
 ```text
-CBAP conformance: 88/88 passed
+CBAP conformance: 89/89 passed
 console tests:    3 passed (login / Host+Origin / estop+audit)
-security tests:   13 passed (socket/token/policy/audit/fencing/limits)
+security tests:   14 passed (socket/token/policy/audit/fencing/limits)
 MCP device tests: 11 passed
 brain launcher:   bash tools/启动大脑.sh --help  -> ok
 launcher syntax:  bash -n on all three root launch shims -> ok
