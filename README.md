@@ -7,7 +7,7 @@
 **把异构 Minecraft Agent，变成同一个协议下的外设。**
 
 [![CBAP](https://img.shields.io/badge/CBAP-v1-0f766e?style=flat-square)](spec/README.md)
-[![Conformance](https://img.shields.io/badge/conformance-66%2F66-14b8a6?style=flat-square)](tools/cbap_conformance.py)
+[![Conformance](https://img.shields.io/badge/conformance-69%2F69-14b8a6?style=flat-square)](tools/cbap_conformance.py)
 [![Python](https://img.shields.io/badge/Python-3.10%2B-3776AB?style=flat-square&logo=python&logoColor=white)](kernel/)
 [![Transport](https://img.shields.io/badge/CBAP--U-Unix%20socket-334155?style=flat-square)](spec/README.md)
 [![No paid API](https://img.shields.io/badge/LLM-local%20friendly-6b7280?style=flat-square)](#)
@@ -66,7 +66,7 @@ python3 tools/cbap_conformance.py --target fake
 当前：
 
 ```text
-66/66 tests passed
+69/69 tests passed
 ```
 
 四个 Agent 子仓各自有独立 smoke：
@@ -171,10 +171,39 @@ done
 - [`agents/voyager/README.md`](agents/voyager/README.md)
 - [`agents/cyberdyne/README.md`](agents/cyberdyne/README.md)
 
+## 操作员控制台
+
+CBAP 协议本身不带 UI；`console/` 是一个独立的本地 Host：
+
+```bash
+python3 console/server.py --socket ./cbap.sock --audit ./logs/cbap-audit.jsonl
+```
+
+打开：
+
+```text
+http://127.0.0.1:8765/
+```
+
+它只做两件写操作：
+
+```text
+单设备 estop
+全局 estop
+```
+
+没有 resume。Kernel 的 estop 是 latched，必须由操作员重启 Kernel 才能解除。
+控制台只绑 `127.0.0.1`，校验 Host / Origin，并要求本地 console token。
+
+![CBAP Operator Console](docs/diagrams/cbap-console.jpg)
+
+详细说明见 [`console/README.md`](console/README.md)。
+
 ## 仓库结构
 
 ```text
 kernel/       CBAP Kernel：会话 / 租约 / 安全 / 急停 / 审计
+console/      本地操作员控制台：状态 / 租约 / facts / estop / 审计
 spec/         CBAP 协议与设备契约
 tests/        conformance
 tools/        通用工装（conformance / 并发 / 故障 / 恢复）
@@ -186,7 +215,7 @@ archive/      Alice 归档
 ## 当前状态
 
 ```text
-CBAP conformance       66/66
+CBAP conformance       69/69
 活跃 Agent 子仓        4
 Alice                  源码归档，未构建
 控制面 p50             0.2–0.3 ms
@@ -210,6 +239,7 @@ tools/mcp_device_probe.py               单个 MCP 设备的事实探针
 docs/MCP-device-audit-2026-10-24.md     MCP 回执 vs 事实审计
 docs/MCP-audit-report-2026-10-24.md     独立 MCP 审计报告（PDF 版同目录）
 docs/MCP-protocol-security-2026-10-24.md  MCP 协议级安全审计（PDF 版同目录）
+console/README.md                      本地操作员控制台 / 人能看见、能停
 agents/*/docs/                         各 Agent 自己的接入文档
 ```
 

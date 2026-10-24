@@ -7,6 +7,7 @@ Status: **phase 4 — external agent shims removed; own legacy shims remain**
 ```text
 cyberdyne-bridge/                  main repository = CBAP
   kernel/                          protocol, kernel, leases, safety, audit
+  console/                         local operator host (status + estop)
   spec/                            CBAP contracts
   tests/                           conformance tests
   tools/                           generic CBAP + integration probes
@@ -131,7 +132,8 @@ and imports a factory on explicit request.
 ## Verification (2026-10-24)
 
 ```text
-CBAP conformance: 66/66 passed
+CBAP conformance: 69/69 passed
+console tests:    3 passed (status / Host+Origin+token / estop+audit)
 brain launcher:   bash tools/启动大脑.sh --help  -> ok
 launcher syntax:  bash -n on all three root launch shims -> ok
 Alice probe:      archive/alice/tools/alice_bridge_probe.py --help -> ok

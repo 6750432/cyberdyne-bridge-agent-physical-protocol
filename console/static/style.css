@@ -1,0 +1,101 @@
+:root {
+  --bg: #0b1115;
+  --panel: #121b21;
+  --panel-2: #18252c;
+  --line: #263840;
+  --text: #e6f0f2;
+  --muted: #8ba3aa;
+  --teal: #2dd4bf;
+  --teal-dim: #134e4a;
+  --amber: #fbbf24;
+  --red: #fb7185;
+  --red-deep: #7f1d1d;
+  --ok: #4ade80;
+}
+* { box-sizing: border-box; }
+body {
+  margin: 0;
+  background: radial-gradient(circle at 20% 0%, #13262d 0, var(--bg) 42%);
+  color: var(--text);
+  font: 14px/1.5 "Noto Sans CJK SC", "Segoe UI", system-ui, sans-serif;
+  min-height: 100vh;
+}
+.topbar {
+  display: flex; justify-content: space-between; align-items: center;
+  gap: 16px; padding: 20px 28px; border-bottom: 1px solid var(--line);
+  background: rgba(11,17,21,.82); backdrop-filter: blur(10px);
+  position: sticky; top: 0; z-index: 2;
+}
+.brand { display: flex; align-items: center; gap: 14px; }
+.mark {
+  font: 800 16px/1 "Noto Sans Mono CJK SC", monospace;
+  color: #062a2a; background: var(--teal); padding: 10px 11px;
+  border-radius: 8px; letter-spacing: .08em;
+}
+h1 { margin: 0; font-size: 20px; letter-spacing: .02em; }
+.brand p { margin: 3px 0 0; color: var(--muted); font-size: 12px; }
+.actions { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+.btn {
+  border: 1px solid var(--line); background: var(--panel-2); color: var(--text);
+  padding: 8px 12px; border-radius: 7px; cursor: pointer; font: inherit;
+}
+.btn:hover { border-color: var(--teal); }
+.btn.danger { background: var(--red-deep); border-color: #b91c1c; color: #fff; font-weight: 700; }
+.btn.danger:hover { background: #991b1b; }
+.btn:disabled { opacity: .45; cursor: not-allowed; }
+.pill {
+  font-size: 12px; padding: 4px 9px; border-radius: 999px;
+  border: 1px solid var(--line); color: var(--muted); white-space: nowrap;
+}
+.pill.online { color: var(--ok); border-color: #14532d; background: #052e16; }
+.pill.offline { color: var(--red); border-color: #7f1d1d; background: #2a0b0b; }
+main { max-width: 1180px; margin: 24px auto; padding: 0 18px 40px; display: grid; gap: 18px; }
+.panel { background: rgba(18,27,33,.86); border: 1px solid var(--line); border-radius: 12px; padding: 16px; }
+.section-head { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; margin-bottom: 12px; }
+h2 { margin: 0; font-size: 15px; letter-spacing: .04em; text-transform: uppercase; color: var(--teal); }
+.muted { color: var(--muted); font-size: 12px; }
+.device-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(330px, 1fr)); gap: 12px; }
+.device {
+  border: 1px solid var(--line); border-radius: 10px; background: var(--panel-2);
+  padding: 14px; display: flex; flex-direction: column; gap: 10px;
+}
+.device.offline { opacity: .72; }
+.device.safe { border-color: #b91c1c; box-shadow: inset 0 0 0 1px #7f1d1d; }
+.device-head { display: flex; justify-content: space-between; gap: 10px; align-items: flex-start; }
+.device-name { font-weight: 700; word-break: break-word; }
+.device-type { color: var(--muted); font-size: 12px; margin-top: 2px; }
+.badge { font-size: 11px; border: 1px solid var(--line); border-radius: 999px; padding: 2px 8px; color: var(--muted); white-space: nowrap; }
+.badge.ready { color: var(--ok); border-color: #14532d; }
+.badge.safe { color: var(--red); border-color: #7f1d1d; background: #2a0b0b; }
+.kv { display: grid; grid-template-columns: 92px 1fr; gap: 3px 8px; font-size: 12px; }
+.kv dt { color: var(--muted); }
+.kv dd { margin: 0; word-break: break-word; }
+.facts { border-top: 1px solid var(--line); padding-top: 8px; }
+.facts summary { cursor: pointer; color: var(--muted); font-size: 12px; }
+pre {
+  margin: 8px 0 0; padding: 9px; max-height: 220px; overflow: auto;
+  background: #091014; border: 1px solid #1f3038; border-radius: 6px;
+  color: #b9e6df; font: 11px/1.45 "Noto Sans Mono CJK SC", monospace;
+  white-space: pre-wrap; word-break: break-word;
+}
+.device-actions { display: flex; justify-content: flex-end; margin-top: auto; }
+.audit { display: grid; gap: 1px; max-height: 320px; overflow: auto; border: 1px solid var(--line); border-radius: 8px; }
+.audit-row { display: grid; grid-template-columns: 150px 130px 1fr; gap: 10px; padding: 7px 10px; background: #0e171c; font-size: 12px; }
+.audit-row:nth-child(odd) { background: #101c22; }
+.audit-time { color: var(--muted); font-family: "Noto Sans Mono CJK SC", monospace; }
+.audit-event { color: var(--teal); font-family: "Noto Sans Mono CJK SC", monospace; }
+.audit-detail { color: #c7d7db; word-break: break-word; }
+.empty { color: var(--muted); padding: 18px; text-align: center; border: 1px dashed var(--line); border-radius: 8px; }
+.toast {
+  position: fixed; right: 18px; bottom: 18px; max-width: 420px;
+  padding: 11px 14px; border-radius: 8px; border: 1px solid var(--line);
+  background: #0f1e24; color: var(--text); opacity: 0; transform: translateY(8px);
+  transition: .18s ease; pointer-events: none; font-size: 13px;
+}
+.toast.show { opacity: 1; transform: translateY(0); }
+.toast.err { border-color: #b91c1c; color: #fecdd3; }
+@media (max-width: 640px) {
+  .topbar { align-items: flex-start; padding: 14px; flex-direction: column; }
+  .audit-row { grid-template-columns: 1fr; gap: 2px; }
+  .kv { grid-template-columns: 78px 1fr; }
+}

@@ -1,0 +1,51 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="cbap-console-token" content="__CONSOLE_TOKEN__">
+  <title>CBAP Operator Console</title>
+  <link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+  <header class="topbar">
+    <div class="brand">
+      <span class="mark">CBAP</span>
+      <div>
+        <h1>Operator Console</h1>
+        <p>local-only · kernel-authoritative · estop is latched</p>
+      </div>
+    </div>
+    <div class="actions">
+      <span id="connection" class="pill offline">connecting</span>
+      <button id="refresh" class="btn">Refresh</button>
+      <button id="global-estop" class="btn danger">EMERGENCY STOP</button>
+    </div>
+  </header>
+
+  <main>
+    <section class="panel">
+      <div class="section-head">
+        <h2>Devices</h2>
+        <span id="device-count" class="muted">0</span>
+      </div>
+      <div id="devices" class="device-grid">
+        <div class="empty">Connecting to the CBAP Kernel…</div>
+      </div>
+    </section>
+
+    <section class="panel">
+      <div class="section-head">
+        <h2>Audit</h2>
+        <span class="muted">latest 80 events</span>
+      </div>
+      <div id="audit" class="audit">
+        <div class="empty">No audit rows yet.</div>
+      </div>
+    </section>
+  </main>
+
+  <div id="toast" class="toast" role="status" aria-live="polite"></div>
+  <script src="/static/app.js"></script>
+</body>
+</html>
