@@ -7,7 +7,7 @@
 **把异构 Minecraft Agent，变成同一个协议下的外设。**
 
 [![CBAP](https://img.shields.io/badge/CBAP-v1-0f766e?style=flat-square)](spec/README.md)
-[![Release](https://img.shields.io/badge/release-v1.5.0-0f766e?style=flat-square)](https://github.com/cyberdyne-bridge/cyberdyne-bridge-agent-physical-protocol/releases)
+[![Release](https://img.shields.io/badge/release-v1.6.0-0f766e?style=flat-square)](https://github.com/cyberdyne-bridge/cyberdyne-bridge-agent-physical-protocol/releases)
 [![Conformance](https://img.shields.io/badge/conformance-101%2F101-14b8a6?style=flat-square)](tools/cbap_conformance.py)
 [![Python](https://img.shields.io/badge/Python-3.10%2B-3776AB?style=flat-square&logo=python&logoColor=white)](kernel/)
 [![Transport](https://img.shields.io/badge/CBAP--U-Unix%20socket-334155?style=flat-square)](spec/README.md)
@@ -270,6 +270,7 @@ CBAP conformance       101/101
 活跃 Agent 子仓        4
 Alice                  源码归档，未构建
 CBAP OS 0.1            live ISO / 版本选择 / host bridge 实测
+Host device surface    5 个 device_id / 输入默认关闭
 控制面 p50             0.2–0.3 ms
 旧套件                 已归档，不再进主 CI
 ```
@@ -281,6 +282,7 @@ CBAP OS 0.1            live ISO / 版本选择 / host bridge 实测
 当前源码发行版：
 
 ```text
+v1.6.0  Host Device Surface   101/101
 v1.5.0  CBAP OS & Host Bridge 101/101
 v1.4.0  Legacy Boundary       101/101
 v1.3.0  Operator Infra        100/100
@@ -293,7 +295,7 @@ Release 页面：
 
 - https://github.com/cyberdyne-bridge/cyberdyne-bridge-agent-physical-protocol/releases
 
-v1.5.0 / v1.4.0 附带 `CBAP-parameters-zh.pdf`。
+v1.6.0 / v1.5.0 / v1.4.0 附带 `CBAP-parameters-zh.pdf`。
 版本边界和兼容性见 [`RELEASES.md`](RELEASES.md)。
 
 ## 文档

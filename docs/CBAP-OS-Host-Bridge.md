@@ -1,8 +1,9 @@
 # CBAP OS VM → host desktop: safe CBAP test
 
-**Status**: tested with QEMU/KVM, 4G guest cap, 2026-10-24  
-**Protocol**: CBAP-U over TCP, same Kernel lease/audit path  
-**Host device**: `host://desktop`  
+**Status**: tested with QEMU/KVM, 4G guest cap, 2026-10-24
+**Protocol**: CBAP-U over TCP, same Kernel lease/audit path
+**Host devices**: `host://desktop`, `host://fs`, `host://display`,
+`host://input/mouse`, `host://input/keyboard`
 **Host action**: create `~/Desktop/CBAP-Host-Test/hello-from-vm.txt`
 
 ---
@@ -18,13 +19,14 @@ QEMU user network 10.0.2.2:18765
         ▼
 host KernelServer (127.0.0.1 only)
         ▼
-HostDesktopDriver (CBAP-D)
+HostDesktopDriver / HostDisplayDriver / HostInputDriver (CBAP-D)
         ▼
-~/Desktop/CBAP-Host-Test/  (allowlist)
+~/Desktop/CBAP-Host-Test/  (filesystem + screenshots)
+X11/XWayland input          (mouse/keyboard, opt-in only)
 ```
 
-The VM does **not** get a shell on the host. It gets exactly one CBAP device
-with a tiny allowlisted filesystem surface.
+The VM does **not** get a shell on the host. It gets CBAP device IDs with a
+small, explicit action surface.
 
 ## Host side
 
@@ -39,6 +41,26 @@ python3 tools/cbap_host_bridge.py \
 
 TCP binds `127.0.0.1` only. The token is a **test-only shared token** injected
 into the CBAP OS ISO; do not reuse it outside this local test.
+
+## Device IDs
+
+Kernel welcome lists:
+
+```text
+host://desktop         filesystem compatibility API
+host://fs              allowlisted filesystem
+host://display         read-only Wayland screenshot into allowlist
+host://input/mouse     opt-in X11/XWayland pointer
+host://input/keyboard  opt-in X11/XWayland keyboard
+```
+
+Input devices are **closed by default**. Starting the bridge with
+`--enable-input` is an explicit host decision; without it every input action
+returns `E_SAFETY`.
+
+The input backend is X11/XWayland (`xdotool`). It is not a native Wayland
+input injection service; a native Wayland portal/uinput backend would be a
+separate, higher-risk feature.
 
 ## Guest side
 
@@ -93,8 +115,11 @@ sha256=d4f41106f04fc7fab04aa9542628ee9e888614ade91a9eac7bfee5b8b228cd22
 ```text
 TCP only on 127.0.0.1
 token required
-one host device: host://desktop
-actions: write_file / list / stat / ping
+5 device IDs, each with its own lease/safety state
+filesystem actions: write_file / list / stat / ping
+display actions: screenshot / stat (read-only)
+input actions: gated by --enable-input; default E_SAFETY
+input backend: X11/XWayland only; native Wayland not claimed
 write_file only under ~/Desktop/CBAP-Host-Test
 absolute paths rejected
 .. escapes rejected

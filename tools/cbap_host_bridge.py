@@ -24,6 +24,9 @@ if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
 from drivers.host_desktop.driver import HostDesktopDriver  # noqa: E402
+from drivers.host_desktop.devices import (  # noqa: E402
+    HostDisplayDriver, HostFilesystemDriver, HostKeyboardDriver, HostMouseDriver,
+)
 from kernel.legacy_runtime.server import KernelServer  # noqa: E402
 
 
@@ -36,13 +39,24 @@ def main(argv=None) -> int:
     ap.add_argument("--no-tcp", action="store_true")
     ap.add_argument("--token", default=os.environ.get("CBAP_HOST_TOKEN", "cbap-host-test-2026"))
     ap.add_argument("--audit", default="/tmp/cbap-host-test/audit.jsonl")
+    ap.add_argument("--no-display", action="store_true",
+                    help="do not expose host://display screenshot capture")
+    ap.add_argument("--enable-input", action="store_true",
+                    help="opt in to X11/XWayland mouse/keyboard devices")
     a = ap.parse_args(argv)
 
     Path(a.socket).parent.mkdir(parents=True, exist_ok=True)
     Path(a.audit).parent.mkdir(parents=True, exist_ok=True)
     driver = HostDesktopDriver(a.root)
+    drivers = [
+        driver,
+        HostFilesystemDriver(a.root),
+        HostDisplayDriver(a.root, enable=not a.no_display),
+        HostMouseDriver(enable=a.enable_input),
+        HostKeyboardDriver(enable=a.enable_input),
+    ]
     server = KernelServer(
-        driver=driver,
+        drivers=drivers,
         socket_path=a.socket,
         kernel_id="cbap-host-desktop",
         token=a.token,
@@ -61,7 +75,7 @@ def main(argv=None) -> int:
         return 2
     status = {
         "ready": True,
-        "device": "host://desktop",
+        "devices": [d.describe().get("device_id") for d in drivers],
         "root": str(driver.root),
         "socket": str(Path(a.socket).resolve()),
         "tcp": None if a.no_tcp else f"{a.tcp_host}:{server.tcp_port}",
