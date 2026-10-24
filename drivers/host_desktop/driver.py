@@ -71,16 +71,61 @@ class HostDesktopDriver:
     # ── driver ABI ────────────────────────────────────────────
 
     def describe(self) -> dict:
+        actions = {
+            "write_file": {
+                "args": {"path": "relative-path", "content": "string<=65536"},
+                "result": {"path": "string", "bytes": "int", "sha256": "hex"},
+                "danger": "normal", "idempotent": True,
+            },
+            "list": {
+                "args": {"path?": "relative-path"},
+                "result": {"entries": "array"}, "danger": "normal",
+                "idempotent": True,
+            },
+            "stat": {
+                "args": {"path": "relative-path"},
+                "result": {"bytes": "int", "sha256": "hex"},
+                "danger": "normal", "idempotent": True,
+            },
+            "ping": {"args": {}, "result": {"pong": "bool"},
+                     "danger": "normal", "idempotent": True},
+        }
         return {
             "device_id": self.DEVICE_ID,
             "type": "host-desktop",
             "name": "CBAP Host Desktop Test",
             "transport": "local-allowlist",
-            "actions": ["write_file", "list", "stat", "ping"],
+            "contract": "cbap-device-v1",
+            "class": "filesystem",
+            "version": "1.0",
+            "legacy": False,
+            "actions": actions,
+            "capabilities": ["read", "write", "lease", "estop"],
+            "trust": {
+                "source": "host-filesystem",
+                "independent": False,
+                "attestation": "local-hash",
+                "level": 1,
+            },
+            "isolation": {
+                "process": "host-bridge",
+                "uid": os.getuid(),
+                "sandbox": "none",
+                "network": "local",
+            },
+            "resources": {
+                "max_inflight": 4,
+                "rate_hz": 10,
+                "max_bytes": int(self.MAX_BYTES),
+                "max_sessions": 4,
+            },
             "safety": {"estop": True, "watchdog_ms": 10000,
-                       "safe_state": "on"},
+                       "safe_state": "read-only"},
             "root": str(self.root),
         }
+
+    def safe_state(self) -> str:
+        return "read-only" if self._safe else "unknown"
 
     def health(self) -> dict:
         return {

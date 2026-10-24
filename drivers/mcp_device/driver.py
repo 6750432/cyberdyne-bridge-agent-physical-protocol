@@ -548,6 +548,21 @@ class MCPDeviceDriver:
     # ── Kernel interface ─────────────────────────────────────
 
     def describe(self) -> dict:
+        transport = self.manifest.get("transport") or {}
+        limits = self.manifest.get("limits") or {}
+        actions = {
+            str(name): {
+                "args": copy.deepcopy(spec.get("args") or {}),
+                "result": {},
+                "danger": "high" if bool(spec.get("danger")) else "normal",
+                "idempotent": bool(spec.get("idempotent", False)),
+            }
+            for name, spec in self.tools.items()
+            if isinstance(spec, dict)
+        }
+        estop_verified = bool(self.estop_spec and
+                              (self.estop_spec.get("expect") or
+                               self.estop_spec.get("verify")))
         return {
             "device_id": self.device_id,
             "type": "mcp-device",
@@ -559,15 +574,35 @@ class MCPDeviceDriver:
             "tool_digest": self._tool_digest,
             "instructions_digest": self._instructions_digest,
             "estop": bool(self.estop_spec),
+            "contract": "cbap-device-v1",
+            "class": "actuator",
+            "version": "1.0",
+            "legacy": False,
+            "actions": actions,
+            "capabilities": (["read", "write", "lease"] +
+                             (["estop"] if estop_verified else [])),
+            "trust": {
+                "source": str(self.facts_spec.get("source") or "mcp-tool"),
+                "independent": bool(self.facts_spec.get("independent", False)),
+                "attestation": "none",
+                "level": 2 if self.facts_spec.get("independent") else 1,
+            },
+            "isolation": {
+                "process": "mcp-child",
+                "uid": int(transport.get("run_as_uid") or os.getuid()),
+                "sandbox": str(transport.get("sandbox") or "none"),
+                "network": "stdio",
+            },
+            "resources": {
+                "max_inflight": int(limits.get("max_inflight") or 4),
+                "rate_hz": int(limits.get("rate_hz") or 20),
+                "max_bytes": int(limits.get("max_bytes") or 65536),
+                "max_sessions": int(limits.get("max_sessions") or 4),
+            },
             "safety": {
-                "estop": bool(self.estop_spec and
-                               (self.estop_spec.get("expect") or
-                                self.estop_spec.get("verify"))),
+                "estop": estop_verified,
                 "watchdog_ms": int(self.manifest.get("watchdog_ms", 10000)),
-                "safe_state": ("off" if (self.estop_spec and
-                                         (self.estop_spec.get("expect") or
-                                          self.estop_spec.get("verify")))
-                               else "unknown"),
+                "safe_state": ("off" if estop_verified else "unknown"),
             },
         }
 

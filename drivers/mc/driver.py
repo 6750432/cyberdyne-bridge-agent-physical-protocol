@@ -243,7 +243,45 @@ class McDriver:
         return self._connected
 
     def describe(self) -> dict:
-        return copy.deepcopy(self.device)
+        desc = copy.deepcopy(self.device)
+        ops = self.mapping.get("ops") or {}
+        actions = {}
+        for name, spec in ops.items():
+            actions[str(name)] = {
+                "args": copy.deepcopy((spec or {}).get("args") or {}),
+                "result": {},
+                "danger": ("high" if name in
+                           {"attack", "dig", "place", "use", "give"} else "normal"),
+                "idempotent": False,
+            }
+        limits = desc.get("limits") or {}
+        desc.update({
+            "contract": "cbap-device-v1",
+            "class": "actuator",
+            "version": str(desc.get("cbap") or "1.0"),
+            "legacy": False,
+            "actions": actions,
+            "capabilities": ["read", "write", "lease", "estop"],
+            "trust": {
+                "source": "minecraft-server",
+                "independent": True,
+                "attestation": "none",
+                "level": 2,
+            },
+            "isolation": {
+                "process": "mc-hand",
+                "uid": os.getuid(),
+                "sandbox": "none",
+                "network": "unix",
+            },
+            "resources": {
+                "max_inflight": int(limits.get("max_inflight") or 1),
+                "rate_hz": max(20, int(limits.get("rate_hz") or 5)),
+                "max_bytes": int(limits.get("max_frame") or 65536),
+                "max_sessions": 4,
+            },
+        })
+        return desc
 
     def latest_state(self) -> dict | None:
         with self._state_lock:

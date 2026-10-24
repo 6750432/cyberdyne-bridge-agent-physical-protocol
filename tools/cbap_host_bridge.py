@@ -42,7 +42,14 @@ def main(argv=None) -> int:
     ap.add_argument("--no-display", action="store_true",
                     help="do not expose host://display screenshot capture")
     ap.add_argument("--enable-input", action="store_true",
-                    help="opt in to X11/XWayland mouse/keyboard devices")
+                    help="opt in to mouse/keyboard devices")
+    ap.add_argument("--input-backend", choices=("x11", "portal"),
+                    default="x11",
+                    help="input backend: X11/XWayland or native Wayland portal")
+    ap.add_argument("--require-isolated-input", action="store_true",
+                    help="refuse unisolated X11 input; use with --input-backend portal")
+    ap.add_argument("--strict-contracts", action="store_true",
+                    help="refuse legacy descriptors without declared contracts")
     a = ap.parse_args(argv)
 
     Path(a.socket).parent.mkdir(parents=True, exist_ok=True)
@@ -52,9 +59,19 @@ def main(argv=None) -> int:
         driver,
         HostFilesystemDriver(a.root),
         HostDisplayDriver(a.root, enable=not a.no_display),
-        HostMouseDriver(enable=a.enable_input),
-        HostKeyboardDriver(enable=a.enable_input),
+        HostMouseDriver(enable=a.enable_input, backend=a.input_backend),
+        HostKeyboardDriver(enable=a.enable_input, backend=a.input_backend),
     ]
+    allowed = ["host://desktop", "host://fs", "host://display"]
+    approvals = {"devices": [], "ops": []}
+    if a.enable_input:
+        allowed += ["host://input/mouse", "host://input/keyboard"]
+        approvals = {
+            "devices": ["host://input/*"],
+            "ops": ["click", "type", "key"],
+            "required_approvals": 1,
+            "ttl_ms": 30000,
+        }
     server = KernelServer(
         drivers=drivers,
         socket_path=a.socket,
@@ -69,6 +86,16 @@ def main(argv=None) -> int:
         max_inflight=2,
         rate_hz=5,
         uid_rate_hz=10,
+        require_isolated_input=a.require_isolated_input,
+        strict_contracts=a.strict_contracts,
+        policy={
+            "default": {
+                "devices": allowed,
+                "capabilities": ["read", "write", "lease", "estop"],
+            },
+            "agents": {},
+            "approvals": approvals,
+        },
     )
     if not server.start():
         print("cannot start host bridge", file=sys.stderr)

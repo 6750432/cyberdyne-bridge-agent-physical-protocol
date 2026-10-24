@@ -39,6 +39,8 @@ from . import protocol
 from .security import (AnomalyMonitor, AuditChain, CapabilityPolicy,
                        PolicyError, TokenFile, peer_credentials)
 from .secrets import get_secret
+from .device_contract import (ContractError, contract_summary,
+                              normalize_contract)
 from . import registry as registry_mod
 from drivers.mcp_device.driver import MCPDeviceDriver
 
@@ -179,18 +181,19 @@ class KernelServer:
                  tls_key: str | None = None,
                  tls_ca: str | None = None,
                  tls_require_client_cert: bool = False,
-                 mcp_registry: str | None = None):
+                 mcp_registry: str | None = None,
+                 require_isolated_input: bool = False,
+                 strict_contracts: bool = False):
         # 多设备：drivers=[legacy, dataflow...]；旧单驱动参数仍然兼容。
         if drivers is None:
             drivers = [driver] if driver is not None else []
         self.drivers = list(drivers)
         if not self.drivers:
             raise ValueError("E_INVAL: at least one driver required")
-        for d in self.drivers:
-            dev = d.describe() if hasattr(d, "describe") else {}
-            safety = (dev or {}).get("safety") or {}
-            if not safety.get("estop") or not isinstance(safety.get("watchdog_ms"), int):
-                raise ValueError("E_INVAL: driver.safety.estop/watchdog_ms required")
+        self.device_contracts: dict[str, dict] = {}
+        self.require_isolated_input = bool(require_isolated_input)
+        self.strict_contracts = bool(strict_contracts)
+        self._refresh_contracts()
         self.driver = self.drivers[0]  # 兼容旧代码/旧测试
         self.socket_path = os.path.abspath(socket_path or DEFAULT_CBAP_SOCKET)
         self.kernel_id = kernel_id
@@ -241,6 +244,7 @@ class KernelServer:
         self._lease_cv = threading.Condition(self._lock)
         # device_id -> deque of (token, session, fd, ttl_ms, deadline_monotonic)
         self._lease_waiters: dict[str, deque] = {}
+        self._device_rate_times: dict[str, deque] = {}
 
         self._server: socket.socket | None = None
         self.tcp_host = tcp_host
@@ -275,6 +279,8 @@ class KernelServer:
         self._thread: threading.Thread | None = None
         self._watchdog_thread: threading.Thread | None = None
         self._security_degraded = False
+        self.require_isolated_input = bool(require_isolated_input)
+        self.strict_contracts = bool(strict_contracts)
         self.registry_dir = (os.path.abspath(mcp_registry)
                              if mcp_registry else None)
         self._registry_drivers: dict[str, Any] = {}
@@ -284,6 +290,55 @@ class KernelServer:
             self._wire_driver(d)
         if self.registry_dir:
             self.reload_registry()
+        self._refresh_contracts()
+
+    def _refresh_contracts(self) -> None:
+        """Validate/normalize every registered driver into device contract v1."""
+        contracts: dict[str, dict] = {}
+        for d in self.drivers:
+            try:
+                desc = d.describe()
+                contract = normalize_contract(desc)
+            except ContractError as e:
+                raise ValueError(f"E_INVAL: device contract: {e}") from e
+            dev = contract["device_id"]
+            if dev in contracts:
+                raise ValueError(f"E_INVAL: duplicate device_id: {dev}")
+            if not contract["safety"]["estop"] or                     not isinstance(contract["safety"].get("watchdog_ms"), int):
+                raise ValueError(
+                    f"E_INVAL: {dev}: safety.estop/watchdog_ms required")
+            if getattr(self, "strict_contracts", False) and contract.get("legacy"):
+                raise ValueError(
+                    f"E_INVAL: {dev}: declared contract required (legacy descriptor)")
+            if (getattr(self, "require_isolated_input", False) and
+                    contract["class"] == "input" and
+                    contract["isolation"].get("sandbox") == "none"):
+                raise ValueError(
+                    f"E_SAFETY: {dev}: input requires an isolated backend")
+            contracts[dev] = contract
+        self.device_contracts = contracts
+
+    def _device_view(self, d: Any) -> dict:
+        desc = d.describe()
+        dev = str(desc.get("device_id") or "")
+        contract = self.device_contracts.get(dev)
+        if contract is None:
+            contract = normalize_contract(desc)
+        view = {
+            "device_id": dev,
+            "type": desc.get("type"),
+            "class": contract["class"],
+            "state": "ready" if getattr(d, "connected", False) else "offline",
+            "contract": contract["contract"],
+            "actions": sorted(contract["actions"]),
+            "capabilities": contract["capabilities"],
+            "trust": contract["trust"],
+            "isolation": contract["isolation"],
+            "resources": contract["resources"],
+            "safety": contract["safety"],
+            "legacy": contract["legacy"],
+        }
+        return view
 
     def _wire_driver(self, d: Any) -> None:
         d.on_state = (lambda msg, drv=d: self._on_state(drv, msg))
@@ -362,6 +417,7 @@ class KernelServer:
                 except Exception as e:
                     report["errors"].append(f"{dev}: {e}")
             self.driver = self.drivers[0] if self.drivers else None
+            self._refresh_contracts()
             self._registry_last = report
         self._audit("registry_reload", loaded=report["loaded"],
                     unloaded=report["unloaded"], kept=report["kept"],
@@ -716,12 +772,10 @@ class KernelServer:
             self._sessions.add(session)
         devices = []
         for d in self.drivers:
-            dev = d.describe()
-            devices.append({
-                "device_id": dev.get("device_id"),
-                "type": dev.get("type"),
-                "state": "ready" if d.connected else "offline",
-            })
+            view = self._device_view(d)
+            if CapabilityPolicy.device_allowed(view["device_id"],
+                                               session.allowed_devices):
+                devices.append(view)
         session.send({
             "v": protocol.PROTOCOL_VERSION,
             "type": "welcome",
@@ -926,6 +980,33 @@ class KernelServer:
         if not CapabilityPolicy.device_allowed(device_id, session.allowed_devices):
             raise _OpError("E_PERM", f"device not allowed: {device_id}")
 
+    def _contract_for(self, device_id: str) -> dict:
+        contract = self.device_contracts.get(device_id)
+        if contract is None:
+            raise _OpError("E_NOENT", f"unknown device: {device_id}")
+        return contract
+
+    def _device_pending_count(self, device_id: str) -> int:
+        with self._lock:
+            count = sum(1 for q in self._pending.values() for p in q
+                        if not p.done and p.device_id == device_id)
+            count += sum(1 for a in self._approvals.values()
+                         if a.device_id == device_id)
+        return count
+
+    def _device_rate_allow(self, device_id: str) -> bool:
+        contract = self._contract_for(device_id)
+        limit = max(1, int(contract["resources"]["rate_hz"]))
+        now = time.monotonic()
+        with self._lock:
+            q = self._device_rate_times.setdefault(device_id, deque())
+            while q and q[0] < now - 1.0:
+                q.popleft()
+            if len(q) >= limit:
+                return False
+            q.append(now)
+        return True
+
     # ── syscalls ─────────────────────────────────────────────
 
     def _op_open(self, session: Session, rid: str, args: dict) -> None:
@@ -942,6 +1023,13 @@ class KernelServer:
             raise _OpError("E_NOENT", f"unknown device: {device_id}")
         self._require_device(session, device_id)
         self._require_cap(session, "read")
+        contract = self._contract_for(device_id)
+        max_sessions = max(1, int(contract["resources"]["max_sessions"]))
+        with self._lock:
+            open_count = sum(1 for f in self._fds.values()
+                             if f.device_id == device_id and not f.closed)
+        if open_count >= max_sessions:
+            raise _OpError("E_BUSY", f"device max_sessions reached: {device_id}")
         if mode in ("rw", "exclusive"):
             self._require_cap(session, "write")
         if mode == "exclusive":
@@ -999,7 +1087,9 @@ class KernelServer:
                 raise _OpError("E_INVAL", f"unknown channel: {channel}")
             payload = {channel: payload[channel]}
         self._result(session, rid, True, payload={"frame": payload},
-                     facts={"state_seq": payload.get("legacy_seq")})
+                     facts=self._trust_facts(
+                         f.device_id,
+                         {"state_seq": payload.get("legacy_seq")}))
         _ = f
 
     def _rate_allow(self, session: Session) -> bool:
@@ -1072,6 +1162,19 @@ class KernelServer:
         except Exception as e:
             raise _OpError(getattr(e, "code", "E_INVAL"),
                            getattr(e, "message", str(e)))
+        contract = self._contract_for(f.device_id)
+        try:
+            frame_bytes = len(protocol.encode(frame))
+        except Exception:
+            frame_bytes = 0
+        if frame_bytes > int(contract["resources"]["max_bytes"]):
+            raise _OpError("E_INVAL",
+                           f"frame exceeds device max_bytes: {f.device_id}")
+        max_inflight = max(1, int(contract["resources"]["max_inflight"]))
+        if self._device_pending_count(f.device_id) >= max_inflight:
+            raise _OpError("E_BUSY", f"device max_inflight reached: {f.device_id}")
+        if not self._device_rate_allow(f.device_id):
+            raise _OpError("E_BUSY", f"device rate limit: {f.device_id}")
         cmd = str(legacy.get("cmd") or "unknown")
         deadline_ms = msg.get("deadline_ms", 5000)
         if not isinstance(deadline_ms, int) or deadline_ms <= 0:
@@ -1469,22 +1572,30 @@ class KernelServer:
                     canceled += self._cancel_device_pending(dev_id, "global estop")
             canceled += self._cancel_approvals(reason="global estop")
         oks = []
+        evidence = []
         safe_state = "idle"
         for d in targets:
             try:
-                oks.append(bool(d.estop()))
+                ok = bool(d.estop())
             except Exception:
-                oks.append(False)
-            safe_state = ((d.describe().get("safety") or {}).get("safe_state")
-                          or safe_state)
+                ok = False
+            oks.append(ok)
+            ev = self._safe_evidence(d, ok)
+            evidence.append(ev)
+            if ok:
+                safe_state = ev.get("safe_state", safe_state)
         self._result(session, rid, True, payload={
             "safe_state": safe_state,
             "driver_ok": all(oks) if oks else False,
             "canceled": canceled,
-        })
+            "devices": evidence,
+        }, facts={"safe_state": safe_state,
+                  "devices": evidence,
+                  "source": "kernel-estop",
+                  "independent": False})
         self._audit("estop", agent=session.agent_id, id=rid,
                     reason=args.get("reason"), driver_ok=all(oks) if oks else False,
-                    canceled=canceled)
+                    canceled=canceled, devices=evidence)
 
     def _op_stat(self, session: Session, rid: str, args: dict) -> None:
         f = self._get_fd(session, args)
@@ -1499,6 +1610,8 @@ class KernelServer:
             "health": f.driver.health(),
             "lease": lease,
             "safe": self._safe or f.device_id in self._safe_devices,
+            "safe_evidence": self._safe_evidence(
+                f.driver, not (self._safe or f.device_id in self._safe_devices)),
             "security": {"degraded": self._security_degraded,
                          "role": session.role},
             "pending": pending,
@@ -1509,14 +1622,11 @@ class KernelServer:
         self._require_cap(session, "read")
         devices = []
         for d in self.drivers:
-            dev = d.describe()
-            if not CapabilityPolicy.device_allowed(dev.get("device_id"), session.allowed_devices):
+            view = self._device_view(d)
+            if not CapabilityPolicy.device_allowed(view["device_id"],
+                                                   session.allowed_devices):
                 continue
-            devices.append({
-                "device_id": dev.get("device_id"),
-                "type": dev.get("type"),
-                "state": "ready" if d.connected else "offline",
-            })
+            devices.append(view)
         self._result(session, rid, True, payload={"devices": devices})
 
     def _op_registry_reload(self, session: Session, rid: str) -> None:
@@ -1708,6 +1818,43 @@ class KernelServer:
                              protocol.error("E_TIMEOUT", "deadline exceeded",
                                             retryable=True))
 
+    def _contract_for_driver(self, driver) -> dict | None:
+        if driver is None:
+            return None
+        dev = driver.describe().get("device_id") if hasattr(driver, "describe") else None
+        return self.device_contracts.get(str(dev))
+
+    def _trust_facts(self, device_id: str, extra: dict) -> dict:
+        contract = self.device_contracts.get(device_id) or {}
+        trust = dict(contract.get("trust") or {})
+        facts = dict(extra or {})
+        facts.setdefault("device_id", device_id)
+        facts.setdefault("source", trust.get("source", "unknown"))
+        facts.setdefault("independent", bool(trust.get("independent", False)))
+        facts.setdefault("attestation", trust.get("attestation", "none"))
+        facts.setdefault("trust_level", int(trust.get("level", 0)))
+        facts.setdefault("observed_at", protocol.now_ms())
+        facts["trust"] = dict(trust)
+        return _ascii_extra(facts)
+
+    def _safe_evidence(self, driver, estop_ok: bool) -> dict:
+        contract = self._contract_for_driver(driver) or {}
+        dev = str(contract.get("device_id") or
+                  (driver.describe().get("device_id") if driver else "unknown"))
+        declared = (contract.get("safety") or {}).get("safe_state", "unknown")
+        actual = None
+        if hasattr(driver, "safe_state"):
+            try:
+                actual = driver.safe_state()
+            except Exception:
+                actual = None
+        return {
+            "device_id": dev,
+            "driver_ok": bool(estop_ok),
+            "safe_state": str(actual or (declared if estop_ok else "unknown")),
+            "declared_safe_state": declared,
+        }
+
     def _on_result(self, driver, cmd: str, ok: bool, why: str | None,
                    extra: dict) -> None:
         dev_id = driver.describe().get("device_id") if driver else None
@@ -1722,16 +1869,19 @@ class KernelServer:
         if p.done:
             return
         extra = _ascii_extra(extra or {})
+        dev_id = p.device_id or (
+            driver.describe().get("device_id") if driver else "unknown")
+        facts = self._trust_facts(str(dev_id), extra)
         if ok and self.require_independent_facts:
-            if extra.get("independent") is not True:
+            if facts.get("independent") is not True:
                 ok = False
                 why = "independent fact source required"
-                extra = dict(extra, independent=False)
+                facts = dict(facts, independent=False)
         if ok:
-            self._finish_pending(p, True, extra, extra, None)
+            self._finish_pending(p, True, facts, facts, None)
         else:
             self._finish_pending(
-                p, False, extra, None,
+                p, False, None, facts,
                 protocol.error("E_IO", why or "device rejected the command",
                                retryable=True))
 

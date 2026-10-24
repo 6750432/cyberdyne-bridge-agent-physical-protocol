@@ -15,13 +15,14 @@
 | 发行版 | [RELEASES.md](https://github.com/cyberdyne-bridge/cyberdyne-bridge-agent-physical-protocol/blob/main/RELEASES.md) |
 | CBAP OS / Host Bridge | [CBAP OS VM → host](https://github.com/cyberdyne-bridge/cyberdyne-bridge-agent-physical-protocol/blob/main/docs/CBAP-OS-Host-Bridge.md) |
 | Host device IDs | `host://fs` / `display` / `input/*` (input gated) |
+| Device parity P0–P6 | [Device parity](https://github.com/cyberdyne-bridge/cyberdyne-bridge-agent-physical-protocol/blob/main/docs/DEVICE-PARITY.md) |
 | GitHub Releases | [最新发行版](https://github.com/cyberdyne-bridge/cyberdyne-bridge-agent-physical-protocol/releases) |
 
 ## 当前状态
 
 ```text
-CBAP conformance: 101/101
-最新源码发行版: v1.6.0
+CBAP conformance: 114/114
+最新源码发行版: v1.7.0
 协议版本: CBAP v1
 主传输: Unix socket NDJSON
 可选: TCP / TLS / mTLS

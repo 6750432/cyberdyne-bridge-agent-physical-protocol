@@ -45,7 +45,17 @@ def peer_credentials(sock) -> dict | None:
 
 # ── capabilities ──────────────────────────────────────────────
 
+# Default-deny device policy.  New deployments must grant devices explicitly.
+# The legacy permissive profile is available only for the test harness via
+# CBAP_TEST_MODE=1, and never becomes the production default.
 DEFAULT_POLICY: dict[str, Any] = {
+    "default": {
+        "devices": [],
+        "capabilities": ["read"],
+    },
+    "agents": {},
+}
+TEST_POLICY: dict[str, Any] = {
     "default": {
         "devices": ["*"],
         "capabilities": ["read", "write", "lease"],
@@ -62,7 +72,10 @@ class PolicyError(ValueError):
 class CapabilityPolicy:
     def __init__(self, source: str | dict | None = None):
         if source is None:
-            data = json.loads(json.dumps(DEFAULT_POLICY))
+            profile = (TEST_POLICY if
+                       os.environ.get("CBAP_TEST_MODE") == "1"
+                       else DEFAULT_POLICY)
+            data = json.loads(json.dumps(profile))
         elif isinstance(source, dict):
             data = json.loads(json.dumps(source))
         else:
@@ -71,9 +84,8 @@ class CapabilityPolicy:
         if not isinstance(data, dict):
             raise PolicyError("policy must be an object")
         default = data.get("default") or {}
-        self.default_devices = list(default.get("devices") or ["*"])
-        self.default_caps = set(default.get("capabilities") or
-                                ["read", "write", "lease"])
+        self.default_devices = list(default.get("devices") or [])
+        self.default_caps = set(default.get("capabilities") or ["read"])
         approvals = data.get("approvals") or {}
         if not isinstance(approvals, dict):
             raise PolicyError("approvals must be an object")

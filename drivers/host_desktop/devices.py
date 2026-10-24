@@ -73,6 +73,9 @@ class _HostBase:
             time.sleep(0.02)
         return dict(self._last_state) if self._last_state else None
 
+    def safe_state(self) -> str:
+        return self.describe().get("safety", {}).get("safe_state", "unknown")
+
     def estop(self) -> bool:
         self._safe = True
         self._touch({"estop": True})
@@ -132,9 +135,35 @@ class HostDisplayDriver(_HostBase):
 
     def describe(self):
         d = super().describe()
-        d["actions"] = ["screenshot", "stat"]
-        d["read_only"] = True
-        d["root"] = str(self.root)
+        d.update({
+            "contract": "cbap-device-v1",
+            "class": "display",
+            "version": "1.0",
+            "actions": {
+                "screenshot": {
+                    "args": {}, "result": {"path": "string", "bytes": "int",
+                                           "sha256": "hex"},
+                    "danger": "normal", "idempotent": False,
+                },
+                "stat": {
+                    "args": {"path": "relative-path"},
+                    "result": {"path": "string", "bytes": "int", "sha256": "hex"},
+                    "danger": "normal", "idempotent": True,
+                },
+            },
+            "capabilities": ["read", "write", "lease", "estop"],
+            "trust": {"source": "host-display", "independent": False,
+                      "attestation": "local-hash", "level": 1},
+            "isolation": {"process": "host-bridge", "uid": os.getuid(),
+                          "sandbox": "none", "network": "local"},
+            "resources": {"max_inflight": 1, "rate_hz": 1,
+                          "max_bytes": 8 * 1024 * 1024, "max_sessions": 1},
+            "safety": {"estop": True, "watchdog_ms": 10000,
+                       "safe_state": "read-only"},
+            "legacy": False,
+            "read_only": True,
+            "root": str(self.root),
+        })
         return d
 
     def map_action(self, frame):
@@ -211,23 +240,88 @@ class HostInputDriver(_HostBase):
     DEVICE_ID = "host://input/mouse"
     NAME = "CBAP Host Mouse"
 
-    def __init__(self, enable: bool = False):
+    def __init__(self, enable: bool = False, backend: str = "x11"):
         super().__init__()
         self.enabled = bool(enable)
+        self.backend = backend if backend in ("x11", "portal") else "x11"
         self.display = os.environ.get("DISPLAY", "")
+        self._portal = None
 
     def describe(self):
         d = super().describe()
-        d["transport"] = "x11/xwayland"
-        d["actions"] = ["position", "move", "click", "scroll"] if self.KIND == "mouse" else ["type", "key"]
-        d["enabled"] = self.enabled
-        d["wayland_native"] = False
+        if self.KIND == "mouse" and self.backend == "portal":
+            actions = {
+                "move_relative": {"args": {"dx": "float", "dy": "float"},
+                                  "result": {"dx": "float", "dy": "float"},
+                                  "danger": "normal", "idempotent": False},
+                "click": {"args": {"button": "int"}, "result": {"button": "int"},
+                          "danger": "high", "idempotent": False},
+                "scroll": {"args": {"dx": "float", "dy": "float"},
+                           "result": {"dx": "float", "dy": "float"},
+                           "danger": "normal", "idempotent": False},
+            }
+        elif self.KIND == "mouse":
+            actions = {
+                "position": {"args": {}, "result": {"x": "int", "y": "int"},
+                             "danger": "normal", "idempotent": True},
+                "move": {"args": {"x": "int", "y": "int"},
+                         "result": {"x": "int", "y": "int"},
+                         "danger": "normal", "idempotent": True},
+                "move_relative": {"args": {"dx": "int", "dy": "int"},
+                                  "result": {"dx": "int", "dy": "int"},
+                                  "danger": "normal", "idempotent": True},
+                "click": {"args": {"button": "int"}, "result": {"button": "int"},
+                          "danger": "high", "idempotent": False},
+                "scroll": {"args": {"direction": "up|down"},
+                           "result": {"direction": "string"},
+                           "danger": "normal", "idempotent": False},
+            }
+        elif self.backend == "portal":
+            actions = {
+                "key": {"args": {"key": "chord"}, "result": {"key": "string"},
+                        "danger": "high", "idempotent": False},
+            }
+        else:
+            actions = {
+                "type": {"args": {"text": "string<=200"}, "result": {"chars": "int"},
+                         "danger": "high", "idempotent": False},
+                "key": {"args": {"key": "chord"}, "result": {"key": "string"},
+                        "danger": "high", "idempotent": False},
+            }
+        d.update({
+            "contract": "cbap-device-v1",
+            "class": "input",
+            "version": "1.0",
+            "transport": ("wayland-portal" if self.backend == "portal"
+                          else "x11/xwayland"),
+            "actions": actions,
+            "capabilities": ["read", "write", "lease", "estop"],
+            "trust": {"source": "host-input", "independent": False,
+                      "attestation": "none", "level": 0},
+            "isolation": {"process": "host-bridge", "uid": os.getuid(),
+                          "sandbox": ("portal" if self.backend == "portal"
+                                      else "none"),
+                          "network": "local"},
+            "resources": {"max_inflight": 2, "rate_hz": 5,
+                          "max_bytes": 1024, "max_sessions": 1},
+            "safety": {"estop": True, "watchdog_ms": 10000,
+                       "safe_state": "input-disabled"},
+            "legacy": False,
+            "backend": self.backend,
+            "enabled": self.enabled,
+            "wayland_native": self.backend == "portal",
+        })
         return d
 
     def map_action(self, frame):
         op = (frame or {}).get("op")
         args = (frame or {}).get("args") or {}
-        allowed = {"position", "move", "click", "scroll"} if self.KIND == "mouse" else {"type", "key"}
+        if self.backend == "portal":
+            allowed = ({"move_relative", "click", "scroll"}
+                       if self.KIND == "mouse" else {"key"})
+        else:
+            allowed = ({"position", "move", "move_relative", "click", "scroll"}
+                       if self.KIND == "mouse" else {"type", "key"})
         if op not in allowed:
             raise HostActionError("E_NOTSUP", f"{self.KIND} op not supported: {op}")
         if not isinstance(args, dict):
@@ -243,6 +337,8 @@ class HostInputDriver(_HostBase):
         if not self.enabled:
             self._emit(cmd, False, "E_SAFETY: input is disabled (--enable-input)", {})
             return True
+        if self.backend == "portal":
+            return self._send_portal(cmd, args)
         if not self.display:
             self._emit(cmd, False, "E_IO: DISPLAY is not set (X11/XWayland only)", {})
             return True
@@ -260,6 +356,12 @@ class HostInputDriver(_HostBase):
                         raise HostActionError("E_INVAL", "x/y out of local bounds")
                     self._run(["xdotool", "mousemove", str(x), str(y)])
                     return self._ok(cmd, {"x": x, "y": y})
+                if cmd == "move_relative":
+                    dx, dy = int(args.get("dx")), int(args.get("dy"))
+                    if not (-10000 <= dx <= 10000 and -10000 <= dy <= 10000):
+                        raise HostActionError("E_INVAL", "dx/dy out of local bounds")
+                    self._run(["xdotool", "mousemove_relative", "--", str(dx), str(dy)])
+                    return self._ok(cmd, {"dx": dx, "dy": dy})
                 if cmd == "click":
                     button = int(args.get("button", 1))
                     if button not in (1, 2, 3):
@@ -294,6 +396,46 @@ class HostInputDriver(_HostBase):
             return True
         self._emit(cmd, False, "E_NOTSUP", {})
         return True
+
+    def _send_portal(self, cmd, args):
+        try:
+            if self._portal is None:
+                from .portal_input import PortalRemoteDesktop
+                self._portal = PortalRemoteDesktop()
+            if self.KIND == "mouse":
+                if cmd == "move_relative":
+                    dx, dy = float(args.get("dx", 0)), float(args.get("dy", 0))
+                    self._portal.motion_relative(dx, dy)
+                    return self._ok(cmd, {"dx": dx, "dy": dy})
+                if cmd == "click":
+                    button = int(args.get("button", 1))
+                    if button not in (1, 2, 3):
+                        raise HostActionError("E_INVAL", "button must be 1..3")
+                    self._portal.button(button, True)
+                    self._portal.button(button, False)
+                    return self._ok(cmd, {"button": button})
+                if cmd == "scroll":
+                    dx, dy = float(args.get("dx", 0)), float(args.get("dy", 0))
+                    self._portal.axis(dx, dy)
+                    return self._ok(cmd, {"dx": dx, "dy": dy})
+            else:
+                if cmd == "key":
+                    from .portal_input import parse_chord
+                    keys = parse_chord(str(args.get("key") or ""))
+                    for k in keys:
+                        self._portal.keysym(k, True)
+                    for k in reversed(keys):
+                        self._portal.keysym(k, False)
+                    return self._ok(cmd, {"key": args.get("key")})
+            raise HostActionError("E_NOTSUP", "portal action not supported")
+        except HostActionError as e:
+            self._emit(cmd, False, f"{e.code}: {e.message}", {})
+            return True
+        except Exception as e:
+            code = getattr(e, "code", "E_SAFETY")
+            msg = getattr(e, "message", str(e))
+            self._emit(cmd, False, f"{code}: {msg}", {})
+            return True
 
     def _run(self, argv):
         p = subprocess.run(argv, capture_output=True, text=True, timeout=5,

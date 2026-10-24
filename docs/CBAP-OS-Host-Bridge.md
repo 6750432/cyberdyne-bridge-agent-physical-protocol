@@ -165,3 +165,9 @@ cbap-os/bin/cbap-control
 cbap-os/etc/host-test.json
 cbap-os/cbap-control.desktop
 ```
+
+## P0–P6 parity
+
+See [`DEVICE-PARITY.md`](DEVICE-PARITY.md) for the device contract,
+default-deny policy, per-device quotas, trust labels, safe-state evidence and
+native-Wayland portal backend.

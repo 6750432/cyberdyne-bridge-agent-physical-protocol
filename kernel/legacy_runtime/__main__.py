@@ -77,10 +77,23 @@ def main(argv: list[str] | None = None) -> int:
         driver.close()
         return 0
 
+    # Default-deny in production.  A single-device invocation gets an explicit
+    # local grant for exactly that device; a policy file is still preferred.
+    policy = a.policy
+    if not policy:
+        policy = {
+            "default": {
+                "devices": [driver.describe().get("device_id")],
+                "capabilities": ["read", "write", "lease"],
+            },
+            "agents": {},
+        }
+        print("[cbap] no --policy: granting only this device (read/write/lease)")
+
     server = KernelServer(
         driver, socket_path=a.cbap_socket, token=a.token,
         lease_ttl_ms=a.lease_ttl_ms, audit_path=a.audit,
-        policy=a.policy, allowed_uids=set(a.allowed_uid) if a.allowed_uid else None,
+        policy=policy, allowed_uids=set(a.allowed_uid) if a.allowed_uid else None,
         max_sessions=a.max_sessions, max_connections=a.max_connections,
         hello_timeout=a.hello_timeout, max_inflight=a.max_inflight,
         rate_hz=a.rate_hz, uid_rate_hz=a.uid_rate_hz,

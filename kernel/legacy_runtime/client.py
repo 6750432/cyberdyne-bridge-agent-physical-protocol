@@ -183,6 +183,28 @@ class CBAPClient:
                 self._cv.wait(min(left, 0.1))
             return self._acks[rid].popleft()
 
+    def wait_ack_or_result(self, rid: str,
+                           timeout: float = 5.0) -> tuple[dict, dict | None]:
+        """Wait for an ack, or an immediate result/error before ack.
+
+        Quota/policy validation may legitimately fail a write before it is
+        accepted.  The old client waited only for ack and could hang; return a
+        synthetic rejected ack plus the result in that case.
+        """
+        deadline = time.monotonic() + timeout
+        with self._cv:
+            while not self._acks.get(rid) and not self._results.get(rid)                     and not self._stop.is_set():
+                left = deadline - time.monotonic()
+                if left <= 0:
+                    raise TimeoutError(f"no CBAP ack/result for {rid}")
+                self._cv.wait(min(left, 0.1))
+            if self._acks.get(rid):
+                return self._acks[rid].popleft(), None
+            if self._results.get(rid):
+                return ({"state": "rejected"},
+                        self._results[rid].popleft())
+            raise TimeoutError(f"no CBAP ack/result for {rid}")
+
     def call(self, op: str, args: dict | None = None,
              timeout: float = 5.0, deadline_ms: int | None = None,
              idempotency_key: str | None = None) -> dict:
@@ -256,8 +278,8 @@ class CBAPClient:
               idempotency_key: str | None = None, timeout: float = 5.0) -> tuple[str, dict, dict]:
         rid = self.request("write", {"fd": fd, "frame": frame}, deadline_ms,
                            idempotency_key)
-        ack = self.wait_ack(rid, timeout)
-        result = self.wait(rid, timeout)
+        ack, immediate = self.wait_ack_or_result(rid, timeout)
+        result = immediate if immediate is not None else self.wait(rid, timeout)
         return rid, ack, result
 
     def poll(self, timeout_ms: int = 0, timeout: float = 5.0,

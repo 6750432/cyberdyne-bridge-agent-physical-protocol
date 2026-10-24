@@ -72,11 +72,17 @@ class ConsoleTest(unittest.TestCase):
         self.driver = ConsoleDriver()
         self.kernel = KernelServer(
             self.driver, socket_path=self.sock, audit_path=self.audit,
-            policy={"approvals": {
-                "devices": ["test://console/light-01"],
-                "ops": ["move"], "ttl_ms": 10000,
-                "required_approvals": 2, "sla_ms": 100,
-            }})
+            policy={
+                "default": {
+                    "devices": ["test://console/light-01"],
+                    "capabilities": ["read", "write", "lease"],
+                },
+                "approvals": {
+                    "devices": ["test://console/light-01"],
+                    "ops": ["move"], "ttl_ms": 10000,
+                    "required_approvals": 2, "sla_ms": 100,
+                },
+            })
         self.assertTrue(self.kernel.start())
         self.history_path = os.path.join(self.tmp, "console-history.jsonl")
         self.backend = ConsoleBackend(self.sock, audit_path=self.audit,
