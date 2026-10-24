@@ -7,7 +7,7 @@
 **把异构 Minecraft Agent，变成同一个协议下的外设。**
 
 [![CBAP](https://img.shields.io/badge/CBAP-v1-0f766e?style=flat-square)](spec/README.md)
-[![Conformance](https://img.shields.io/badge/conformance-69%2F69-14b8a6?style=flat-square)](tools/cbap_conformance.py)
+[![Conformance](https://img.shields.io/badge/conformance-89%2F89-14b8a6?style=flat-square)](tools/cbap_conformance.py)
 [![Python](https://img.shields.io/badge/Python-3.10%2B-3776AB?style=flat-square&logo=python&logoColor=white)](kernel/)
 [![Transport](https://img.shields.io/badge/CBAP--U-Unix%20socket-334155?style=flat-square)](spec/README.md)
 [![No paid API](https://img.shields.io/badge/LLM-local%20friendly-6b7280?style=flat-square)](#)
