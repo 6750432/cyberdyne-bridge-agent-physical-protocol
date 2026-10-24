@@ -1,0 +1,11 @@
+{
+  "name": "cbap-mc-body",
+  "version": "0.0.1",
+  "private": true,
+  "type": "commonjs",
+  "description": "CBAP MC Body v0 — Mineflayer hand (implementation pending)",
+  "engines": {"node": ">=20"},
+  "dependencies": {
+    "mineflayer": "^4.39.0"
+  }
+}

@@ -77,6 +77,31 @@ clone 7s + conformance 118s + host demo <2s
 
 完整步骤与验收标准见 [`docs/START-10MIN.md`](docs/START-10MIN.md)。
 
+## MC Body（新）
+
+MC 计划已切到：
+
+```text
+自研 Mineflayer Body + 外部 Agent Brain + CBAP 控制面
+```
+
+已落地：
+
+```text
+body/README.md
+body/fake_body.py          协议兼容 fake body
+docs/MC-BODY-ADR.md        决策记录
+docs/MC-BODY-API.md        Body API v0
+sdk/python/mc_body_client.py
+tests/body/                SDK 测试
+```
+
+```bash
+python3 -m unittest -q tests.body.test_mc_body_sdk
+```
+
+真实 Mineflayer hand 还需要 Node 20+ 和本地 1.21.1 服务器。
+
 ## 30 秒读懂定位
 
 > Agent 可以换，身体可以换，验收判据不能换。
@@ -339,6 +364,10 @@ docs/M4-Legacy-Decision.md             M4 legacy bridge freeze / CBAP wrapper
 docs/CBAP-OS-Host-Bridge.md            CBAP OS VM -> host allowlisted CBAP test
 docs/DEVICE-PARITY.md                  Device Contract / policy / quotas / trust / portal
 docs/START-10MIN.md                    10 分钟跑通 / 实测耗时 / 验收标准
+docs/MC-BODY-ADR.md                    MC Body 决策：自研 hand + 外部 brain
+docs/MC-BODY-API.md                    MC Body API v0 / NDJSON / cancel / facts
+body/                                  Mineflayer hand（骨架 / fake body）
+sdk/python/mc_body_client.py            MC Body Python SDK
 RELEASES.md                            源码发行版与版本边界
 docs/releases/                         各版本 release notes
 agents/*/docs/                         各 Agent 自己的接入文档
