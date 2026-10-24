@@ -19,15 +19,3 @@ AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
 LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
-
-
----
-
-Third-party carve-out:
-
-The MIT license above applies to original CBAP Kernel, protocol, driver,
-test code and original documentation authored for this repository.
-
-Third-party components, patches, runtime dependencies, names and trademarks
-are NOT relicensed by this file. See THIRD_PARTY_NOTICES.md,
-third_party/licenses/, TRADEMARKS.md and DISCLAIMER.md.
