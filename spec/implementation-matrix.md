@@ -55,8 +55,9 @@ removed       not part of the current profile
 | dataflow driver | implemented | external MC Agent |
 | MCP device driver | implemented | stdio, facts, pin, estop |
 | MCP sandbox `bwrap/nsjail` | optional | fail-closed when requested/unavailable |
-| manifest HMAC | implemented | `CBAP_MANIFEST_KEY` |
-| tool/instruction pinning | implemented | optional manifest pins |
+| MCP independent UID/GID | optional | `transport.run_as_uid/gid`; requires root |
+| manifest HMAC | optional | `CBAP_REQUIRE_SIGNED_MANIFEST=1` in production |
+| tool/instruction pinning | implemented | manifest pin or TOFU sidecar |
 | independent fact command | implemented | `facts.source=command` |
 
 ## 4. Security profile
@@ -74,6 +75,7 @@ removed       not part of the current profile
 | audit hash chain | implemented | seq/prev/hash |
 | audit checkpoint | implemented | detects tail truncation |
 | audit HMAC/remote sink | optional | best-effort remote |
+| remote audit ack | optional | `CBAP_AUDIT_REQUIRE_ACK=1`; ack seq/hash |
 | watchdog | implemented | software; 1s scan |
 | estop fact verification | implemented | manifest `expect` |
 | hardware estop hook | implemented | software-triggered relay command |
@@ -91,10 +93,23 @@ removed       not part of the current profile
 | Voyager | implemented | forward/exec/say/stop |
 | Alice Forge | archived | source only, not built |
 
-## 6. Test mapping
+## 6. M1 controls
+
+| Control | Status | Notes |
+|---|---|---|
+| child env token scrub | implemented | default env allowlist |
+| independent UID | optional | root only |
+| bwrap/nsjail | optional | fail closed |
+| manifest signature enforcement | optional | production env |
+| automatic tool pin | implemented | `.pins.json` TOFU |
+| estop safe-state requirement | implemented | no expect -> not safety.estop |
+| remote ack verification | optional | ack file |
+| resume | removed | explicit E_PERM |
+
+## 7. Test mapping
 
 ```text
-tools/cbap_conformance.py     90 cases
+tools/cbap_conformance.py     93 cases
 tests/cbap/test_conformance.py 20 core + D1/D4/D5 + security-adjacent
 tests/cbap/test_mcp_device.py  11
 tests/cbap/test_security.py    14

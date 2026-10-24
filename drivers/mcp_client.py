@@ -34,7 +34,9 @@ class MCPStdioClient:
                  env: dict | None = None, timeout: float = 30.0,
                  inherit_env: bool = True,
                  env_allowlist: list[str] | None = None,
-                 rlimits: dict | None = None):
+                 rlimits: dict | None = None,
+                 run_as_uid: int | None = None,
+                 run_as_gid: int | None = None):
         self.command = [str(x) for x in command]
         self.cwd = cwd
         if inherit_env:
@@ -47,6 +49,8 @@ class MCPStdioClient:
         if env:
             self.env.update({str(k): str(v) for k, v in env.items()})
         self.rlimits = dict(rlimits or {})
+        self.run_as_uid = int(run_as_uid) if run_as_uid is not None else None
+        self.run_as_gid = int(run_as_gid) if run_as_gid is not None else None
         self.timeout = float(timeout)
         self.proc: subprocess.Popen | None = None
         self._id = 0
@@ -148,6 +152,15 @@ class MCPStdioClient:
                         resource.setrlimit(res, (int(value), int(value)))
                     except (ValueError, OSError):
                         pass
+                try:
+                    os.umask(0o077)
+                except OSError:
+                    pass
+                if self.run_as_gid is not None:
+                    os.setgid(self.run_as_gid)
+                    os.setgroups([self.run_as_gid])
+                if self.run_as_uid is not None:
+                    os.setuid(self.run_as_uid)
             preexec = _limit
         self.proc = subprocess.Popen(
             self.command, cwd=self.cwd, env=self.env,

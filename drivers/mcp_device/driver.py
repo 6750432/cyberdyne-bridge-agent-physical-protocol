@@ -110,6 +110,10 @@ class MCPDeviceDriver:
         cwd = transport.get("cwd")
         cwd = str((base / cwd).resolve()) if cwd else str(base)
         env = dict(transport.get("env") or {})
+        run_as_uid = transport.get("run_as_uid")
+        run_as_gid = transport.get("run_as_gid")
+        if (run_as_uid is not None or run_as_gid is not None) and os.geteuid() != 0:
+            raise MCPDeviceError("E_SAFETY", "run_as_uid/run_as_gid requires root")
         try:
             command = wrap_command([str(x) for x in transport["command"]],
                                    transport.get("sandbox"), cwd)
@@ -121,6 +125,8 @@ class MCPDeviceDriver:
             inherit_env=bool(transport.get("inherit_env", False)),
             env_allowlist=transport.get("env_allowlist"),
             rlimits=transport.get("rlimits"),
+            run_as_uid=run_as_uid,
+            run_as_gid=run_as_gid,
         )
         self.tools: dict[str, dict] = dict(self.manifest["tools"])
         self.facts_spec = dict(self.manifest.get("facts") or {})
@@ -144,6 +150,36 @@ class MCPDeviceDriver:
         self.on_result = None
         self.on_event = None
         self.on_disconnect = None
+
+    def _load_or_create_pin(self) -> dict:
+        path = self.manifest_path + ".pins.json"
+        try:
+            with open(path, encoding="utf-8") as f:
+                data = json.load(f)
+            if not isinstance(data, dict):
+                raise MCPDeviceError("E_SAFETY", "invalid pin file")
+            return data
+        except FileNotFoundError:
+            pass
+        except OSError as e:
+            raise MCPDeviceError("E_SAFETY", f"cannot read pin file: {e}")
+        data = {
+            "tools_sha256": self._tool_digest,
+            "instructions_sha256": self._instructions_digest,
+        }
+        flags = os.O_WRONLY | os.O_CREAT | os.O_TRUNC
+        if hasattr(os, "O_NOFOLLOW"):
+            flags |= os.O_NOFOLLOW
+        try:
+            fd = os.open(path, flags, 0o600)
+            try:
+                os.write(fd, _canonical(data).encode("utf-8"))
+                os.fsync(fd)
+            finally:
+                os.close(fd)
+        except OSError as e:
+            raise MCPDeviceError("E_SAFETY", f"cannot write pin file: {e}")
+        return data
 
     def _verify_manifest_signature(self) -> None:
         sig = self.manifest.get("signature")
@@ -195,6 +231,8 @@ class MCPDeviceDriver:
             self._instructions_digest = hashlib.sha256(
                 str(instr).encode("utf-8")).hexdigest()
             pin = self.manifest.get("pin_tools") or {}
+            if not pin:
+                pin = self._load_or_create_pin()
             if pin.get("tools_sha256") and not hmac.compare_digest(
                     str(pin["tools_sha256"]), self._tool_digest):
                 self.client.close()
@@ -522,7 +560,9 @@ class MCPDeviceDriver:
             "instructions_digest": self._instructions_digest,
             "estop": bool(self.estop_spec),
             "safety": {
-                "estop": bool(self.estop_spec),
+                "estop": bool(self.estop_spec and
+                               (self.estop_spec.get("expect") or
+                                self.estop_spec.get("verify"))),
                 "watchdog_ms": int(self.manifest.get("watchdog_ms", 10000)),
                 "safe_state": ("off" if (self.estop_spec and
                                          (self.estop_spec.get("expect") or

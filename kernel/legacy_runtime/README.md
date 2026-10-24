@@ -50,7 +50,7 @@ c.close()
 python3 tools/cbap_conformance.py --target fake
 ```
 
-当前 90 条用例（网关/驱动/适配器/数据/20 条一致性 + D1/D4/D5）：
+当前 93 条用例（网关/驱动/适配器/数据/20 条一致性 + D1/D4/D5）：
 
 - hello/welcome、device_list
 - open/read
@@ -104,3 +104,16 @@ Old clients that call `estop` as a normal agent must now use the operator
 token or be granted `estop` by policy.
 
 See [`docs/SECURITY-HARDENING.md`](../../docs/SECURITY-HARDENING.md).
+
+### Remote audit acknowledgement
+
+```bash
+export CBAP_AUDIT_REMOTE_URL='https://audit.example/cbap'
+export CBAP_AUDIT_REMOTE_TOKEN='...'
+export CBAP_AUDIT_REQUIRE_ACK=1
+python3 -m kernel.legacy_runtime --audit-require-ack ...
+```
+
+The remote sink must return `{"seq": N, "hash": "<last hash>"}`. The Kernel
+writes `<audit>.remote-ack` (0600) and `verify()` requires it when
+`CBAP_AUDIT_REQUIRE_ACK=1`.

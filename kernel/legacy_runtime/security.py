@@ -118,13 +118,16 @@ class AuditChain:
                  lock: threading.Lock | None = None,
                  signing_key: str | None = None,
                  remote_url: str | None = None,
-                 remote_token: str | None = None):
+                 remote_token: str | None = None,
+                 require_remote_ack: bool = False):
         self.path = os.path.abspath(path)
         self.checkpoint_path = self.path + ".checkpoint"
         self.mirror_path = os.path.abspath(mirror_path) if mirror_path else None
         self.signing_key = signing_key
         self.remote_url = remote_url
         self.remote_token = remote_token
+        self.require_remote_ack = bool(require_remote_ack)
+        self.remote_ack_path = self.path + ".remote-ack"
         self._lock = lock or threading.Lock()
         self._last_hash = ""
         self._seq = 0
@@ -269,6 +272,14 @@ class AuditChain:
                     prev = got
                     last_seq = seen_seq
                     last_hash = got
+            if self.require_remote_ack:
+                try:
+                    with open(self.remote_ack_path, encoding="utf-8") as af:
+                        ack = json.load(af)
+                    if int(ack.get("seq") or -1) != last_seq or str(ack.get("hash") or "") != last_hash:
+                        return False, "remote ack mismatch"
+                except (OSError, ValueError) as e:
+                    return False, f"remote ack missing/invalid: {e}"
             try:
                 with open(self.checkpoint_path, encoding="utf-8") as cf:
                     cp = json.load(cf)
@@ -301,7 +312,21 @@ class AuditChain:
             )
             try:
                 with urllib.request.urlopen(req, timeout=3) as r:
-                    r.read(1)
+                    raw = r.read(4096)
+                ack = json.loads(raw.decode("utf-8", "replace"))
+                if not isinstance(ack, dict) or not ack.get("hash"):
+                    raise ValueError("remote ack missing hash")
+                data = self._canonical({"seq": int(ack.get("seq") or 0),
+                                        "hash": str(ack["hash"])})
+                flags = os.O_WRONLY | os.O_CREAT | os.O_TRUNC
+                if hasattr(os, "O_NOFOLLOW"):
+                    flags |= os.O_NOFOLLOW
+                fd = os.open(self.remote_ack_path, flags, 0o600)
+                try:
+                    os.write(fd, data.encode("utf-8"))
+                    os.fsync(fd)
+                finally:
+                    os.close(fd)
             except Exception:
                 self._remote_failures += 1
 

@@ -605,10 +605,12 @@ security_degrade, session_end
 | 文件权限 | `0600` |
 | `audit_mirror_path` | 无 |
 | `audit_signing_key` | `CBAP_AUDIT_KEY` 或 secret backend |
+| `audit_require_remote_ack` | `CBAP_AUDIT_REQUIRE_ACK=1` |
 | `checkpoint` | `<audit>.checkpoint`，字段 `seq/hash/mac` |
 | `remote_url` | 无；`CBAP_AUDIT_REMOTE_URL` |
 | `remote_token` | 无；`CBAP_AUDIT_REMOTE_TOKEN` |
 | remote 队列 | 1000 行；满则丢并计数 |
+| remote ack | `<audit>.remote-ack`，0600 |
 | remote 超时 | 3 秒；best-effort，无 ack 重试 |
 
 `AuditChain.verify()` 检查 seq/prev/hash/mac/checkpoint；可检测尾部截断。
@@ -931,6 +933,8 @@ verify：
 | `transport.inherit_env` | `false` | 是否继承完整环境 |
 | `transport.env_allowlist` | `PATH/HOME/LANG/LC_ALL/LC_CTYPE/TMPDIR` | inherit=false 时允许 |
 | `transport.rlimits` | 无 | 传给 `resource.setrlimit` |
+| `transport.run_as_uid` | 无 | 需要 root；子进程 setuid |
+| `transport.run_as_gid` | 无 | 需要 root；子进程 setgid |
 | `transport.sandbox` | 无 | `bwrap` / `nsjail`；未安装失败 |
 | `tools` | 必填 | CBAP op -> MCP tool |
 | `facts.source` | `tool` | `tool` / `resource` / `command` |
@@ -945,7 +949,7 @@ verify：
 | `watchdog_ms` | `10000` | Kernel 看门狗 |
 | `poll_interval` | `0.2` 秒，最小 0.05 | 状态轮询 |
 | `facts_timeout_ms` | `2000` | 事实稳定窗口 |
-| `pin_tools` | 无 | 工具/instructions 摘要 |
+| `pin_tools` | 无 | 工具/instructions 摘要；缺失时首次写 `<manifest>.pins.json` |
 | `signature` | 无 | manifest HMAC |
 
 ### 9.3 工具名
@@ -1306,7 +1310,7 @@ Console audit limit       80 default / 500 max
 | hello capabilities | 请求权限 | 以 policy 授予为准 |
 | global state | 推送 | 只推给持有该设备 fd 的会话 |
 | `write` 前置失败 | result | 无 ack；`CBAPClient.write` 可能表现为超时 |
-| spec 用例数 | 20 条 | 当前 90 条实现测试 |
+| spec 用例数 | 20 条 | 当前 93 条实现测试 |
 
 ---
 
@@ -1333,10 +1337,10 @@ python3 tools/mcp_device_probe.py drivers/mcp_device/examples/light.json \
 当前状态：
 
 ```text
-CBAP conformance: 90/90
+CBAP conformance: 93/93
 console tests:    3
 security tests:   14
-MCP device tests: 11
+MCP device tests: 14
 ```
 
 ---

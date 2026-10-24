@@ -198,3 +198,33 @@ certified physical safety circuit.
 `bwrap` or `nsjail` must be installed. If requested and unavailable, the
 driver refuses to start. This is optional OS isolation, not a guarantee
 against a kernel/hypervisor escape.
+
+### Independent UID/GID
+
+When the Kernel runs as root:
+
+```json
+"transport": {
+  "run_as_uid": 65534,
+  "run_as_gid": 65534,
+  "inherit_env": false,
+  "env_allowlist": ["PATH", "HOME"]
+}
+```
+
+The child is dropped to that UID/GID before exec. Non-root requests fail
+closed. This is not a full container; combine it with `sandbox` when the
+platform supports it.
+
+### Automatic tool pin
+
+If `pin_tools` is absent, the first successful connect writes
+`<manifest>.pins.json` (0600). Every later connect must match the advertised
+tool definitions and instructions. A manifest `pin_tools` overrides the
+sidecar.
+
+### Estop evidence required
+
+`describe.safety.estop` is true only when `estop.expect` or `estop.verify`
+exists. An estop tool without a safe-state postcondition is not advertised as
+Kernel-registerable safety.

@@ -249,9 +249,9 @@ no ML/anomaly service; these are deterministic fail-closed rules.
 ## Verification
 
 ```text
-CBAP conformance: 90/90
+CBAP conformance: 93/93
 security tests:   14
-MCP device tests: 11
+MCP device tests: 14
 console tests:    3
 ```
 
@@ -285,3 +285,28 @@ CBAP_SECRET_BACKEND=keyring   optional keyring package
 A configured backend that is unavailable fails closed. This is still not a
 TPM; root/same-uid can read process memory. TPM/TPM2 or an HSM remains an
 infrastructure-level control.
+
+## M1 追加控制
+
+```text
+MCP transport.run_as_uid / run_as_gid      root-only setuid drop
+MCP sandbox bwrap/nsjail                    fail-closed if requested
+MCP auto pin <manifest>.pins.json          TOFU, then mandatory match
+MCP estop expect/verify                    required for safety.estop
+CBAP_AUDIT_REQUIRE_ACK=1                   remote ack seq/hash required
+Audit <audit>.remote-ack                   0600 ack file
+resume                                     explicit E_PERM, no UI
+```
+
+M1 runbook: `docs/M1-Trust-Boundary.md`.
+
+Remaining non-software items:
+
+```text
+root/same-uid attacker
+malicious MCP server lying about facts
+certified physical emergency stop
+TPM/HSM
+mTLS remote transport
+independent penetration test
+```

@@ -45,6 +45,7 @@ def main(argv: list[str] | None = None) -> int:
     p.add_argument("--audit", default=os.path.join(root, "logs", "cbap-audit.jsonl"))
     p.add_argument("--audit-mirror", default=None)
     p.add_argument("--audit-remote-url", default=None)
+    p.add_argument("--audit-require-ack", action="store_true")
     p.add_argument("--require-independent-facts", action="store_true")
     p.add_argument("--check", action="store_true",
                    help="connect to the hand, print health, then exit")
@@ -75,6 +76,7 @@ def main(argv: list[str] | None = None) -> int:
         rate_hz=a.rate_hz, uid_rate_hz=a.uid_rate_hz,
         audit_mirror_path=a.audit_mirror,
         audit_remote_url=a.audit_remote_url,
+        audit_require_remote_ack=a.audit_require_ack,
         require_independent_facts=a.require_independent_facts,
     )
     if not server.start():

@@ -90,6 +90,46 @@ class MCPDeviceDriverTest(unittest.TestCase):
         finally:
             driver.close()
 
+    def test_child_env_does_not_inherit_kernel_secret(self):
+        import os
+        from drivers.mcp_client import MCPStdioClient
+        old = os.environ.get("CBAP_KERNEL_TOKEN")
+        os.environ["CBAP_KERNEL_TOKEN"] = "do-not-leak"
+        try:
+            c = MCPStdioClient([sys.executable, "-c", "pass"],
+                               inherit_env=False, env_allowlist=["PATH"])
+            self.assertNotIn("CBAP_KERNEL_TOKEN", c.env)
+        finally:
+            if old is None:
+                os.environ.pop("CBAP_KERNEL_TOKEN", None)
+            else:
+                os.environ["CBAP_KERNEL_TOKEN"] = old
+
+    def test_run_as_uid_requires_root(self):
+        import os
+        path = self._manifest()
+        manifest = json.loads(path.read_text(encoding="utf-8"))
+        manifest["transport"]["run_as_uid"] = 65534
+        path.write_text(json.dumps(manifest), encoding="utf-8")
+        if os.geteuid() == 0:
+            self.skipTest("root can perform setuid")
+        with self.assertRaises(Exception):
+            MCPDeviceDriver(path)
+
+    def test_unsigned_manifest_can_be_rejected(self):
+        import os
+        path = self._manifest()
+        old = os.environ.get("CBAP_REQUIRE_SIGNED_MANIFEST")
+        os.environ["CBAP_REQUIRE_SIGNED_MANIFEST"] = "1"
+        try:
+            with self.assertRaises(Exception):
+                MCPDeviceDriver(path)
+        finally:
+            if old is None:
+                os.environ.pop("CBAP_REQUIRE_SIGNED_MANIFEST", None)
+            else:
+                os.environ["CBAP_REQUIRE_SIGNED_MANIFEST"] = old
+
     def test_hardware_estop_hook_runs_before_verified_estop(self):
         path = self._manifest()
         manifest = json.loads(path.read_text(encoding="utf-8"))

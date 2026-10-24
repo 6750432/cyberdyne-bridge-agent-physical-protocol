@@ -249,9 +249,15 @@ class SecurityTest(unittest.TestCase):
         class Sink(BaseHTTPRequestHandler):
             def do_POST(self):
                 n = int(self.headers.get("Content-Length") or "0")
-                received.append(self.rfile.read(n).decode("utf-8"))
-                self.send_response(204)
+                raw = self.rfile.read(n).decode("utf-8")
+                received.append(raw)
+                row = json.loads(raw.splitlines()[0])
+                body = json.dumps({"seq": row.get("seq"), "hash": row.get("hash")}).encode()
+                self.send_response(200)
+                self.send_header("Content-Type", "application/json")
+                self.send_header("Content-Length", str(len(body)))
                 self.end_headers()
+                self.wfile.write(body)
 
             def log_message(self, *a):
                 pass
@@ -262,7 +268,8 @@ class SecurityTest(unittest.TestCase):
         path = os.path.join(self.tmp, "remote-audit.jsonl")
         from kernel.legacy_runtime.security import AuditChain
         a = AuditChain(path, signing_key="audit-key",
-                       remote_url=f"http://127.0.0.1:{sink.server_port}/audit")
+                       remote_url=f"http://127.0.0.1:{sink.server_port}/audit",
+                       require_remote_ack=True)
         a.append("unit", value=1)
         deadline = time.time() + 3
         while not received and time.time() < deadline:
@@ -270,6 +277,9 @@ class SecurityTest(unittest.TestCase):
         sink.shutdown(); sink.server_close(); th.join(timeout=1)
         self.assertTrue(received)
         self.assertIn('"mac"', received[0])
+        deadline = time.time() + 3
+        while not os.path.exists(a.remote_ack_path) and time.time() < deadline:
+            time.sleep(0.05)
         ok, why = a.verify()
         self.assertTrue(ok, why)
 

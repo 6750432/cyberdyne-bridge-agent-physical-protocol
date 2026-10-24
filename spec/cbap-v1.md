@@ -1,6 +1,6 @@
 # CBAP v1 · Cyberdyne Bridge Agent Protocol
 
-- **状态**：**Implemented profile 1.0**（已实现并通过 90 条测试）；超出 1.0 的能力见 [`implementation-matrix.md`](implementation-matrix.md)
+- **状态**：**Implemented profile 1.0**（已实现并通过 93 条测试）；超出 1.0 的能力见 [`implementation-matrix.md`](implementation-matrix.md)
 - **版本**：1.0.0
 - **日期**：2026-10-24
 - **范围**：Agent ↔ Kernel 的系统调用 ABI（CBAP-U），以及 Kernel ↔ Driver 的驱动 ABI（CBAP-D）
@@ -549,7 +549,7 @@ v1 控制面是 JSON/NDJSON，适合 MC（1–20 Hz）和低频机器人指令�
 
 ## 13. 一致性
 
-实现 **MUST** 通过 `spec/conformance-v1.md` 的当前 90 条用例，才能声明“CBAP v1 compatible”。
+实现 **MUST** 通过 `spec/conformance-v1.md` 的当前 93 条用例，才能声明“CBAP v1 compatible”。
 
 一致性等级：
 

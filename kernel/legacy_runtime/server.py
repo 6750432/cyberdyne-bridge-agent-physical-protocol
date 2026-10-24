@@ -132,6 +132,7 @@ class KernelServer:
                  audit_signing_key: str | None = None,
                  audit_remote_url: str | None = None,
                  audit_remote_token: str | None = None,
+                 audit_require_remote_ack: bool = False,
                  require_independent_facts: bool = False):
         # 多设备：drivers=[legacy, dataflow...]；旧单驱动参数仍然兼容。
         if drivers is None:
@@ -171,6 +172,8 @@ class KernelServer:
             signing_key=audit_signing_key or get_secret("CBAP_AUDIT_KEY"),
             remote_url=audit_remote_url or os.environ.get("CBAP_AUDIT_REMOTE_URL"),
             remote_token=audit_remote_token or os.environ.get("CBAP_AUDIT_REMOTE_TOKEN"),
+            require_remote_ack=(audit_require_remote_ack or
+                                os.environ.get("CBAP_AUDIT_REQUIRE_ACK") == "1"),
         )
         self.monitor = AnomalyMonitor()
 
