@@ -27,6 +27,7 @@
       <a href="#architecture">架构</a>
       <a href="#principles">协议</a>
       <a href="#security">安全</a>
+      <a href="#os">CBAP OS</a>
       <a href="#agents">Agent 子仓</a>
       <a class="nav-cta" href="https://github.com/cyberdyne-bridge/cyberdyne-bridge-agent-physical-protocol" target="_blank" rel="noopener">GitHub <span aria-hidden="true">↗</span></a>
     </nav>
@@ -47,7 +48,7 @@
         </div>
         <dl class="stats">
           <div><dt>4</dt><dd>活跃 Agent 子仓</dd></div>
-          <div><dt>v1.4.0</dt><dd>源码发行版</dd></div>
+          <div><dt>v1.5.0</dt><dd>源码发行版</dd></div>
           <div><dt>101/101</dt><dd>CBAP conformance</dd></div>
           <div><dt>0.2ms</dt><dd>控制面 p50</dd></div>
           <div><dt>facts</dt><dd>完成判据</dd></div>
@@ -214,9 +215,45 @@
       </div>
     </section>
 
+    <section class="section section-arch" id="os">
+      <div class="section-head">
+        <p class="kicker">05 / CBAP OS</p>
+        <div>
+          <h2>把协议装进<br>一个可启动的系统。</h2>
+          <p class="section-lede">CBAP OS 0.1 是 DSH OS 底座上的 CBAP 运行时层：GRUB 选 CBAP/Python 版本，Control Center 显示当前槽并热切换，Host Bridge 用 CBAP 协议访问宿主机 allowlist。</p>
+        </div>
+      </div>
+
+      <div class="cards cards-six">
+        <article class="card card-small card-accent">
+          <span class="card-num">01 / BOOT</span>
+          <h3>版本化启动</h3>
+          <p>GRUB 每个已安装的 CBAP 槽一项；内核参数携带 <code>cbap.cbap=</code> 和 <code>cbap.python=</code>，Kernel 挂载对应版本。</p>
+        </article>
+        <article class="card card-small">
+          <span class="card-num">02 / CONTROL</span>
+          <h3>Control Center</h3>
+          <p>本地 Tk 面板显示当前 CBAP/Python、版本槽和热切换入口；不把 root shell 暴露给 Agent。</p>
+        </article>
+        <article class="card card-small">
+          <span class="card-num">03 / HOST</span>
+          <h3>host://desktop</h3>
+          <p>CBAP lease + TCP 到宿主机，只允许 <code>~/Desktop/CBAP-Host-Test</code> 下的文件操作；无 shell、无任意路径。</p>
+        </article>
+      </div>
+
+      <div class="cards" style="margin-top:1px">
+        <article class="card" style="padding:0;min-height:0"><img src="assets/cbap-os-desktop.png" alt="CBAP OS 桌面" style="width:100%;display:block"></article>
+        <article class="card" style="padding:0;min-height:0"><img src="assets/cbap-os-control.png" alt="CBAP Control Center" style="width:100%;display:block"></article>
+      </div>
+      <div class="arch-note">
+        <strong>实测：</strong>QEMU/KVM，4G 内存上限；VM 通过 CBAP 在宿主机桌面白名单目录写出 <code>hello-from-vm.txt</code>。ISO 与 CBAP OS 源码在 <a href="https://github.com/6750432/dsh-os-build" target="_blank" rel="noopener">dsh-os-build</a>。
+      </div>
+    </section>
+
     <section class="section section-status" id="status">
       <div class="section-head">
-        <p class="kicker">05 / CURRENT STATE</p>
+        <p class="kicker">06 / CURRENT STATE</p>
         <div>
           <h2>四个活跃子仓，<br>一个归档。</h2>
           <p class="section-lede">CBAP 控制面已通过 101 项 conformance；Alice 的 Forge bridge 源码保留，但未编译、未跑真实服务端，所以不算活跃子仓。</p>
@@ -237,8 +274,10 @@
             <li>101/101 CBAP</li>
             <li>Alice 未构建</li>
             <li>旧套件已归档</li>
+            <li>CBAP OS 0.1</li>
             <li>mTLS 可选</li>
-            <li>v1.4.0 source release</li>
+            <li>v1.5.0 source release</li>
+            <li>CBAP OS 0.1 / Host Bridge</li>
           </ul>
           <p class="status-note">不把源码当成已验证。</p>
         </div>
@@ -247,7 +286,7 @@
 
     <section class="section" id="agents">
       <div class="section-head">
-        <p class="kicker">06 / AGENT SUBREPOS</p>
+        <p class="kicker">07 / AGENT SUBREPOS</p>
         <div>
           <h2>同样的协议，<br>不同的身体。</h2>
           <p class="section-lede">每个子仓拥有自己的 adapter、device / mapping、工具和 smoke test。主仓只负责接口与 conformance。</p>

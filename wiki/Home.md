@@ -13,13 +13,14 @@
 | 安全控制与残余风险 | [docs/SECURITY-HARDENING.md](https://github.com/cyberdyne-bridge/cyberdyne-bridge-agent-physical-protocol/blob/main/docs/SECURITY-HARDENING.md) |
 | 参数手册 | [docs/CBAP-参数手册.md](https://github.com/cyberdyne-bridge/cyberdyne-bridge-agent-physical-protocol/blob/main/docs/CBAP-参数手册.md) |
 | 发行版 | [RELEASES.md](https://github.com/cyberdyne-bridge/cyberdyne-bridge-agent-physical-protocol/blob/main/RELEASES.md) |
-| GitHub Releases | [v1.4.0](https://github.com/cyberdyne-bridge/cyberdyne-bridge-agent-physical-protocol/releases/tag/v1.4.0) |
+| CBAP OS / Host Bridge | [CBAP OS VM → host](https://github.com/cyberdyne-bridge/cyberdyne-bridge-agent-physical-protocol/blob/main/docs/CBAP-OS-Host-Bridge.md) |
+| GitHub Releases | [最新发行版](https://github.com/cyberdyne-bridge/cyberdyne-bridge-agent-physical-protocol/releases) |
 
 ## 当前状态
 
 ```text
 CBAP conformance: 101/101
-最新源码发行版: v1.4.0
+最新源码发行版: v1.5.0
 协议版本: CBAP v1
 主传输: Unix socket NDJSON
 可选: TCP / TLS / mTLS

@@ -5,6 +5,7 @@ CBAP 目前是**源码发行版**，没有预编译服务端/客户端二进制�
 
 | 版本 | 主题 | Git 快照 | 关键内容 |
 |---|---|---|---|
+| **v1.5.0** | CBAP OS & Host Bridge | `v1.5.0` | CBAP OS UI、GRUB 多版本、host://desktop allowlist、VM→host CBAP 实测、101/101 |
 | **v1.4.0** | Legacy Boundary | `c6022e2` | M4、root shim 移除、CBAP brain wrapper、101/101 tests |
 | **v1.3.0** | Operator Infrastructure | `0b7cbe7` | Kernel hotplug、持久化历史、SLA、Console mTLS、resume、100/100 |
 | **v1.2.0** | Operator Productization | `5728973` | lease/approval、MCP onboarding、registry、dual approval、98/98 |
@@ -19,6 +20,7 @@ v1.1.0  特性协商 / poll filter / TCP + TLS
 v1.2.0  operator console / 审批 / MCP onboarding
 v1.3.0  热插拔 / 历史 / SLA / mTLS / resume
 v1.4.0  legacy 入口归档 / 默认 CBAP wrapper
+v1.5.0  CBAP OS / 版本菜单 / host bridge / allowlist 实测
 ```
 
 “CBAP v1” 是协议版本；`v1.x` 是仓库源码发行版。  
@@ -33,7 +35,7 @@ Source code (zip)
 Source code (tar.gz)
 ```
 
-v1.4.0 同时附带：
+v1.5.0 / v1.4.0 同时附带：
 
 ```text
 docs/CBAP-参数手册.pdf
