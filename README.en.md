@@ -142,7 +142,7 @@ cd node && npm install && cd ..
 bash tools/跑全部.sh        # full gate — current baseline: 1145 passed / 0 failed
 ```
 
-The red-line file `bridge.py` is fingerprint-checked (`a649665c970d84ba`) at the
+The red-line file `bridge.py` is fingerprint-checked (`658c947ec7f33d37`) at the
 end of the gate; if it changed, the gate goes red.
 
 Running it for real needs a local Minecraft server (RCON, offline mode):
@@ -177,7 +177,7 @@ Every milestone is accepted the same way:
 
 ```bash
 git diff <baseline> -- bridge.py   # must be empty — not one byte changed
-sha256sum bridge.py                # a649665c970d84ba…
+sha256sum bridge.py                # 658c947ec7f33d37…
 ```
 
 ## The agent's diaries

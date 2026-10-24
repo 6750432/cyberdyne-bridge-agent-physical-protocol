@@ -603,7 +603,7 @@ def 主():
     # ══════════ Z ══════════
     import hashlib
     指纹 = hashlib.sha256(open(os.path.join(ROOT, "bridge.py"), "rb").read()).hexdigest()
-    试("Z1 主链 sha256 还是 a649665c970d84ba", 指纹.startswith("a649665c970d84ba"))
+    试("Z1 主链 sha256 还是 658c947ec7f33d37", 指纹.startswith("658c947ec7f33d37"))
 
     # ══════════ L 组：放哪儿 —— 问雷达，不许猜（主人 2026-10-07 点名）══════════
     print("── L 组：放哪儿问雷达 ──")

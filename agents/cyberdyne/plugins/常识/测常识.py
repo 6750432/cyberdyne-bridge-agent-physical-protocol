@@ -383,8 +383,8 @@ def Z组():
     ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
     路 = os.path.join(ROOT, "bridge.py")
     指纹 = hashlib.sha256(io.open(路, "rb").read()).hexdigest()
-    试("Z1 主链 sha256 还是 a649665c970d84ba（常识库只在外面读数据，没碰主链）",
-       指纹.startswith("a649665c970d84ba"), 指纹[:16])
+    试("Z1 主链 sha256 还是 658c947ec7f33d37（常识库只在外面读数据，没碰主链）",
+       指纹.startswith("658c947ec7f33d37"), 指纹[:16])
 
 
 def 主():

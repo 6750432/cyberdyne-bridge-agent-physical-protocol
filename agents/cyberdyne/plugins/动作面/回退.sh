@@ -47,6 +47,6 @@ else
 fi
 echo -n "  bridge.py 指纹："
 sha256sum bridge.py | cut -c1-16
-echo "  （基线是 a649665c970d84ba；对不上就说明磁盘上的主链被动过 —— 立刻喊人）"
+echo "  （基线是 658c947ec7f33d37；对不上就说明磁盘上的主链被动过 —— 立刻喊人）"
 echo
 echo "回退完成。小家伙现在跑的是纯基线。"

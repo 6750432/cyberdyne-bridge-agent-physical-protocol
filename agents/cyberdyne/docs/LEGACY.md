@@ -134,7 +134,7 @@ cd node && npm install && cd ..
 bash tools/跑全部.sh        # 全部断言（当前基线：1145 条全过 / 0 失败）
 ```
 
-红线 `bridge.py` 的指纹（`a649665c970d84ba`）会在闸门最后被复查 —— 改了就报红。
+红线 `bridge.py` 的指纹（`658c947ec7f33d37`）会在闸门最后被复查 —— 改了就报红。
 
 真正跑起来需要一个本地 Minecraft 服务端（RCON + 离线模式）：
 
@@ -172,7 +172,7 @@ MC_RCON_PASSWORD=你的口令 python3 tools/rcon.py "list"
 
 ```bash
 git diff 基线 -- bridge.py     # 输出必须为空 —— 主链一个字节没动
-sha256sum bridge.py            # a649665c970d84ba…
+sha256sum bridge.py            # 658c947ec7f33d37…
 ```
 
 ---

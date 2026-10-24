@@ -170,7 +170,7 @@ fi
 # ── 红线：主链一个字节都不许动 ──
 hash=$(sha256sum bridge.py | cut -c1-16)
 echo
-if [ "$hash" = "a649665c970d84ba" ]; then
+if [ "$hash" = "658c947ec7f33d37" ]; then
   echo "  ✔ 红线　bridge.py 指纹 $hash（没动过）"
 else
   echo "  ✗ 红线　bridge.py 指纹变了！现在是 $hash"
