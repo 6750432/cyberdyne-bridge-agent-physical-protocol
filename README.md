@@ -7,7 +7,7 @@
 **把异构 Minecraft Agent，变成同一个协议下的外设。**
 
 [![CBAP](https://img.shields.io/badge/CBAP-v1-0f766e?style=flat-square)](spec/README.md)
-[![Release](https://img.shields.io/badge/release-v1.7.1-0f766e?style=flat-square)](https://github.com/cyberdyne-bridge/cyberdyne-bridge-agent-physical-protocol/releases)
+[![Release](https://img.shields.io/badge/release-v1.7.2-0f766e?style=flat-square)](https://github.com/cyberdyne-bridge/cyberdyne-bridge-agent-physical-protocol/releases)
 [![Conformance](https://img.shields.io/badge/conformance-114%2F114-14b8a6?style=flat-square)](tools/cbap_conformance.py)
 [![Python](https://img.shields.io/badge/Python-3.10%2B-3776AB?style=flat-square&logo=python&logoColor=white)](kernel/)
 [![Transport](https://img.shields.io/badge/CBAP--U-Unix%20socket-334155?style=flat-square)](spec/README.md)
@@ -282,6 +282,7 @@ Host device surface    5 个 device_id / 输入默认关闭
 当前源码发行版：
 
 ```text
+v1.7.2  Detailed Legal Pack    114/114
 v1.7.1  Legal & Notices        114/114
 v1.7.0  Device Parity P0–P6  114/114
 v1.6.0  Host Device Surface   101/101
@@ -297,7 +298,7 @@ Release 页面：
 
 - https://github.com/cyberdyne-bridge/cyberdyne-bridge-agent-physical-protocol/releases
 
-v1.7.1 / v1.7.0 / v1.6.0 / v1.5.0 / v1.4.0 附带 `CBAP-parameters-zh.pdf`。
+v1.7.2 / v1.7.1 / v1.7.0 / v1.6.0 / v1.5.0 / v1.4.0 附带 `CBAP-parameters-zh.pdf`。
 版本边界和兼容性见 [`RELEASES.md`](RELEASES.md)。
 
 ## 文档
@@ -353,6 +354,7 @@ agents/*/docs/                         各 Agent 自己的接入文档
 THIRD_PARTY_NOTICES.md        第三方组件 / 补丁 / 运行时依赖清单
 third_party/licenses/         上游 license 原文
 TRADEMARKS.md                 第三方名称与商标说明
+LEGAL/                        使用条款 / AUP / 隐私 / 滥用 / 风险 / 律师清单
 ```
 
 其中 `agents/mcp-mineflayer/driver/patches/mineflayer-mcp-place.patch`
@@ -369,6 +371,9 @@ DeepSeek、Qwen、Mindcraft、Voyager、mineflayer-mcp 均无官方关联。
 
 ```text
 DISCLAIMER.md
+LEGAL/TERMS.md
+LEGAL/ACCEPTABLE-USE.md
+LEGAL/ABUSE.md
 ```
 
 摘要：

@@ -114,7 +114,21 @@ Minecraft 是 Mojang Studios 的商标。
 损失或责任承担责任，无论是合同、侵权、严格责任还是其他依据，也不论
 是否已被告知可能发生此类损害。
 
-## 9. 不是法律意见
+## 9. 详细条款
+
+本文件是总览；更细的条款见：
+
+```text
+LEGAL/TERMS.md                 使用条款
+LEGAL/ACCEPTABLE-USE.md        可接受使用政策
+LEGAL/PRIVACY.md               隐私
+LEGAL/ABUSE.md                 滥用报告
+LEGAL/INCIDENT-RESPONSE.md     事件响应
+LEGAL/RISK-REGISTER.md         风险登记
+LEGAL/COUNSEL-CHECKLIST.md     律师审阅清单
+```
+
+## 10. 不是法律意见
 
 本文只做风险说明，不构成法律建议。  
 如果你需要商用或对外提供服务，请自行完成许可证、隐私、出口、税务和
