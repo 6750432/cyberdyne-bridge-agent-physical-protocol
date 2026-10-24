@@ -8,7 +8,7 @@ GitHub Pages：已启用（GitHub Actions）
 内容：已在线（HTTP 可访问）
 临时地址：https://cyberdyne-bridge.github.io/cyberdyne-bridge-agent-physical-protocol/
 自定义域名：www.cyberdyne-bridge.com
-HTTPS：尚未完成 —— GitHub 目前仍返回 *.github.io 证书
+HTTPS：已完成 —— 证书 CN=www.cyberdyne-bridge.com，Enforce HTTPS 已开启
 ```
 
 这意味着：
@@ -26,15 +26,22 @@ https_enforced                       false
 The certificate does not exist yet
 ```
 
-### 现在的处理顺序
+### 当前检查
 
-1. GitHub → Settings → Pages → Custom domain 重新保存 `www.cyberdyne-bridge.com`
-2. 确认 DNS `www CNAME cyberdyne-bridge.github.io`
-3. 等 GitHub 签发证书；不要先勾 Enforce HTTPS
-4. 证书匹配后再勾 **Enforce HTTPS**
-5. 用 `curl -I https://www.cyberdyne-bridge.com/` 验证证书 SAN
+```bash
+curl -I https://www.cyberdyne-bridge.com/
+openssl s_client -connect www.cyberdyne-bridge.com:443 \
+  -servername www.cyberdyne-bridge.com </dev/null 2>/dev/null \
+  | openssl x509 -noout -subject -ext subjectAltName
+```
 
-在证书签发前不要宣传 HTTPS 已可用，也不要用 `curl -k` 当作验证。
+期望：
+
+```text
+HTTP/2 200
+Subject: CN=www.cyberdyne-bridge.com
+DNS:cyberdyne-bridge.com, DNS:www.cyberdyne-bridge.com
+```
 
 
 这是 `cyberdyne-bridge.com` 的静态门面：只放项目摘要和仓库链接，不镜像文档、不接本地服务、不放运行数据。
