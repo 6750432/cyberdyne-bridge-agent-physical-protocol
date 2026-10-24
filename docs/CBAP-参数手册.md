@@ -1,8 +1,8 @@
 # CBAP v1 参数手册
 
-**版本**：1.0  
-**整理日期**：2026-10-24  
-**用途**：把 CBAP 线上协议、Kernel、安全策略、驱动清单、MCP 设备、Agent adapter、控制台的**实际参数和默认值**集中到一份文档  
+**版本**：1.0
+**整理日期**：2026-10-24
+**用途**：把 CBAP 线上协议、Kernel、安全策略、驱动清单、MCP 设备、Agent adapter、控制台的**实际参数和默认值**集中到一份文档
 **注意**：本文以**当前实现**为准；`spec/cbap-v1.md` 是早期草案，文末列出实现与草案的差异
 
 ---
@@ -166,7 +166,7 @@ Agent → Kernel：
 {"v":"1.0","type":"ack","id":"r-...","ts":...,"state":"accepted"}
 ```
 
-`state`：`accepted` 或 `running`。  
+`state`：`accepted` 或 `running`。
 `ack` 只表示受理；写入完成要等 `result`。
 
 ### 3.5 `progress`
@@ -213,7 +213,7 @@ Agent → Kernel：
 }
 ```
 
-`seq` 由 Kernel 全局递增；只有打开该设备 fd 的会话会收到。  
+`seq` 由 Kernel 全局递增；只有打开该设备 fd 的会话会收到。
 `payload` 的实际通道见 §6.1。
 
 ### 3.8 `event`
@@ -768,7 +768,7 @@ operator token：read/write/lease/estop
 | `agents.<id>.uids` | int[] | 为空不限制 |
 | `agents.<id>.token_sha256` | hex | 为空不要求 agent token |
 
-`token_sha256` 对应 `hello.auth.agent_token` 的 SHA-256 hex。  
+`token_sha256` 对应 `hello.auth.agent_token` 的 SHA-256 hex。
 operator 走独立 token，不受 policy 限制，并自动获得 `admin`。
 
 可选审批策略：
@@ -778,12 +778,14 @@ operator 走独立 token，不受 policy 限制，并自动获得 `admin`。
   "approvals": {
     "devices": ["mc://bot/DeepSeek"],
     "ops": ["dig", "place", "give", "exec"],
-    "ttl_ms": 60000
+    "ttl_ms": 60000,
+    "required_approvals": 2
   }
 }
 ```
 
 只有 `ops` 非空才启用；命中后 `write` 先进入审批，不立即执行。
+`required_approvals=2` 时需要两个不同 approver；同一 approver 重复批准返回 `E_PERM`。
 
 ### 7.6 限流/异常
 
@@ -1210,7 +1212,8 @@ python3 console/server.py \
 | `--audit` | `CBAP_AUDIT` 或 `<repo>/logs/cbap-audit.jsonl` | 审计 |
 | `--port` | `8765` | 只绑 `127.0.0.1` |
 | `--token` | 自动读 `<socket>.token` | Kernel agent token |
-| `--operator-token` | `CBAP_CONSOLE_OPERATOR_TOKEN` 或自动生成 | 登录 token，打印到终端 |
+| `--operator-token` | `CBAP_CONSOLE_OPERATOR_TOKEN` 或自动生成 | operator-1 登录 token |
+| `--second-operator-token` | `CBAP_SECOND_OPERATOR_TOKEN` | operator-2（双人审批） |
 
 ### 11.2 网络/认证
 
@@ -1247,6 +1250,9 @@ python3 console/server.py \
 | POST | `/api/onboard/scan` | cookie | `{command:string[],cwd?}` |
 | POST | `/api/onboard/create` | cookie | manifest payload |
 | POST | `/api/onboard/probe` | cookie | `{name,op?,args?,expect?}` |
+| POST | `/api/onboard/toggle` | cookie | `{name,enabled}` |
+| POST | `/api/onboard/sign` | cookie | `{name}` |
+| GET | `/api/history?device_id=&limit=` | cookie | in-memory samples |
 
 `/api/status` 返回：
 
@@ -1306,9 +1312,12 @@ estop 走 Kernel
 | `facts` | `source/tool/uri/command` |
 | `estop` | 必须有 `tool` + `expect` |
 | `overwrite` | 默认 false |
+| `registry.json` | enabled/disabled 状态，`0600` |
 | 文件权限 | `0600` |
 
 Onboarding scan 会启动 MCP 命令；只有 operator 能调用，仍然要使用可信 command。
+
+签名按钮使用 `CBAP_MANIFEST_KEY`；没有 key 时拒绝。历史图只保留当前 console 进程内最多 300 个样本。
 
 ---
 
@@ -1318,7 +1327,8 @@ Onboarding scan 会启动 MCP 命令；只有 operator 能调用，仍然要使�
 |---|---|---|
 | `CBAP_SOCKET` | `<repo>/cbap.sock` | Console 默认 Kernel socket |
 | `CBAP_AUDIT` | `<repo>/logs/cbap-audit.jsonl` | Console 默认审计 |
-| `CBAP_CONSOLE_OPERATOR_TOKEN` | 自动生成 | Console 登录 token |
+| `CBAP_CONSOLE_OPERATOR_TOKEN` | 自动生成 | Console operator-1 token |
+| `CBAP_SECOND_OPERATOR_TOKEN` | 无 | Console operator-2 token（双人审批） |
 | `CBAP_AUDIT_KEY` | 无 | 审计 HMAC |
 | `CBAP_AUDIT_REMOTE_URL` | 无 | 远程审计 URL |
 | `CBAP_AUDIT_REMOTE_TOKEN` | 无 | 远程审计 Bearer |

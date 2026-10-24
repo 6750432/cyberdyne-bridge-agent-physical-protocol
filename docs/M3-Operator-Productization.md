@@ -1,9 +1,9 @@
 # M3 · Operator Productization
 
-**状态**：first slice implemented  
-**日期**：2026-10-24  
-**基线**：CBAP 98/98 tests  
-**范围**：Console lease/审批；MCP onboarding/probe
+**状态**：implemented
+**日期**：2026-10-24
+**基线**：CBAP 98/98 tests
+**范围**：Console lease/审批；MCP onboarding/probe；注册表；双人审批；签名；历史图
 
 ---
 
@@ -206,10 +206,15 @@ verification
 [x] operator release lease
 [x] approval policy
 [x] approve / deny / expire
+[x] required_approvals=2 / operator-1 + operator-2
+[x] same approver rejected
 [x] approval audit
 [x] onboarding scan
 [x] manifest create
 [x] probe / health
+[x] registry enable / disable
+[x] onboarding signature button
+[x] history chart (in-memory last 300)
 [x] UI + API
 [x] 98/98 tests
 ```
@@ -225,13 +230,84 @@ verification
 
 ---
 
-## 5. 仍未做
+## 5. 注册表启用/禁用
+
+控制台 onboarding 列表现在有：
 
 ```text
-双人审批
+Enable / Disable
+Sign / Re-sign
+Probe
+```
+
+状态写在：
+
+```text
+devices/onboarded/registry.json   0600
+```
+
+禁用后：
+
+```text
+onboard_probe 拒绝
+UI 标灰
+Kernel 仍按启动时已加载的 driver 运行
+```
+
+**边界**：这是 onboarding registry 的启用状态，不是 Kernel 热插拔。
+禁用不会自动卸载已经挂到 Kernel 的 driver；生产需要重启/重新加载。
+
+## 6. Onboarding 签名 UI
+
+控制台按钮：
+
+```text
+Sign manifest
+```
+
+调用：
+
+```http
+POST /api/onboard/sign {"name":"..."}
+```
+
+使用：
+
+```text
+CBAP_MANIFEST_KEY / secret backend
+```
+
+签名覆盖 manifest 去掉 `signature` / `_manifest_path` 的 canonical JSON。
+没有配置 key 时按钮失败，不会生成假签名。
+
+## 7. 历史图
+
+Console 保存**内存**时间序列：
+
+```text
+每设备最多 300 个样本
+online / lease / pending / health
+hp / food（如果 facts 提供）
+```
+
+API：
+
+```http
+GET /api/history?device_id=...&limit=180
+```
+
+UI 用本地 SVG 画线，不加载第三方图表库。
+只保留当前 console 进程生命周期内的历史；重启即清空。
+
+---
+
+## 8. 仍未做
+
+```text
 审批 SLA / 通知
-设备注册表启用/禁用
-多操作员角色
+多操作员角色管理
+Kernel 热插拔
+持久化历史 / 数据库
 resume
 ```
 

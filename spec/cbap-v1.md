@@ -443,10 +443,13 @@ Kernel 在 `welcome.features` 返回实际授予：
   "approvals": {
     "devices": ["mc://bot/DeepSeek"],
     "ops": ["dig", "place", "give", "exec"],
-    "ttl_ms": 60000
+    "ttl_ms": 60000,
+    "required_approvals": 2
   }
 }
 ```
+
+`required_approvals` 可为 1..5；`dual: true` 等价于 2。
 
 命中策略的 `write`：
 
@@ -460,16 +463,19 @@ ack accepted
 
 ```json
 {"op":"approval_list","args":{}}
-{"op":"approval_approve","args":{"approval_id":"ap-..."}}
+{"op":"approval_approve","args":{"approval_id":"ap-...","approver":"operator-1"}}
 {"op":"approval_deny","args":{"approval_id":"ap-..."}}
 ```
 
 - 三者都需要 `admin`；
-- `approval_list` 只返回未过期的 pending；
-- `approval_approve` 重新检查 lease 后执行原 write；
+- `approval_list` 只返回未过期的 pending，并带 `approvals` / `required`；
+- `approval_approve` 记录 approver；达到 `required_approvals` 后重新检查 lease 并执行；
+- 同一 approver 重复批准返回 `E_PERM`；
 - `approval_deny` 让原请求收到 `E_PERM`；
 - 到期让原请求收到 `E_TIMEOUT`；
 - 审批不绕过 lease、fence、safe mode、rate limit。
+
+`approver` 由 Console 的 operator session 提供；Kernel 仍只信任本地 operator 通道。
 
 ---
 

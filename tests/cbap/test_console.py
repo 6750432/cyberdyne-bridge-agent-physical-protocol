@@ -75,6 +75,7 @@ class ConsoleTest(unittest.TestCase):
             policy={"approvals": {
                 "devices": ["test://console/light-01"],
                 "ops": ["move"], "ttl_ms": 10000,
+                "required_approvals": 2,
             }})
         self.assertTrue(self.kernel.start())
         self.backend = ConsoleBackend(self.sock, audit_path=self.audit)
@@ -188,7 +189,15 @@ class ConsoleTest(unittest.TestCase):
             self.assertTrue(pending["ok"], pending)
             self.assertEqual(len(pending["approvals"]), 1, pending)
             aid = pending["approvals"][0]["approval_id"]
-            self.assertTrue(self.backend.approve(aid)["ok"])
+            first = self.backend.approve(aid, approver="operator-1")
+            self.assertTrue(first["ok"], first)
+            self.assertTrue(first["result"].get("pending"), first)
+            self.assertEqual(len(self.backend.approvals()["approvals"]), 1)
+            repeat = self.backend.approve(aid, approver="operator-1")
+            self.assertFalse(repeat["ok"], repeat)
+            second = self.backend.approve(aid, approver="operator-2")
+            self.assertTrue(second["ok"], second)
+            self.assertFalse(second["result"].get("pending"), second)
             result = agent.wait(rid, 3)
             self.assertTrue(result.get("ok"), result)
             self.assertEqual(self.backend.approvals()["approvals"], [])
@@ -225,6 +234,29 @@ class ConsoleTest(unittest.TestCase):
             probed = backend.onboard_probe({"name": "mcp:_onboard_fake-01"})
             self.assertTrue(probed["ok"], probed)
             self.assertTrue(probed["health"]["ok"], probed)
+            toggled = backend.onboard_toggle({"name": "mcp:_onboard_fake-01",
+                                               "enabled": False})
+            self.assertTrue(toggled["ok"], toggled)
+            disabled = backend.onboard_probe({"name": "mcp:_onboard_fake-01"})
+            self.assertFalse(disabled["ok"], disabled)
+            self.assertTrue(backend.onboard_toggle({
+                "name": "mcp:_onboard_fake-01", "enabled": True})["ok"])
+            old = os.environ.get("CBAP_MANIFEST_KEY")
+            os.environ["CBAP_MANIFEST_KEY"] = "onboard-test-key"
+            try:
+                signed = backend.onboard_sign({"name": "mcp:_onboard_fake-01"})
+                self.assertTrue(signed["ok"], signed)
+                with open(made["path"], encoding="utf-8") as f:
+                    self.assertTrue(json.loads(f.read()).get("signature"))
+            finally:
+                if old is None:
+                    os.environ.pop("CBAP_MANIFEST_KEY", None)
+                else:
+                    os.environ["CBAP_MANIFEST_KEY"] = old
+            self.backend.refresh()
+            hist = self.backend.history("test://console/light-01")
+            self.assertTrue(hist["ok"])
+            self.assertGreaterEqual(len(hist["samples"]), 1, hist)
         finally:
             backend.close()
 

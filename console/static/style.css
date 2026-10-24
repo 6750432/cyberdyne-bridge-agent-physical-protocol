@@ -178,3 +178,33 @@ pre {
   .probe-row { grid-template-columns: 1fr; }
   .approval-row { flex-direction: column; }
 }
+
+/* ── registry / history ─────────────────────────────────── */
+.registry-list { display: grid; gap: 6px; margin: 12px 0; }
+.registry-row {
+  display: grid; grid-template-columns: 2fr 1fr auto; gap: 10px;
+  align-items: center; border: 1px solid var(--line); border-radius: 7px;
+  padding: 8px 10px; background: #0e171c; font-size: 12px;
+}
+.registry-row.disabled { opacity: .55; border-style: dashed; }
+.registry-name { font-weight: 600; word-break: break-word; }
+.registry-meta { color: var(--muted); font-size: 11px; }
+.registry-actions { display: flex; gap: 6px; flex-wrap: wrap; }
+.registry-actions .btn { padding: 5px 8px; font-size: 11px; }
+.history-controls { display: flex; align-items: end; gap: 12px; margin-bottom: 8px; }
+.history-controls label { display: grid; gap: 4px; color: var(--muted); font-size: 12px; }
+.history-controls select {
+  background: #091014; border: 1px solid var(--line); color: var(--text);
+  padding: 7px; border-radius: 6px; font: inherit; font-size: 12px;
+}
+.history-chart {
+  border: 1px solid var(--line); border-radius: 8px; background: #091014;
+  min-height: 150px; padding: 8px; overflow: hidden;
+}
+.history-chart svg { width: 100%; height: 160px; display: block; }
+.history-legend { display: flex; gap: 14px; color: var(--muted); font-size: 11px; }
+.history-legend i { display: inline-block; width: 14px; height: 3px; margin-right: 4px; vertical-align: middle; }
+@media (max-width: 760px) {
+  .registry-row { grid-template-columns: 1fr; }
+  .history-controls { flex-direction: column; align-items: stretch; }
+}

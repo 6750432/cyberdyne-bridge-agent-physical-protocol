@@ -42,6 +42,7 @@ class ConsoleBackend:
                                  (Path(__file__).resolve().parent.parent /
                                   "devices" / "onboarded"))
         self._onboard_lock = threading.Lock()
+        self._history: dict[str, list[dict]] = {}
 
     # ── connection ───────────────────────────────────────────
     def _connect_locked(self) -> None:
@@ -160,6 +161,29 @@ class ConsoleBackend:
                         except Exception as e:
                             item["facts_error"] = str(e)
                     out.append(item)
+                now_ms = int(time.time() * 1000)
+                with self._lock:
+                    for item in out:
+                        dev = item.get("device_id") or ""
+                        if not dev:
+                            continue
+                        facts = item.get("facts") or {}
+                        body = facts.get("body") if isinstance(facts, dict) else {}
+                        sample = {
+                            "t": now_ms,
+                            "online": bool(item.get("online")),
+                            "safe": bool(item.get("safe")),
+                            "lease": bool(item.get("lease")),
+                            "pending": int(item.get("pending") or 0),
+                            "health": bool((item.get("health") or {}).get("ok")),
+                        }
+                        if isinstance(body, dict):
+                            for k in ("hp", "food"):
+                                if isinstance(body.get(k), (int, float)):
+                                    sample[k] = body[k]
+                        self._history.setdefault(dev, []).append(sample)
+                        if len(self._history[dev]) > 300:
+                            del self._history[dev][:-300]
                 return {
                     "ok": True,
                     "ts": time.time(),
@@ -206,12 +230,14 @@ class ConsoleBackend:
                 self._last_error = str(e)
                 return {"ok": False, "approvals": [], "error": str(e)}
 
-    def approve(self, approval_id: str) -> dict:
+    def approve(self, approval_id: str,
+                approver: str = "operator") -> dict:
         with self._lock:
             try:
                 self._connect_locked()
                 res = self._client.call("approval_approve",
-                                        {"approval_id": approval_id})
+                                        {"approval_id": approval_id,
+                                         "approver": approver})
                 if not res.get("ok"):
                     raise ConsoleError(str(res.get("error") or "approval failed"))
                 return {"ok": True, "result": res.get("payload") or {},
@@ -274,6 +300,30 @@ class ConsoleBackend:
         self.registry_dir.mkdir(parents=True, exist_ok=True, mode=0o700)
         return self.registry_dir / f"{safe}.json"
 
+    def _registry_state(self) -> dict:
+        path = self.registry_dir / "registry.json"
+        try:
+            data = json.loads(path.read_text(encoding="utf-8"))
+            if isinstance(data, dict) and isinstance(data.get("devices"), dict):
+                return data
+        except (OSError, ValueError):
+            pass
+        return {"devices": {}}
+
+    def _save_registry_state(self, state: dict) -> None:
+        self.registry_dir.mkdir(parents=True, exist_ok=True, mode=0o700)
+        path = self.registry_dir / "registry.json"
+        tmp = path.with_suffix(".json.tmp")
+        tmp.write_text(json.dumps(state, ensure_ascii=False, indent=2) + "\n",
+                       encoding="utf-8")
+        os.chmod(tmp, 0o600)
+        os.replace(tmp, path)
+
+    def _enabled(self, name: str, state: dict | None = None) -> bool:
+        state = state or self._registry_state()
+        item = (state.get("devices") or {}).get(name) or {}
+        return bool(item.get("enabled", True))
+
     def onboard_scan(self, body: dict) -> dict:
         if not self._onboard_lock.acquire(timeout=15):
             return {"ok": False, "error": "another onboarding scan is running"}
@@ -316,15 +366,19 @@ class ConsoleBackend:
         try:
             self.registry_dir.mkdir(parents=True, exist_ok=True, mode=0o700)
             rows = []
+            state = self._registry_state()
             for p in sorted(self.registry_dir.glob("*.json")):
+                if p.name == "registry.json":
+                    continue
                 try:
                     data = json.loads(p.read_text(encoding="utf-8"))
                 except Exception:
                     continue
-                if not isinstance(data, dict):
+                if not isinstance(data, dict) or not data.get("device_id"):
                     continue
                 rows.append({
                     "name": p.stem,
+                    "enabled": self._enabled(p.stem, state),
                     "device_id": data.get("device_id"),
                     "display_name": data.get("display_name"),
                     "path": str(p),
@@ -409,7 +463,60 @@ class ConsoleBackend:
                            encoding="utf-8")
             os.chmod(tmp, 0o600)
             os.replace(tmp, path)
+            state = self._registry_state()
+            state.setdefault("devices", {})[name] = {
+                "enabled": True, "updated": int(time.time() * 1000),
+            }
+            self._save_registry_state(state)
             return {"ok": True, "path": str(path), "manifest": manifest}
+        except Exception as e:
+            return {"ok": False, "error": str(e)}
+
+    def onboard_toggle(self, body: dict) -> dict:
+        try:
+            name = self._safe_name(str(body.get("name") or ""))
+            enabled = bool(body.get("enabled"))
+            path = self.registry_dir / f"{name}.json"
+            if not path.exists():
+                raise ConsoleError("device not found in onboarding registry")
+            state = self._registry_state()
+            state.setdefault("devices", {})[name] = {
+                "enabled": enabled, "updated": int(time.time() * 1000),
+            }
+            self._save_registry_state(state)
+            return {"ok": True, "name": name, "enabled": enabled}
+        except Exception as e:
+            return {"ok": False, "error": str(e)}
+
+    def onboard_sign(self, body: dict) -> dict:
+        try:
+            from kernel.legacy_runtime.secrets import SecretError, get_secret
+            name = self._safe_name(str(body.get("name") or ""))
+            path = self.registry_dir / f"{name}.json"
+            if not path.exists():
+                raise ConsoleError("device not found in onboarding registry")
+            try:
+                key = get_secret("CBAP_MANIFEST_KEY")
+            except SecretError as e:
+                raise ConsoleError(str(e))
+            if not key:
+                raise ConsoleError("CBAP_MANIFEST_KEY is not configured")
+            data = json.loads(path.read_text(encoding="utf-8"))
+            body_data = {k: v for k, v in data.items()
+                         if k not in ("signature", "_manifest_path")}
+            canonical = json.dumps(body_data, ensure_ascii=False,
+                                   sort_keys=True, separators=(",", ":"))
+            import hashlib
+            import hmac
+            sig = hmac.new(key.encode(), canonical.encode("utf-8"),
+                           hashlib.sha256).hexdigest()
+            data["signature"] = sig
+            tmp = path.with_suffix(".json.tmp")
+            tmp.write_text(json.dumps(data, ensure_ascii=False, indent=2) + "\n",
+                           encoding="utf-8")
+            os.chmod(tmp, 0o600)
+            os.replace(tmp, path)
+            return {"ok": True, "name": name, "signature": sig}
         except Exception as e:
             return {"ok": False, "error": str(e)}
 
@@ -422,6 +529,8 @@ class ConsoleBackend:
             path = self._registry_path(name)
             if not path.exists():
                 raise ConsoleError("device not found in onboarding registry")
+            if not self._enabled(path.stem):
+                raise ConsoleError("device is disabled in the registry")
             driver = MCPDeviceDriver(path, connect_timeout=10.0)
             driver.connect()
             result: dict[str, Any] = {
@@ -456,6 +565,13 @@ class ConsoleBackend:
                 except Exception:
                     pass
             self._onboard_lock.release()
+
+    def history(self, device_id: str, limit: int = 120) -> dict:
+        limit = max(1, min(int(limit), 300))
+        with self._lock:
+            data = list(self._history.get(str(device_id), []))
+        return {"ok": True, "device_id": device_id,
+                "samples": data[-limit:]}
 
     # ── audit ────────────────────────────────────────────────
     def audit(self, limit: int = 80) -> dict:

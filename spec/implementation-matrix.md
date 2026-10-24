@@ -129,11 +129,14 @@ removed       not part of the current profile
 | approval policy | implemented | `policy.approvals` |
 | approve/deny pending write | implemented | operator only |
 | approval expiry | implemented | `E_TIMEOUT` |
+| dual approval | implemented | `required_approvals=2` |
+| registry enable/disable | implemented | `registry.json` |
+| onboarding sign UI | implemented | `CBAP_MANIFEST_KEY` |
+| history chart | implemented | in-memory 300 samples |
 | MCP scan tools | implemented | local stdio |
 | manifest generation | implemented | `devices/onboarded/` |
 | probe/health | implemented | explicit side effect only |
 | manifest/pin status | implemented | signed/pinned UI fields |
-| dual approval | planned | not implemented |
 
 ## 9. Test mapping
 

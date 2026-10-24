@@ -16,6 +16,7 @@
       </div>
     </div>
     <div class="actions">
+      <span id="operator-name" class="pill">operator</span>
       <span id="connection" class="pill offline">connecting</span>
       <button id="refresh" class="btn">Refresh</button>
       <button id="global-estop" class="btn danger">EMERGENCY STOP</button>
@@ -80,6 +81,9 @@
           <span id="ob-create-status" class="muted"></span>
         </div>
       </div>
+      <div id="ob-registry" class="registry-list">
+        <div class="empty">No onboarded devices.</div>
+      </div>
       <div class="probe-row">
         <label>Onboarded device
           <select id="ob-list"><option value="">none</option></select>
@@ -88,6 +92,22 @@
         <button id="ob-refresh-list" class="btn">Refresh list</button>
       </div>
       <pre id="ob-probe-result" class="probe-result">No probe yet.</pre>
+    </section>
+
+    <section class="panel">
+      <div class="section-head">
+        <h2>History</h2>
+        <span class="muted">in-memory · last 300 samples</span>
+      </div>
+      <div class="history-controls">
+        <label>Device
+          <select id="history-device"><option value="">no device</option></select>
+        </label>
+        <span class="muted">online / lease / pending</span>
+      </div>
+      <div id="history-chart" class="history-chart">
+        <div class="empty">No history samples yet.</div>
+      </div>
     </section>
 
     <section class="panel">

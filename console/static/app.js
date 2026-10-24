@@ -3,6 +3,7 @@
 const $ = (id) => document.getElementById(id);
 let loading = false;
 let authed = false;
+let operatorName = "operator";
 
 function el(tag, cls, text) {
   const n = document.createElement(tag);
@@ -43,6 +44,18 @@ function hideLogin() {
   authed = true;
   $("login").classList.add("hidden");
   $("login-error").textContent = "";
+}
+
+function setOperator(name) {
+  operatorName = name || "operator";
+  $("operator-name").textContent = operatorName;
+}
+
+async function refreshSession() {
+  try {
+    const s = await fetch("/api/session", {credentials: "same-origin"}).then(r => r.json());
+    if (s.operator) setOperator(s.operator);
+  } catch (_) {}
 }
 
 function setConnection(ok, text) {
@@ -128,7 +141,7 @@ function renderApprovals(rows) {
     const row = el("div", "approval-row");
     const left = el("div", "approval-main");
     left.appendChild(el("div", "approval-title", `${a.op || "action"} · ${a.device_id}`));
-    left.appendChild(el("div", "muted", `agent=${a.agent_id || "?"} channel=${a.channel || "?"} expires=${fmtTime(a.expires)}`));
+    left.appendChild(el("div", "muted", `agent=${a.agent_id || "?"} channel=${a.channel || "?"} approvals=${(a.approvals || []).length}/${a.required || 1} expires=${fmtTime(a.expires)}`));
     left.appendChild(el("div", "approval-args", JSON.stringify(a.args || {})));
     const actions = el("div", "approval-actions");
     const ok = el("button", "btn", "Approve");
@@ -158,7 +171,11 @@ async function doApproval(id, approve) {
       body: JSON.stringify({approval_id: id})
     });
     renderApprovals(res.approvals || []);
-    toast(approve ? "Approved" : "Denied");
+    if (approve && (res.result || {}).pending) {
+      toast(`Approval recorded · ${(res.result.approvals || []).length}/${res.result.required || 2} · waiting for second operator`);
+    } else {
+      toast(approve ? "Approved" : "Denied");
+    }
     await load();
   } catch (e) {
     toast("Approval failed: " + (e.message || e), true);
@@ -218,6 +235,8 @@ async function load() {
     renderDevices(status.devices || []);
     renderAudit(audit.rows || []);
     renderApprovals(approvals.approvals || []);
+    updateHistoryDevices(status.devices || []);
+    await loadHistory();
   } catch (e) {
     setConnection(false, "kernel unavailable");
     toast(String(e.message || e), true);
@@ -355,11 +374,33 @@ async function onboardList() {
     sel.replaceChildren();
     const none = document.createElement("option");
     none.value = ""; none.textContent = "none"; sel.appendChild(none);
+    const root = $("ob-registry");
+    root.replaceChildren();
+    if (!(res.devices || []).length) {
+      root.appendChild(el("div", "empty", "No onboarded devices."));
+    }
     for (const d of res.devices || []) {
       const o = document.createElement("option");
       o.value = d.name;
-      o.textContent = `${d.device_id || d.name}${d.signed ? " · signed" : ""}${d.estop ? " · estop" : " · no estop"}`;
+      o.textContent = `${d.device_id || d.name}${d.enabled ? "" : " (disabled)"}`;
       sel.appendChild(o);
+      const row = el("div", "registry-row" + (d.enabled ? "" : " disabled"));
+      const left = el("div");
+      left.appendChild(el("div", "registry-name", d.device_id || d.name));
+      left.appendChild(el("div", "registry-meta",
+        `${d.signed ? "signed" : "unsigned"} · ${d.pinned ? "pinned" : "unpinned"} · ` +
+        `${d.tools} tools · ${d.estop ? "estop evidence" : "no estop evidence"}`));
+      const meta = el("div", "registry-meta", d.enabled ? "enabled" : "disabled");
+      const actions = el("div", "registry-actions");
+      const toggle = el("button", "btn", d.enabled ? "Disable" : "Enable");
+      toggle.addEventListener("click", () => onboardToggle(d.name, !d.enabled));
+      const sign = el("button", "btn", d.signed ? "Re-sign" : "Sign");
+      sign.addEventListener("click", () => onboardSign(d.name));
+      const probe = el("button", "btn", "Probe");
+      probe.addEventListener("click", () => { sel.value = d.name; onboardProbe(); });
+      actions.append(toggle, sign, probe);
+      row.append(left, meta, actions);
+      root.appendChild(row);
     }
   } catch (_) {}
 }
@@ -381,6 +422,112 @@ async function onboardProbe() {
   }
 }
 
+async function onboardToggle(name, enabled) {
+  try {
+    const res = await api("/api/onboard/toggle", {
+      method: "POST", headers: {"Content-Type": "application/json"},
+      body: JSON.stringify({name, enabled})
+    });
+    toast(`${name}: ${res.enabled ? "enabled" : "disabled"}`);
+    await onboardList();
+  } catch (e) {
+    toast("Registry update failed: " + (e.message || e), true);
+  }
+}
+
+async function onboardSign(name) {
+  if (!confirm(`Sign manifest ${name} with CBAP_MANIFEST_KEY?`)) return;
+  try {
+    const res = await api("/api/onboard/sign", {
+      method: "POST", headers: {"Content-Type": "application/json"},
+      body: JSON.stringify({name})
+    });
+    toast("Manifest signed");
+    $("ob-probe-result").textContent = JSON.stringify(res, null, 2);
+    await onboardList();
+  } catch (e) {
+    toast("Sign failed: " + (e.message || e), true);
+  }
+}
+
+let historyDevice = "";
+
+function updateHistoryDevices(devices) {
+  const sel = $("history-device");
+  const wanted = historyDevice || sel.value;
+  sel.replaceChildren();
+  const none = document.createElement("option");
+  none.value = ""; none.textContent = "no device"; sel.appendChild(none);
+  for (const d of devices) {
+    const o = document.createElement("option");
+    o.value = d.device_id || "";
+    o.textContent = d.device_id || "unknown";
+    sel.appendChild(o);
+  }
+  if (wanted && [...sel.options].some(o => o.value === wanted)) sel.value = wanted;
+  historyDevice = sel.value;
+}
+
+function svgEl(tag, attrs) {
+  const n = document.createElementNS("http://www.w3.org/2000/svg", tag);
+  for (const [k, v] of Object.entries(attrs || {})) n.setAttribute(k, String(v));
+  return n;
+}
+
+function renderHistory(samples) {
+  const root = $("history-chart");
+  root.replaceChildren();
+  if (!samples.length) {
+    root.appendChild(el("div", "empty", "No history samples yet."));
+    return;
+  }
+  const width = 1000, height = 150, pad = 10;
+  const svg = svgEl("svg", {viewBox: `0 0 ${width} ${height}`, preserveAspectRatio: "none"});
+  svg.appendChild(svgEl("line", {x1: pad, y1: height - pad, x2: width - pad, y2: height - pad,
+                                 stroke: "#334155", "stroke-width": 1}));
+  const n = samples.length;
+  const maxPending = Math.max(1, ...samples.map(s => Number(s.pending) || 0));
+  const x = (i) => pad + (width - pad * 2) * (n === 1 ? 0.5 : i / (n - 1));
+  const y = (v) => height - pad - (height - pad * 2) * Math.max(0, Math.min(1, v));
+  const lines = [
+    {key: "online", color: "#4ade80", label: "online", scale: v => v ? 1 : 0},
+    {key: "lease", color: "#fbbf24", label: "lease", scale: v => v ? 1 : 0},
+    {key: "pending", color: "#fb7185", label: "pending", scale: v => (Number(v) || 0) / maxPending},
+    {key: "health", color: "#2dd4bf", label: "health", scale: v => v ? 1 : 0},
+  ];
+  for (const line of lines) {
+    const pts = samples.map((s, i) => `${x(i)},${y(line.scale(s[line.key]))}`).join(" ");
+    svg.appendChild(svgEl("polyline", {
+      points: pts, fill: "none", stroke: line.color,
+      "stroke-width": line.key === "pending" ? 1.4 : 2, opacity: line.key === "pending" ? 0.8 : 0.95
+    }));
+  }
+  root.appendChild(svg);
+  const legend = el("div", "history-legend");
+  for (const line of lines) {
+    const item = el("span");
+    const swatch = el("i");
+    swatch.style.background = line.color;
+    item.append(swatch, document.createTextNode(line.label));
+    legend.appendChild(item);
+  }
+  root.appendChild(legend);
+}
+
+async function loadHistory() {
+  const sel = $("history-device");
+  const dev = sel.value;
+  historyDevice = dev;
+  if (!dev) { renderHistory([]); return; }
+  try {
+    const res = await api(`/api/history?device_id=${encodeURIComponent(dev)}&limit=180`);
+    renderHistory(res.samples || []);
+  } catch (e) {
+    renderHistory([]);
+  }
+}
+
+$("history-device").addEventListener("change", loadHistory);
 $("ob-scan").addEventListener("click", onboardScan);
 $("ob-create").addEventListener("click", onboardCreate);
 $("ob-refresh-list").addEventListener("click", onboardList);
@@ -407,6 +554,7 @@ $("login-form").addEventListener("submit", async (event) => {
     const body = await res.json().catch(() => ({}));
     if (!res.ok || !body.ok) throw new Error(body.error || `HTTP ${res.status}`);
     hideLogin();
+    await refreshSession();
     await load();
   } catch (e) {
     $("login-error").textContent = String(e.message || e);
@@ -416,7 +564,7 @@ $("login-form").addEventListener("submit", async (event) => {
 (async () => {
   try {
     const s = await fetch("/api/session", {credentials: "same-origin"}).then(r => r.json());
-    if (s.authenticated) { hideLogin(); await load(); await onboardList(); }
+    if (s.authenticated) { hideLogin(); setOperator(s.operator); await load(); await onboardList(); }
     else showLogin();
   } catch (_) {
     showLogin();

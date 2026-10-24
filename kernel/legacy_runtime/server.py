@@ -71,6 +71,8 @@ class Approval:
     device_id: str
     created: float
     expires: float
+    approvals: dict[str, float]
+    required: int
     timer: threading.Timer | None = None
 
 
@@ -1011,7 +1013,9 @@ class KernelServer:
             a = Approval(id=await_id, request_id=rid, session=session, fd=f, frame=frame,
                          legacy=legacy, cmd=cmd, deadline_ms=deadline_ms,
                          idem_key=key, device_id=f.device_id,
-                         created=time.time(), expires=expires)
+                         created=time.time(), expires=expires,
+                         approvals={},
+                         required=self.policy.required_approvals)
             with self._lock:
                 self._approvals[await_id] = a
             a.timer = threading.Timer(
@@ -1095,6 +1099,8 @@ class KernelServer:
                     "args": a.frame.get("args") or {},
                     "created": int(a.created * 1000),
                     "expires": int(a.expires * 1000),
+                    "approvals": sorted(a.approvals),
+                    "required": a.required,
                 })
         self._result(session, rid, True, payload={"approvals": items})
 
@@ -1104,24 +1110,56 @@ class KernelServer:
         aid = args.get("approval_id")
         if not isinstance(aid, str) or not aid:
             raise _OpError("E_INVAL", "approval_id required")
+        approver = args.get("approver")
+        if not isinstance(approver, str) or not approver:
+            approver = session.agent_id or session.session_id
         with self._lock:
-            a = self._approvals.pop(aid, None)
+            a = self._approvals.get(aid)
         if a is None:
             raise _OpError("E_NOENT", "approval not found")
-        if a.timer:
-            a.timer.cancel()
         if a.expires <= time.time():
+            with self._lock:
+                self._approvals.pop(aid, None)
+            if a.timer:
+                a.timer.cancel()
             self._send_approval_result(a, False,
                                        protocol.error("E_TIMEOUT", "approval expired"))
-            self._result(session, rid, False,
-                         err=protocol.error("E_TIMEOUT", "approval expired"))
-            return
+            raise _OpError("E_TIMEOUT", "approval expired")
         if not approve:
+            with self._lock:
+                if self._approvals.pop(aid, None) is None:
+                    raise _OpError("E_NOENT", "approval not found")
+            if a.timer:
+                a.timer.cancel()
             self._send_approval_result(
                 a, False, protocol.error("E_PERM", "approval denied by operator"))
             self._audit("approval_deny", approval_id=aid,
-                        operator=session.agent_id, agent=a.session.agent_id)
-            self._result(session, rid, True, payload={"approved": False})
+                        operator=session.agent_id, approver=approver,
+                        agent=a.session.agent_id)
+            self._result(session, rid, True,
+                         payload={"approved": False, "denied": True})
+            return
+        with self._lock:
+            if aid not in self._approvals:
+                raise _OpError("E_NOENT", "approval not found")
+            if approver in a.approvals:
+                raise _OpError("E_PERM", "same approver cannot approve twice")
+            a.approvals[approver] = time.time()
+            enough = len(a.approvals) >= a.required
+            if enough:
+                self._approvals.pop(aid, None)
+        if a.timer:
+            a.timer.cancel()
+        if not enough:
+            self._audit("approval_partial", approval_id=aid,
+                        operator=session.agent_id, approver=approver,
+                        count=len(a.approvals), required=a.required,
+                        agent=a.session.agent_id)
+            self._result(session, rid, True, payload={
+                "approved": False, "pending": True,
+                "approvals": sorted(a.approvals),
+                "required": a.required,
+            })
             return
         try:
             lease = self._lease_for_fd(a.fd)
@@ -1136,8 +1174,12 @@ class KernelServer:
                     getattr(e, "code", "E_INTERNAL"),
                     getattr(e, "message", str(e))))
         self._audit("approval_approve", approval_id=aid,
-                    operator=session.agent_id, agent=a.session.agent_id)
-        self._result(session, rid, True, payload={"approved": True})
+                    operator=session.agent_id, approver=approver,
+                    approvals=sorted(a.approvals), agent=a.session.agent_id)
+        self._result(session, rid, True, payload={
+            "approved": True, "approvals": sorted(a.approvals),
+            "required": a.required,
+        })
 
     def _send_approval_result(self, a: Approval, ok: bool,
                               err: dict | None = None) -> None:

@@ -81,8 +81,11 @@ class CapabilityPolicy:
         self.approval_ops = {str(x) for x in (approvals.get("ops") or [])}
         try:
             self.approval_ttl_ms = max(1000, int(approvals.get("ttl_ms") or 60000))
+            default_required = 2 if approvals.get("dual") else 1
+            self.required_approvals = max(1, min(5, int(
+                approvals.get("required_approvals") or default_required)))
         except (TypeError, ValueError):
-            raise PolicyError("approvals.ttl_ms must be an integer")
+            raise PolicyError("approvals ttl_ms/required_approvals must be integers")
         self.agents: dict[str, dict] = {}
         for name, grant in (data.get("agents") or {}).items():
             if not isinstance(grant, dict):

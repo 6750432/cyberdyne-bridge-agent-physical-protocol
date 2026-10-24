@@ -38,11 +38,17 @@ class ConsoleHTTPServer(ThreadingHTTPServer):
     allow_reuse_address = True
 
     def __init__(self, addr, handler, backend: ConsoleBackend,
-                 operator_token: str, session_ttl_s: int = 8 * 3600):
+                 operator_token: str, second_operator_token: str | None = None,
+                 session_ttl_s: int = 8 * 3600):
         self.backend = backend
         self.operator_token = operator_token
+        self.operator_tokens = {operator_token: "operator-1"}
+        if second_operator_token:
+            if second_operator_token == operator_token:
+                raise ValueError("second operator token must be different")
+            self.operator_tokens[second_operator_token] = "operator-2"
         self.session_ttl_s = int(session_ttl_s)
-        self.sessions: dict[str, float] = {}
+        self.sessions: dict[str, dict] = {}
         self.login_attempts: dict[str, list[float]] = {}
         self._session_lock = threading.Lock()
         super().__init__(addr, handler)
@@ -97,16 +103,19 @@ class Handler(BaseHTTPRequestHandler):
         return None
 
     def _session_ok(self) -> bool:
+        return self._session_name() is not None
+
+    def _session_name(self) -> str | None:
         token = self._session_token()
         if not token:
-            return False
+            return None
         now = time.time()
         with self.server._session_lock:
-            exp = self.server.sessions.get(token)
-            if not exp or exp <= now:
+            sess = self.server.sessions.get(token)
+            if not sess or sess.get("expires", 0) <= now:
                 self.server.sessions.pop(token, None)
-                return False
-            return True
+                return None
+            return str(sess.get("operator") or "operator")
 
     def _api_guard(self) -> bool:
         if not self._host_ok():
@@ -132,7 +141,8 @@ class Handler(BaseHTTPRequestHandler):
             self._file(STATIC / "style.css", "text/css; charset=utf-8")
             return
         if self.path == "/api/session":
-            self._json(200, {"ok": True, "authenticated": self._session_ok()})
+            self._json(200, {"ok": True, "authenticated": self._session_ok(),
+                             "operator": self._session_name()})
             return
         if self.path == "/api/status":
             if not self._api_guard():
@@ -143,6 +153,18 @@ class Handler(BaseHTTPRequestHandler):
             if not self._api_guard():
                 return
             self._json(200, self.server.backend.approvals())
+            return
+        if self.path.startswith("/api/history"):
+            if not self._api_guard():
+                return
+            from urllib.parse import parse_qs
+            q = parse_qs(self.path.split("?", 1)[1]) if "?" in self.path else {}
+            dev = (q.get("device_id") or [""])[0]
+            try:
+                limit = int((q.get("limit") or ["120"])[0])
+            except ValueError:
+                limit = 120
+            self._json(200, self.server.backend.history(dev, limit))
             return
         if self.path.startswith("/api/onboard/"):
             if not self._api_guard():
@@ -183,7 +205,8 @@ class Handler(BaseHTTPRequestHandler):
         routes = {"/api/estop", "/api/approvals/approve",
                   "/api/approvals/deny", "/api/lease/release",
                   "/api/onboard/scan", "/api/onboard/create",
-                  "/api/onboard/probe"}
+                  "/api/onboard/probe", "/api/onboard/toggle",
+                  "/api/onboard/sign"}
         if self.path not in routes:
             self._json(404, {"ok": False, "error": "not found"})
             return
@@ -206,7 +229,8 @@ class Handler(BaseHTTPRequestHandler):
             if not isinstance(aid, str) or not aid:
                 self._json(400, {"ok": False, "error": "approval_id required"})
                 return
-            res = (self.server.backend.approve(aid)
+            res = (self.server.backend.approve(
+                       aid, approver=self._session_name() or "operator")
                    if self.path.endswith("/approve")
                    else self.server.backend.deny(aid))
         elif self.path == "/api/lease/release":
@@ -232,6 +256,10 @@ class Handler(BaseHTTPRequestHandler):
             return self.server.backend.onboard_create(body)
         if self.path == "/api/onboard/probe":
             return self.server.backend.onboard_probe(body)
+        if self.path == "/api/onboard/toggle":
+            return self.server.backend.onboard_toggle(body)
+        if self.path == "/api/onboard/sign":
+            return self.server.backend.onboard_sign(body)
         return {"ok": False, "error": "not found"}
 
     def _login(self) -> None:
@@ -250,15 +278,23 @@ class Handler(BaseHTTPRequestHandler):
             self._json(400, {"ok": False, "error": str(e)})
             return
         supplied = body.get("token")
-        if not isinstance(supplied, str) or not secrets.compare_digest(
-                supplied, self.server.operator_token):
+        operator = None
+        if isinstance(supplied, str):
+            for known, name in self.server.operator_tokens.items():
+                if secrets.compare_digest(supplied, known):
+                    operator = name
+                    break
+        if not operator:
             attempts.append(now)
             self.server.login_attempts[ip] = attempts
             self._json(401, {"ok": False, "error": "invalid operator token"})
             return
         token = secrets.token_urlsafe(32)
         with self.server._session_lock:
-            self.server.sessions[token] = now + self.server.session_ttl_s
+            self.server.sessions[token] = {
+                "expires": now + self.server.session_ttl_s,
+                "operator": operator,
+            }
         cookie = (f"cbap_console_session={token}; HttpOnly; SameSite=Strict; "
                   f"Path=/; Max-Age={self.server.session_ttl_s}")
         self._json(200, {"ok": True}, {"Set-Cookie": cookie})
@@ -294,15 +330,19 @@ class Handler(BaseHTTPRequestHandler):
 
 def serve(socket_path: str, audit_path: str | None, port: int = 8765,
           operator_token: str | None = None,
+          second_operator_token: str | None = None,
           kernel_token: str | None = None) -> None:
     backend = ConsoleBackend(socket_path, audit_path=audit_path,
                              token=kernel_token)
     op_token = operator_token or secrets.token_urlsafe(18)
     httpd = ConsoleHTTPServer(("127.0.0.1", int(port)), Handler,
-                              backend=backend, operator_token=op_token)
+                              backend=backend, operator_token=op_token,
+                              second_operator_token=second_operator_token)
     url = f"http://127.0.0.1:{httpd.server_port}/"
     print(f"CBAP console: {url}")
     print(f"operator token: {op_token}")
+    if second_operator_token:
+        print("second operator token: configured")
     print(f"kernel socket: {backend.socket_path}")
     print("local-only; no resume endpoint; estop is latched in the Kernel")
     try:
@@ -326,9 +366,14 @@ def main() -> int:
     ap.add_argument("--operator-token", default=os.environ.get(
         "CBAP_CONSOLE_OPERATOR_TOKEN"),
         help="operator login token; generated and printed if omitted")
+    ap.add_argument("--second-operator-token", default=os.environ.get(
+        "CBAP_SECOND_OPERATOR_TOKEN"),
+        help="second operator token for dual approval")
     ns = ap.parse_args()
     serve(ns.socket, ns.audit, ns.port,
-          operator_token=ns.operator_token, kernel_token=ns.token)
+          operator_token=ns.operator_token,
+          second_operator_token=ns.second_operator_token,
+          kernel_token=ns.token)
     return 0
 
 
